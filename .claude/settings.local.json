@@ -4,7 +4,13 @@
       "PowerShell(Out-File *)",
       "PowerShell($env:PATH += \";C:\\\\Program Files\\\\Git\\\\cmd\"; git status; git remote -v)",
       "PowerShell(git diff *)",
-      "PowerShell(git *)"
+      "PowerShell(git *)",
+      "PowerShell(git remote *)",
+      "PowerShell(git push *)",
+      "WebFetch(domain:docs.expo.dev)",
+      "PowerShell(Get-Command *)",
+      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\Git\\\\cmd\"; git status; git diff)",
+      "PowerShell(git add *)"
     ]
   }
 }
