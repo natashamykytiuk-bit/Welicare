@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(Out-File *)"
+      "PowerShell(Out-File *)",
+      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\Git\\\\cmd\"; git status; git remote -v)",
+      "PowerShell(git diff *)",
+      "PowerShell(git *)"
     ]
   }
 }
