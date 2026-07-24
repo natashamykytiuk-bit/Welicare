@@ -9,15 +9,39 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { auth } from './firebaseConfig';
+
 import ActivityIdeasScreen from './screens/ActivityIdeasScreen';
+import ActivityMenuScreen from './screens/ActivityMenuScreen';
 import AddResidentScreen from './screens/AddResidentScreen';
+import AdministratorModeScreen from './screens/AdministratorModeScreen';
+import CaregiverModeScreen from './screens/CaregiverModeScreen';
+import CaregiverResidentsScreen from './screens/CaregiverResidentsScreen';
 import ConversationStartersScreen from './screens/ConversationStartersScreen';
 import FamilyFeedScreen from './screens/FamilyFeedScreen';
-import HomeScreen from './screens/HomeScreen';
+import FamilyModeScreen from './screens/FamilyModeScreen';
+import FamilyResidentsScreen from './screens/FamilyResidentsScreen';
+import GamesScreen from './screens/GamesScreen';
+import GuidedMeditationScreen from './screens/GuidedMeditationScreen';
+import HourTrackerScreen from './screens/HourTrackerScreen';
+import JoinCreateOrganizationScreen from './screens/JoinCreateOrganizationScreen';
+import ManageUsersScreen from './screens/ManageUsersScreen';
+import ModeSelectionScreen from './screens/ModeSelectionScreen';
+import MolehuntScreen from './screens/MolehuntScreen';
 import MusicMovieRecsScreen from './screens/MusicMovieRecsScreen';
+import MusicPlayerScreen from './screens/MusicPlayerScreen';
+import OrganizationalSettingsScreen from './screens/OrganizationalSettingsScreen';
+import OverallStatsScreen from './screens/OverallStatsScreen';
+import PhotoAlbumScreen from './screens/PhotoAlbumScreen';
+import PINEntryScreen from './screens/PINEntryScreen';
+import PINSetupScreen from './screens/PINSetupScreen';
+import ResidentModeScreen from './screens/ResidentModeScreen';
 import ResidentProfileScreen from './screens/ResidentProfileScreen';
+import SettingsScreen from './screens/SettingsScreen';
 import SignInScreen from './screens/SignInScreen';
 import SignUpScreen from './screens/SignUpScreen';
+import TriviaScreen from './screens/TriviaScreen';
+import VolunteerModeScreen from './screens/VolunteerModeScreen';
+import VolunteerResidentsScreen from './screens/VolunteerResidentsScreen';
 import WelcomeScreen from './screens/WelcomeScreen';
 
 const Stack = createNativeStackNavigator();
@@ -25,13 +49,17 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   // undefined = still resolving, null = signed out, object = signed in
   const [user, setUser] = useState(undefined);
+  const [justSignedUp, setJustSignedUp] = useState(false);
   const [fontsLoaded] = useFonts({
     AtkinsonHyperlegible_400Regular,
     AtkinsonHyperlegible_700Bold,
   });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => setUser(u ?? null));
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u ?? null);
+      if (!u) setJustSignedUp(false);
+    });
     return unsubscribe;
   }, []);
 
@@ -45,10 +73,48 @@ export default function App() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        screenOptions={{ headerShown: false }}
+        initialRouteName={
+          user ? (justSignedUp ? 'PINSetup' : 'ModeSelection') : 'Welcome'
+        }
+      >
         {user ? (
           <>
-            <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="PINSetup" component={PINSetupScreen} />
+            <Stack.Screen name="JoinCreateOrganization" component={JoinCreateOrganizationScreen} />
+            <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="PINEntry" component={PINEntryScreen} />
+
+            <Stack.Screen name="FamilyMode" component={FamilyModeScreen} />
+            <Stack.Screen name="FamilyResidents" component={FamilyResidentsScreen} />
+
+            <Stack.Screen name="CaregiverMode" component={CaregiverModeScreen} />
+            <Stack.Screen name="CaregiverResidents" component={CaregiverResidentsScreen} />
+            <Stack.Screen name="OverallStats" component={OverallStatsScreen} />
+
+            <Stack.Screen name="AdministratorMode" component={AdministratorModeScreen} />
+            <Stack.Screen name="ManageUsers" component={ManageUsersScreen} />
+            <Stack.Screen name="OrganizationalSettings" component={OrganizationalSettingsScreen} />
+
+            <Stack.Screen name="VolunteerMode" component={VolunteerModeScreen} />
+            <Stack.Screen name="HourTracker" component={HourTrackerScreen} />
+            <Stack.Screen name="VolunteerResidents" component={VolunteerResidentsScreen} />
+
+            <Stack.Screen
+              name="ResidentMode"
+              component={ResidentModeScreen}
+              options={{ gestureEnabled: false }}
+            />
+            <Stack.Screen name="ActivityMenu" component={ActivityMenuScreen} />
+            <Stack.Screen name="GuidedMeditation" component={GuidedMeditationScreen} />
+            <Stack.Screen name="MusicPlayer" component={MusicPlayerScreen} />
+            <Stack.Screen name="Games" component={GamesScreen} />
+            <Stack.Screen name="Trivia" component={TriviaScreen} />
+            <Stack.Screen name="PhotoAlbum" component={PhotoAlbumScreen} />
+            <Stack.Screen name="Molehunt" component={MolehuntScreen} />
+
             <Stack.Screen name="AddResident" component={AddResidentScreen} />
             <Stack.Screen name="ResidentProfile" component={ResidentProfileScreen} />
             <Stack.Screen name="ActivityIdeas" component={ActivityIdeasScreen} />
@@ -59,7 +125,9 @@ export default function App() {
         ) : (
           <>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
-            <Stack.Screen name="SignUp" component={SignUpScreen} />
+            <Stack.Screen name="SignUp">
+              {(props) => <SignUpScreen {...props} onSignUpSuccess={() => setJustSignedUp(true)} />}
+            </Stack.Screen>
             <Stack.Screen name="SignIn" component={SignInScreen} />
           </>
         )}

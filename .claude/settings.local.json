@@ -10,7 +10,28 @@
       "WebFetch(domain:docs.expo.dev)",
       "PowerShell(Get-Command *)",
       "PowerShell($env:PATH += \";C:\\\\Program Files\\\\Git\\\\cmd\"; git status; git diff)",
-      "PowerShell(git add *)"
+      "PowerShell(git add *)",
+      "PowerShell(npm install *)",
+      "PowerShell(firebase *)",
+      "Bash(node -e \"const a = require\\('firebase/auth'\\); console.log\\(typeof a.getReactNativePersistence\\)\")",
+      "Bash(npx expo *)",
+      "Bash(firebase --version)",
+      "Bash(firebase login:list)",
+      "Bash(firebase projects:list *)",
+      "Bash(firebase firestore:databases:list *)",
+      "Bash(firebase apps:list --project dementia-rec-therapy-app)",
+      "Bash(firebase apps:list --project welicare)",
+      "Bash(firebase auth:export /tmp/auth_check.json --project dementia-rec-therapy-app)",
+      "Read(//tmp/**)",
+      "Bash(firebase apps:create *)",
+      "Bash(firebase apps:sdkconfig *)",
+      "Bash(firebase --help)",
+      "Bash(firebase deploy *)",
+      "Bash(curl -s \"http://localhost:8081/index.bundle?platform=android&dev=true\" -o /tmp/bundle_check2.js -w \"HTTP %{http_code}\\\\n\" --max-time 90)",
+      "Bash(curl -s \"http://localhost:8081/index.bundle?platform=android&dev=true\" -o /tmp/bundle_check3.js -w \"HTTP %{http_code}\\\\n\" --max-time 90)",
+      "Bash(curl -s \"http://localhost:8081/index.bundle?platform=web&dev=true\" -o /tmp/web_bundle_check.js -w \"HTTP %{http_code}\\\\n\" --max-time 90)",
+      "Bash(curl -s \"http://localhost:8081/index.bundle?platform=web&dev=true\" --max-time 90)",
+      "Bash(git add *)"
     ]
   }
 }

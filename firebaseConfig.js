@@ -4,12 +4,13 @@ import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDFJEzTXQs9vRMzrN1aJ6tHlcUm2EihSAs",
-  authDomain: "dementia-rec-therapy-app.firebaseapp.com",
-  projectId: "dementia-rec-therapy-app",
-  storageBucket: "dementia-rec-therapy-app.firebasestorage.app",
-  messagingSenderId: "418416603846",
-  appId: "1:418416603846:web:ae86a1a686018586635dc7",
+  apiKey: "AIzaSyDwkxmWCgv7QMUEVj-1Br6gOOu_qfL_b6E",
+  authDomain: "welicare.firebaseapp.com",
+  projectId: "welicare",
+  storageBucket: "welicare.firebasestorage.app",
+  messagingSenderId: "796680295722",
+  appId: "1:796680295722:web:1b64ffc1ab2520a8617a53",
+  measurementId: "G-ZZ9NT731S0",
 };
 
 const app = initializeApp(firebaseConfig);

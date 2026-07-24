@@ -30,13 +30,7 @@ const ERROR_BORDER = '#FCA5A5';
 const BOLD = 'AtkinsonHyperlegible_700Bold';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
-const ROLES = [
-  'Healthcare Provider',
-  'Family Caregiver',
-  'Volunteer',
-  'Paid Companion',
-  'Other',
-];
+const ROLES = ['Family Caregiver', 'Caregiver', 'Volunteer', 'Administrator'];
 
 const PASSWORD_RULE_LABELS = [
   ['length', 'At least 8 characters'],
@@ -55,6 +49,8 @@ function getAuthErrorMessage(code) {
       return 'Please enter a valid email address.';
     case 'auth/weak-password':
       return 'Password does not meet the requirements below.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your connection and try again.';
     default:
       return 'Something went wrong. Please try again.';
   }
@@ -73,7 +69,7 @@ function PasswordRule({ met, label }) {
   );
 }
 
-export default function SignUpScreen({ navigation }) {
+export default function SignUpScreen({ navigation, onSignUpSuccess }) {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('');
   const [username, setUsername] = useState('');
@@ -120,7 +116,9 @@ export default function SignUpScreen({ navigation }) {
         role,
         createdAt: serverTimestamp(),
       });
+      onSignUpSuccess?.();
     } catch (e) {
+      console.log('Sign up error:', e);
       setError(getAuthErrorMessage(e.code));
     } finally {
       setLoading(false);
