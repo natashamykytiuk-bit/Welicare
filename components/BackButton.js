@@ -4,6 +4,12 @@ import { StyleSheet, TouchableOpacity } from 'react-native';
 const PRIMARY_DARK = '#164E63';
 const BORDER = '#BAE6FD';
 
+// A round back-arrow button used at the top of most screens.
+// Defaults to popping the current screen off the stack, but callers can
+// pass a custom `onPress` when a plain "go back" isn't right — e.g. the
+// mode-hub screens (FamilyModeScreen, CaregiverModeScreen, etc.) point it
+// straight at ModeSelection instead, since their stack history was reset
+// when the PIN gate let them in.
 export default function BackButton({ navigation, style, onPress }) {
   return (
     <TouchableOpacity

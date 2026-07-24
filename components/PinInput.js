@@ -5,6 +5,11 @@ const PRIMARY = '#0891B2';
 const PRIMARY_DARK = '#164E63';
 const BORDER = '#BAE6FD';
 
+// A 4-digit PIN entry field. Visually it's four boxes showing a dot per
+// digit typed, but under the hood it's just one hidden TextInput — tapping
+// anywhere focuses that input, and the boxes are purely a display of
+// `value`. Used by both PINSetupScreen (choosing a PIN) and PINEntryScreen
+// (entering one to pass the PIN gate).
 export default function PinInput({ value, onChangeText, autoFocus }) {
   const inputRef = useRef(null);
   const digits = [0, 1, 2, 3].map((i) => value[i] ?? '');

@@ -19,14 +19,20 @@ const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
 const MAX_ATTEMPTS = 5;
 
+// The single reusable PIN gate. Every entry point (Family/Caregiver/
+// Volunteer/Administrator Mode, and Resident Mode's exit) navigates here
+// with a `destination` route param saying where to go on success — see
+// ModeSelectionScreen.js and ResidentModeScreen.js for the callers.
 export default function PINEntryScreen({ navigation, route }) {
   const destination = route?.params?.destination ?? 'ModeSelection';
   const [pin, setPin] = useState('');
+  // undefined while loading, null if the user has no PIN set up yet
   const [storedHash, setStoredHash] = useState(undefined);
   const [error, setError] = useState('');
   const [attempts, setAttempts] = useState(0);
   const [checking, setChecking] = useState(false);
 
+  // Load the hash to check against as soon as this screen mounts.
   useEffect(() => {
     let cancelled = false;
     async function loadHash() {
@@ -54,9 +60,13 @@ export default function PINEntryScreen({ navigation, route }) {
     try {
       const enteredHash = await hashPin(pin);
       if (enteredHash === storedHash) {
+        // navigation.reset (not navigate) clears everything before this
+        // screen, so e.g. leaving Resident Mode can't be undone by just
+        // pressing back afterward.
         navigation.reset({ index: 0, routes: [{ name: destination }] });
         return;
       }
+      // Wrong PIN: clear the input and count the attempt toward lockout.
       const nextAttempts = attempts + 1;
       setAttempts(nextAttempts);
       setPin('');

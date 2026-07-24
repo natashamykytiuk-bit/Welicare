@@ -1,6 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // A signed-in user can only read/write their own profile doc
+    // (users/{their own uid}) — never anyone else's. This covers the
+    // profile fields set at sign-up (email, username, role) and the
+    // pinHash added later by PINSetupScreen.
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }

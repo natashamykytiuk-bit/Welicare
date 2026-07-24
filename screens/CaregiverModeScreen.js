@@ -9,6 +9,8 @@ const BORDER = '#BAE6FD';
 const BOLD = 'AtkinsonHyperlegible_700Bold';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
+// These are the screens that existed before the mode-based navigation
+// restructure — kept reachable here as quick links rather than deleted.
 const QUICK_LINKS = [
   { label: 'Add Resident', screen: 'AddResident' },
   { label: 'Resident Profile', screen: 'ResidentProfile' },
@@ -18,6 +20,9 @@ const QUICK_LINKS = [
   { label: 'Family Feed', screen: 'FamilyFeed' },
 ];
 
+// Landed on after the PIN gate, same pattern as FamilyModeScreen — see
+// the comment there for why the back button targets ModeSelection
+// directly instead of using the default goBack.
 export default function CaregiverModeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.flex}>

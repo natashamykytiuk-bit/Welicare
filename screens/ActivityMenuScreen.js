@@ -10,6 +10,8 @@ const BORDER = '#BAE6FD';
 const BOLD = 'AtkinsonHyperlegible_700Bold';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
+// Conversation Starters passes fromResidentMode so that screen knows to
+// show the PIN-gated home icon instead of its normal back-only header.
 const ACTIVITIES = [
   { label: 'Guided Meditation', screen: 'GuidedMeditation' },
   { label: 'Music Player', screen: 'MusicPlayer' },
@@ -20,6 +22,11 @@ const ACTIVITIES = [
   { label: 'Conversation Starters', screen: 'ConversationStarters', params: { fromResidentMode: true } },
 ];
 
+// The main hub once a resident (or Guest Mode) has been picked in
+// ResidentModeScreen. Three header icons: back (to ResidentModeScreen),
+// settings gear (to ResidentProfile, for editing this resident's info —
+// not the global SettingsScreen), and home (PIN-gated exit to
+// ModeSelection, same as ResidentModeScreen).
 export default function ActivityMenuScreen({ navigation, route }) {
   const residentName = route?.params?.residentName ?? 'this resident';
 

@@ -31,7 +31,10 @@
       "Bash(curl -s \"http://localhost:8081/index.bundle?platform=android&dev=true\" -o /tmp/bundle_check3.js -w \"HTTP %{http_code}\\\\n\" --max-time 90)",
       "Bash(curl -s \"http://localhost:8081/index.bundle?platform=web&dev=true\" -o /tmp/web_bundle_check.js -w \"HTTP %{http_code}\\\\n\" --max-time 90)",
       "Bash(curl -s \"http://localhost:8081/index.bundle?platform=web&dev=true\" --max-time 90)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(curl -s \"http://localhost:8081/index.bundle?platform=android&dev=true\" -o /tmp/final_check.js -w \"HTTP %{http_code}\\\\n\" --max-time 90)"
     ]
   }
 }

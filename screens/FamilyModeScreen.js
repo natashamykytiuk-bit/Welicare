@@ -9,6 +9,10 @@ const BORDER = '#BAE6FD';
 const BOLD = 'AtkinsonHyperlegible_700Bold';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
+// Landed on after passing the PIN gate from ModeSelectionScreen. The back
+// button navigates straight to ModeSelection (not the default goBack)
+// because PINEntryScreen used navigation.reset to get here, so there's no
+// previous screen left in history to go back to.
 export default function FamilyModeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.flex}>

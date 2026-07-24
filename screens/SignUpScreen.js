@@ -30,6 +30,9 @@ const ERROR_BORDER = '#FCA5A5';
 const BOLD = 'AtkinsonHyperlegible_700Bold';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
+// These four options must match the role checks in ModeSelectionScreen.js
+// (which mode each role can see) and PINSetupScreen.js (which role skips
+// the Join/Create Organization step).
 const ROLES = ['Family Caregiver', 'Caregiver', 'Volunteer', 'Administrator'];
 
 const PASSWORD_RULE_LABELS = [
@@ -41,6 +44,7 @@ const PASSWORD_RULE_LABELS = [
   ['noSpaces', 'No spaces'],
 ];
 
+// Same idea as SignInScreen's version, but for the errors sign-up can hit.
 function getAuthErrorMessage(code) {
   switch (code) {
     case 'auth/email-already-in-use':
@@ -56,6 +60,8 @@ function getAuthErrorMessage(code) {
   }
 }
 
+// One line in the password requirements checklist shown while typing —
+// a checkmark once `met` becomes true, a hollow circle until then.
 function PasswordRule({ met, label }) {
   return (
     <View style={styles.ruleRow}>
@@ -108,7 +114,11 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }) {
     }
     setLoading(true);
     try {
+      // Step 1: create the Firebase Auth account.
       const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      // Step 2: create the matching Firestore profile doc. Firestore's
+      // security rules only allow a user to write their own uid, so this
+      // must happen after auth succeeds, using the uid it just returned.
       await setDoc(doc(db, 'users', credential.user.uid), {
         uid: credential.user.uid,
         email: email.trim(),
@@ -116,6 +126,8 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }) {
         role,
         createdAt: serverTimestamp(),
       });
+      // Tells App.js this was a fresh sign-up, so it routes to PINSetup
+      // next instead of straight to ModeSelection.
       onSignUpSuccess?.();
     } catch (e) {
       console.log('Sign up error:', e);

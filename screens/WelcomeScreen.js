@@ -8,6 +8,8 @@ const TEXT_MUTED = '#6B7280';
 const BOLD = 'AtkinsonHyperlegible_700Bold';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
+// The very first screen a signed-out user sees (App.js's initialRouteName
+// for the signed-out stack). Just branding plus links into SignUp/SignIn.
 export default function WelcomeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>

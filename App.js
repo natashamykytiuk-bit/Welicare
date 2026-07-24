@@ -49,12 +49,17 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   // undefined = still resolving, null = signed out, object = signed in
   const [user, setUser] = useState(undefined);
+  // True only for the moment right after a brand-new sign-up, so the very
+  // first screen after auth can be PINSetup instead of ModeSelection.
+  // Reset to false on sign-out so a later sign-in doesn't show it again.
   const [justSignedUp, setJustSignedUp] = useState(false);
   const [fontsLoaded] = useFonts({
     AtkinsonHyperlegible_400Regular,
     AtkinsonHyperlegible_700Bold,
   });
 
+  // Firebase notifies us here whenever the signed-in/out state changes —
+  // this is what actually flips the app between the two screen sets below.
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u ?? null);
@@ -73,6 +78,12 @@ export default function App() {
 
   return (
     <NavigationContainer>
+      {/*
+        Only one of the two branches below is ever rendered, based on
+        whether `user` is signed in. Swapping between them resets the
+        navigator to `initialRouteName`, which is how a fresh sign-up
+        lands on PINSetup while a normal sign-in lands on ModeSelection.
+      */}
       <Stack.Navigator
         screenOptions={{ headerShown: false }}
         initialRouteName={
@@ -81,27 +92,39 @@ export default function App() {
       >
         {user ? (
           <>
+            {/* Onboarding, shown only right after sign-up */}
             <Stack.Screen name="PINSetup" component={PINSetupScreen} />
             <Stack.Screen name="JoinCreateOrganization" component={JoinCreateOrganizationScreen} />
+
+            {/* The post-login hub, plus screens reachable from anywhere */}
             <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
+            {/* Reusable PIN check — every mode entry (and Resident Mode's
+                exit) routes through here with a `destination` param. */}
             <Stack.Screen name="PINEntry" component={PINEntryScreen} />
 
+            {/* Family Mode */}
             <Stack.Screen name="FamilyMode" component={FamilyModeScreen} />
             <Stack.Screen name="FamilyResidents" component={FamilyResidentsScreen} />
 
+            {/* Caregiver Mode */}
             <Stack.Screen name="CaregiverMode" component={CaregiverModeScreen} />
             <Stack.Screen name="CaregiverResidents" component={CaregiverResidentsScreen} />
             <Stack.Screen name="OverallStats" component={OverallStatsScreen} />
 
+            {/* Administrator Mode */}
             <Stack.Screen name="AdministratorMode" component={AdministratorModeScreen} />
             <Stack.Screen name="ManageUsers" component={ManageUsersScreen} />
             <Stack.Screen name="OrganizationalSettings" component={OrganizationalSettingsScreen} />
 
+            {/* Volunteer Mode */}
             <Stack.Screen name="VolunteerMode" component={VolunteerModeScreen} />
             <Stack.Screen name="HourTracker" component={HourTrackerScreen} />
             <Stack.Screen name="VolunteerResidents" component={VolunteerResidentsScreen} />
 
+            {/* Resident Mode. gestureEnabled: false blocks the iOS
+                swipe-back gesture here, so the only way out is the
+                Home icon, which goes through the PIN gate. */}
             <Stack.Screen
               name="ResidentMode"
               component={ResidentModeScreen}
@@ -115,6 +138,9 @@ export default function App() {
             <Stack.Screen name="PhotoAlbum" component={PhotoAlbumScreen} />
             <Stack.Screen name="Molehunt" component={MolehuntScreen} />
 
+            {/* Shared screens used across multiple modes (mainly
+                Caregiver Mode's quick links, and Resident Mode's
+                Add Resident / resident-info-edit shortcuts) */}
             <Stack.Screen name="AddResident" component={AddResidentScreen} />
             <Stack.Screen name="ResidentProfile" component={ResidentProfileScreen} />
             <Stack.Screen name="ActivityIdeas" component={ActivityIdeasScreen} />
@@ -125,6 +151,9 @@ export default function App() {
         ) : (
           <>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
+            {/* Rendered via a children function (instead of `component`)
+                so we can pass onSignUpSuccess, which flips justSignedUp
+                without SignUpScreen needing to know about App's state. */}
             <Stack.Screen name="SignUp">
               {(props) => <SignUpScreen {...props} onSignUpSuccess={() => setJustSignedUp(true)} />}
             </Stack.Screen>
