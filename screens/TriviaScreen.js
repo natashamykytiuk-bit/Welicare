@@ -1,5 +1,6 @@
 import PlaceholderScreen from '../components/PlaceholderScreen';
 
+// One of the activity options on ActivityMenuScreen.
 export default function TriviaScreen({ navigation }) {
   return (
     <PlaceholderScreen

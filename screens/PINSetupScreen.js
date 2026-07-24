@@ -15,6 +15,10 @@ const ERROR_BORDER = '#FCA5A5';
 const BOLD = 'AtkinsonHyperlegible_700Bold';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
+// Shown once, right after sign-up (App.js routes here via the
+// justSignedUp flag). Collects a 4-digit PIN twice to catch typos,
+// hashes it, and saves it to this user's Firestore doc — PINEntryScreen
+// later reads that same field to verify PIN attempts.
 export default function PINSetupScreen({ navigation }) {
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -36,6 +40,8 @@ export default function PINSetupScreen({ navigation }) {
       const uid = auth.currentUser?.uid;
       const pinHash = await hashPin(pin);
       await setDoc(doc(db, 'users', uid), { pinHash }, { merge: true });
+      // Family Caregivers skip the Join/Create Organization step entirely
+      // (per the app's sign-up flow); everyone else sees it once.
       const snap = await getDoc(doc(db, 'users', uid));
       const role = snap.data()?.role;
       const nextScreen = role === 'Family Caregiver' ? 'ModeSelection' : 'JoinCreateOrganization';

@@ -7,6 +7,8 @@ const BORDER = '#BAE6FD';
 const ERROR = '#DC2626';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
+// A password TextInput with a show/hide eye icon and an optional inline
+// error message below it. Used on both SignInScreen and SignUpScreen.
 export default function PasswordField({
   value,
   onChangeText,

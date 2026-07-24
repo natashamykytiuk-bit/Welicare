@@ -26,6 +26,8 @@ const ERROR_BORDER = '#FCA5A5';
 const BOLD = 'AtkinsonHyperlegible_700Bold';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
+// Maps Firebase Auth error codes to messages a user can actually act on,
+// instead of showing a generic "something went wrong" for everything.
 function getAuthErrorMessage(code) {
   switch (code) {
     case 'auth/invalid-email':
@@ -55,6 +57,8 @@ export default function SignInScreen({ navigation }) {
     }
     setLoading(true);
     try {
+      // On success, App.js's onAuthStateChanged listener picks up the
+      // signed-in user automatically — no manual navigation needed here.
       await signInWithEmailAndPassword(auth, email.trim(), password);
     } catch (e) {
       setError(getAuthErrorMessage(e.code));

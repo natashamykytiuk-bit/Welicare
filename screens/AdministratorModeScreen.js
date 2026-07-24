@@ -9,6 +9,8 @@ const BORDER = '#BAE6FD';
 const BOLD = 'AtkinsonHyperlegible_700Bold';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
+// Same pattern as FamilyModeScreen/CaregiverModeScreen — landed on after
+// the PIN gate, back button targets ModeSelection directly.
 export default function AdministratorModeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.flex}>

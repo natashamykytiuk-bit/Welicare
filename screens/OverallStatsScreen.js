@@ -1,5 +1,6 @@
 import PlaceholderScreen from '../components/PlaceholderScreen';
 
+// Reached from CaregiverModeScreen.
 export default function OverallStatsScreen({ navigation }) {
   return (
     <PlaceholderScreen

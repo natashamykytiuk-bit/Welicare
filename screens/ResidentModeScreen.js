@@ -11,7 +11,15 @@ const BORDER = '#BAE6FD';
 const BOLD = 'AtkinsonHyperlegible_700Bold';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
+// The one screen in the app with no PIN required to enter (every user can
+// reach Resident Mode from ModeSelection), but leaving it does require a
+// PIN — enforced two ways:
 export default function ResidentModeScreen({ navigation }) {
+  // 1. Intercept the Android hardware back button while this screen is
+  //    focused, and redirect to the PIN gate instead of letting it pop
+  //    back to ModeSelection for free. (The iOS equivalent — disabling
+  //    the swipe-back gesture — is set on this screen's registration in
+  //    App.js via `gestureEnabled: false`.)
   useFocusEffect(
     useCallback(() => {
       const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -27,6 +35,7 @@ export default function ResidentModeScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
           <View />
+          {/* 2. The on-screen Home icon — the normal, expected way out. */}
           <TouchableOpacity
             style={styles.iconButton}
             onPress={() => navigation.navigate('PINEntry', { destination: 'ModeSelection' })}
@@ -43,6 +52,9 @@ export default function ResidentModeScreen({ navigation }) {
           Choose how you'd like to start this session.
         </Text>
 
+        {/* All three options lead to the same ActivityMenuScreen — real
+            resident selection/creation isn't built yet, so this just
+            simulates picking one via the residentName param. */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => navigation.navigate('ActivityMenu', { residentName: 'Guest' })}

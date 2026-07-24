@@ -10,6 +10,18 @@ const BORDER = '#BAE6FD';
 const BOLD = 'AtkinsonHyperlegible_700Bold';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
+// The reusable shell behind most "not built yet" screens: just a title,
+// a description, and a "Coming soon" badge. Most screens in this app are
+// still placeholders, so this component is what actually renders them —
+// see e.g. screens/ActivityIdeasScreen.js for the simplest possible usage.
+//
+// Optional props add the header icons the screen-flow diagram calls for:
+//   - settingsTarget: pass a screen name (e.g. "Settings") to show a gear
+//     icon that navigates there.
+//   - homeDestination: pass a screen name to show a home icon that routes
+//     through the PIN gate (PINEntryScreen) before landing there. Used by
+//     Resident Mode screens, which require a PIN to exit.
+//   - showBack / onBackPress: control or override the default back button.
 export default function PlaceholderScreen({
   navigation,
   title,

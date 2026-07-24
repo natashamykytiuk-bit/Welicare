@@ -3,6 +3,9 @@ import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// These values identify the "welicare" Firebase project (not secret —
+// they're safe to ship in a client app; access is enforced by the
+// security rules in firestore.rules, not by hiding this config).
 const firebaseConfig = {
   apiKey: "AIzaSyDwkxmWCgv7QMUEVj-1Br6gOOu_qfL_b6E",
   authDomain: "welicare.firebaseapp.com",
@@ -15,10 +18,13 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
+// getReactNativePersistence tells Firebase Auth to persist the signed-in
+// session in AsyncStorage, so users stay logged in between app launches.
 const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(AsyncStorage),
 });
 
+// The Firestore database where user profiles (users/{uid}) are stored.
 const db = getFirestore(app);
 
 export { app, auth, db };

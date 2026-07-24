@@ -1,5 +1,7 @@
 import PlaceholderScreen from '../components/PlaceholderScreen';
 
+// Reached two ways: from Caregiver Mode's quick links, and from
+// ResidentModeScreen's "Add Resident" option.
 export default function AddResidentScreen({ navigation }) {
   return (
     <PlaceholderScreen

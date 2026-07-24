@@ -22,6 +22,11 @@ const BORDER = '#BAE6FD';
 const BOLD = 'AtkinsonHyperlegible_700Bold';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
+// The hub screen after login. Each entry describes one mode card:
+// whether it shows for the signed-in user's role (`isVisible`), and
+// where tapping it goes (`onPress`). Every mode except Resident routes
+// through PINEntry first — Resident Mode has no entry PIN, only an exit
+// one (see ResidentModeScreen.js).
 const MODES = [
   {
     key: 'Resident',
@@ -61,8 +66,12 @@ const MODES = [
 ];
 
 export default function ModeSelectionScreen({ navigation }) {
+  // undefined while loading, then either the role string or null
   const [role, setRole] = useState(undefined);
 
+  // Fetch the signed-in user's role from Firestore so we know which mode
+  // cards to show. `cancelled` avoids setting state if the screen unmounts
+  // before the fetch resolves.
   useEffect(() => {
     let cancelled = false;
     async function loadRole() {

@@ -1,5 +1,6 @@
 import PlaceholderScreen from '../components/PlaceholderScreen';
 
+// Family Mode's "My Residents" — reached from FamilyModeScreen.
 export default function FamilyResidentsScreen({ navigation }) {
   return (
     <PlaceholderScreen

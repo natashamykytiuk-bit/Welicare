@@ -1,5 +1,7 @@
 import PlaceholderScreen from '../components/PlaceholderScreen';
 
+// Reached from Caregiver Mode's quick links, and from ActivityMenuScreen's
+// settings gear (as the "edit this resident's info" destination).
 export default function ResidentProfileScreen({ navigation }) {
   return (
     <PlaceholderScreen

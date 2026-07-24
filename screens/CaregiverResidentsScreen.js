@@ -1,5 +1,6 @@
 import PlaceholderScreen from '../components/PlaceholderScreen';
 
+// Caregiver Mode's "My Residents" — reached from CaregiverModeScreen.
 export default function CaregiverResidentsScreen({ navigation }) {
   return (
     <PlaceholderScreen

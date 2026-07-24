@@ -1,5 +1,6 @@
 import PlaceholderScreen from '../components/PlaceholderScreen';
 
+// Volunteer Mode's "My Residents" — reached from VolunteerModeScreen.
 export default function VolunteerResidentsScreen({ navigation }) {
   return (
     <PlaceholderScreen

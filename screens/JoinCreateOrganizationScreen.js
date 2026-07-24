@@ -7,6 +7,9 @@ const TEXT_MUTED = '#6B7280';
 const BOLD = 'AtkinsonHyperlegible_700Bold';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
+// Shown once during onboarding, after PINSetupScreen — but only for
+// roles other than Family Caregiver, who skip straight past it (see the
+// role check in PINSetupScreen.js).
 export default function JoinCreateOrganizationScreen({ navigation }) {
   function handleContinue() {
     navigation.reset({ index: 0, routes: [{ name: 'ModeSelection' }] });
