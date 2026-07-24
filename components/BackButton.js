@@ -4,11 +4,11 @@ import { StyleSheet, TouchableOpacity } from 'react-native';
 const PRIMARY_DARK = '#164E63';
 const BORDER = '#BAE6FD';
 
-export default function BackButton({ navigation, style }) {
+export default function BackButton({ navigation, style, onPress }) {
   return (
     <TouchableOpacity
       style={[styles.button, style]}
-      onPress={() => navigation.goBack()}
+      onPress={onPress ?? (() => navigation.goBack())}
       activeOpacity={0.7}
       accessibilityRole="button"
       accessibilityLabel="Go back"

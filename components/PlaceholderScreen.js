@@ -1,4 +1,5 @@
-import { SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import BackButton from './BackButton';
 
 const BG = '#ECFEFF';
@@ -9,11 +10,51 @@ const BORDER = '#BAE6FD';
 const BOLD = 'AtkinsonHyperlegible_700Bold';
 const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
-export default function PlaceholderScreen({ navigation, title, description }) {
+export default function PlaceholderScreen({
+  navigation,
+  title,
+  description,
+  showBack = true,
+  onBackPress,
+  settingsTarget,
+  homeDestination,
+}) {
+  const showHeaderRow = showBack || settingsTarget || homeDestination;
+
   return (
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
-        <BackButton navigation={navigation} />
+        {showHeaderRow ? (
+          <View style={styles.headerRow}>
+            <View style={styles.headerLeft}>
+              {showBack ? (
+                <BackButton navigation={navigation} onPress={onBackPress} style={styles.iconNoMargin} />
+              ) : null}
+              {settingsTarget ? (
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={() => navigation.navigate(settingsTarget)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Settings"
+                >
+                  <Ionicons name="settings-outline" size={20} color={PRIMARY_DARK} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            {homeDestination ? (
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => navigation.navigate('PINEntry', { destination: homeDestination })}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Return to Mode Selection"
+              >
+                <Ionicons name="home-outline" size={20} color={PRIMARY_DARK} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
         <Text style={styles.heading}>{title}</Text>
         <Text style={styles.body}>{description}</Text>
         <View style={styles.badge}>
@@ -27,6 +68,28 @@ export default function PlaceholderScreen({ navigation, title, description }) {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: BG },
   content: { padding: 28, paddingTop: 24, paddingBottom: 48 },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  iconNoMargin: { marginBottom: 0 },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
   heading: {
     fontFamily: BOLD,
     fontSize: 26,
