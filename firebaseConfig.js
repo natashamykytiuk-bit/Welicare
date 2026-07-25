@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // These values identify the "welicare" Firebase project (not secret —
@@ -27,4 +28,8 @@ const auth = initializeAuth(app, {
 // The Firestore database where user profiles (users/{uid}) are stored.
 const db = getFirestore(app);
 
-export { app, auth, db };
+// Cloud Functions — used to call the Anthropic API from a secure backend
+// (generateSuggestions) instead of embedding the API key in the client.
+const functions = getFunctions(app);
+
+export { app, auth, db, functions };

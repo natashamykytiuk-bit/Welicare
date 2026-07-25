@@ -1,12 +1,12 @@
 import PlaceholderScreen from '../components/PlaceholderScreen';
 
 // One of the game options on GamesScreen.
-export default function MolehuntScreen({ navigation }) {
+export default function WordGamesScreen({ navigation }) {
   return (
     <PlaceholderScreen
       navigation={navigation}
-      title="Molehunt"
-      description="A playful seek-and-find game designed for this resident."
+      title="Word Games"
+      description="Word puzzles and vocabulary games designed for this resident."
       homeDestination="ModeSelection"
     />
   );

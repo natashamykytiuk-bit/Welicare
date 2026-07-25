@@ -10,7 +10,7 @@ const BORDER = '#BAE6FD';
 // mode-hub screens (FamilyModeScreen, CaregiverModeScreen, etc.) point it
 // straight at ModeSelection instead, since their stack history was reset
 // when the PIN gate let them in.
-export default function BackButton({ navigation, style, onPress }) {
+export default function BackButton({ navigation, style, onPress, color = PRIMARY_DARK, iconStyle }) {
   return (
     <TouchableOpacity
       style={[styles.button, style]}
@@ -20,7 +20,7 @@ export default function BackButton({ navigation, style, onPress }) {
       accessibilityLabel="Go back"
       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
     >
-      <Ionicons name="arrow-back" size={22} color={PRIMARY_DARK} />
+      <Ionicons name="arrow-back" size={22} color={color} style={iconStyle} />
     </TouchableOpacity>
   );
 }

@@ -3,6 +3,7 @@ import {
   AtkinsonHyperlegible_700Bold,
   useFonts,
 } from '@expo-google-fonts/atkinson-hyperlegible';
+import { Lora_400Regular, Lora_700Bold } from '@expo-google-fonts/lora';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -14,6 +15,7 @@ import ActivityIdeasScreen from './screens/ActivityIdeasScreen';
 import ActivityMenuScreen from './screens/ActivityMenuScreen';
 import AddResidentScreen from './screens/AddResidentScreen';
 import AdministratorModeScreen from './screens/AdministratorModeScreen';
+import BuildProfileScreen from './screens/BuildProfileScreen';
 import CaregiverModeScreen from './screens/CaregiverModeScreen';
 import CaregiverResidentsScreen from './screens/CaregiverResidentsScreen';
 import ConversationStartersScreen from './screens/ConversationStartersScreen';
@@ -44,6 +46,7 @@ import TriviaScreen from './screens/TriviaScreen';
 import VolunteerModeScreen from './screens/VolunteerModeScreen';
 import VolunteerResidentsScreen from './screens/VolunteerResidentsScreen';
 import WelcomeScreen from './screens/WelcomeScreen';
+import WordGamesScreen from './screens/WordGamesScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -57,6 +60,8 @@ export default function App() {
   const [fontsLoaded] = useFonts({
     AtkinsonHyperlegible_400Regular,
     AtkinsonHyperlegible_700Bold,
+    Lora_400Regular,
+    Lora_700Bold,
   });
 
   // Firebase notifies us here whenever the signed-in/out state changes —
@@ -139,6 +144,7 @@ export default function App() {
             <Stack.Screen name="GuidedMeditation" component={GuidedMeditationScreen} />
             <Stack.Screen name="MusicPlayer" component={MusicPlayerScreen} />
             <Stack.Screen name="Games" component={GamesScreen} />
+            <Stack.Screen name="WordGames" component={WordGamesScreen} />
             <Stack.Screen name="Trivia" component={TriviaScreen} />
             <Stack.Screen name="PhotoAlbum" component={PhotoAlbumScreen} />
             <Stack.Screen name="Molehunt" component={MolehuntScreen} />
@@ -147,6 +153,7 @@ export default function App() {
                 Caregiver Mode's quick links, and Resident Mode's
                 Add Resident / resident-info-edit shortcuts) */}
             <Stack.Screen name="AddResident" component={AddResidentScreen} />
+            <Stack.Screen name="BuildProfile" component={BuildProfileScreen} />
             <Stack.Screen name="ResidentProfile" component={ResidentProfileScreen} />
             <Stack.Screen name="ActivityIdeas" component={ActivityIdeasScreen} />
             <Stack.Screen name="ConversationStarters" component={ConversationStartersScreen} />

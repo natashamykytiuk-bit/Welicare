@@ -8,5 +8,14 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+
+    // Residents belong to whichever caregiver/user created them. Any
+    // signed-in user can read/create (no cross-org isolation exists yet —
+    // there's no organizations collection in this pass), but only the
+    // creator can edit or remove a resident's doc.
+    match /residents/{residentId} {
+      allow read, create: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.createdBy == request.auth.uid;
+    }
   }
 }
