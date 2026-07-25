@@ -1,11 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-
-const PRIMARY_DARK = '#164E63';
-const BORDER = '#BAE6FD';
-const ERROR = '#DC2626';
-const REGULAR = 'AtkinsonHyperlegible_400Regular';
+import { colors, fonts, radii } from '../theme';
 
 // A password TextInput with a show/hide eye icon and an optional inline
 // error message below it. Used on both SignInScreen and SignUpScreen.
@@ -25,7 +21,7 @@ export default function PasswordField({
         <TextInput
           style={styles.input}
           placeholder={placeholder}
-          placeholderTextColor="#93C5D9"
+          placeholderTextColor={colors.textMuted}
           secureTextEntry={!visible}
           autoCapitalize="none"
           autoComplete={autoComplete}
@@ -41,7 +37,7 @@ export default function PasswordField({
           accessibilityLabel={visible ? 'Hide password' : 'Show password'}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name={visible ? 'eye-off' : 'eye'} size={21} color="#6B7280" />
+          <Ionicons name={visible ? 'eye-off' : 'eye'} size={21} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
       {error ? (
@@ -57,31 +53,31 @@ const styles = StyleSheet.create({
   wrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 1.5,
-    borderColor: BORDER,
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
     marginBottom: 20,
-    minHeight: 52,
+    minHeight: 56,
   },
   wrapperError: {
-    borderColor: ERROR,
+    borderColor: colors.destructive,
     marginBottom: 6,
   },
   input: {
     flex: 1,
-    fontFamily: REGULAR,
+    fontFamily: fonts.sansRegular,
     paddingHorizontal: 16,
     paddingVertical: 15,
-    fontSize: 17,
-    color: PRIMARY_DARK,
+    fontSize: 16,
+    color: colors.textPrimary,
   },
   eyeButton: {
     paddingHorizontal: 14,
   },
   errorText: {
-    fontFamily: REGULAR,
-    color: ERROR,
+    fontFamily: fonts.sansRegular,
+    color: colors.destructive,
     fontSize: 13,
     marginBottom: 14,
     marginLeft: 2,

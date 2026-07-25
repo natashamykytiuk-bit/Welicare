@@ -1,8 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, TouchableOpacity } from 'react-native';
-
-const PRIMARY_DARK = '#164E63';
-const BORDER = '#BAE6FD';
+import { colors, radii } from '../theme';
 
 // A round back-arrow button used at the top of most screens.
 // Defaults to popping the current screen off the stack, but callers can
@@ -10,7 +8,7 @@ const BORDER = '#BAE6FD';
 // mode-hub screens (FamilyModeScreen, CaregiverModeScreen, etc.) point it
 // straight at ModeSelection instead, since their stack history was reset
 // when the PIN gate let them in.
-export default function BackButton({ navigation, style, onPress, color = PRIMARY_DARK, iconStyle }) {
+export default function BackButton({ navigation, style, onPress, color = colors.textPrimary, iconStyle }) {
   return (
     <TouchableOpacity
       style={[styles.button, style]}
@@ -29,12 +27,12 @@ const styles = StyleSheet.create({
   button: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: radii.circular,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
     marginBottom: 16,
   },
 });

@@ -1,12 +1,6 @@
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import BackButton from '../components/BackButton';
-
-const BG = '#ECFEFF';
-const PRIMARY_DARK = '#164E63';
-const TEXT_MUTED = '#6B7280';
-const BORDER = '#BAE6FD';
-const BOLD = 'AtkinsonHyperlegible_700Bold';
-const REGULAR = 'AtkinsonHyperlegible_400Regular';
+import { colors, fonts, radii } from '../theme';
 
 const GAMES = [
   { label: 'Word Games', screen: 'WordGames' },
@@ -45,7 +39,7 @@ export default function GamesScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: BG },
+  flex: { flex: 1, backgroundColor: colors.background },
   content: { padding: 28, paddingTop: 24, paddingBottom: 48 },
   headerRow: {
     flexDirection: 'row',
@@ -55,29 +49,29 @@ const styles = StyleSheet.create({
   },
   iconNoMargin: { marginBottom: 0 },
   heading: {
-    fontFamily: BOLD,
+    fontFamily: fonts.serifBold,
     fontSize: 26,
-    color: PRIMARY_DARK,
+    color: colors.textPrimary,
     marginBottom: 12,
   },
   body: {
-    fontFamily: REGULAR,
+    fontFamily: fonts.sansRegular,
     fontSize: 16,
-    color: TEXT_MUTED,
+    color: colors.textMuted,
     lineHeight: 24,
     marginBottom: 24,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.sm,
     padding: 18,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
     marginBottom: 12,
   },
   cardTitle: {
-    fontFamily: BOLD,
+    fontFamily: fonts.sansBold,
     fontSize: 17,
-    color: PRIMARY_DARK,
+    color: colors.textPrimary,
   },
 });

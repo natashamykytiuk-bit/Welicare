@@ -1,65 +1,79 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import PinInput from '../components/PinInput';
+import { SafeAreaView, ScrollView, StyleSheet, Text } from 'react-native';
+import NumberPad from '../components/NumberPad';
+import PinDots from '../components/PinDots';
 import { auth, db } from '../firebaseConfig';
-import { hashPin, isValidPin } from '../utils/pin';
-
-const BG = '#ECFEFF';
-const PRIMARY_DARK = '#164E63';
-const CTA = '#059669';
-const TEXT_MUTED = '#6B7280';
-const ERROR = '#DC2626';
-const ERROR_BG = '#FEF2F2';
-const ERROR_BORDER = '#FCA5A5';
-const BOLD = 'AtkinsonHyperlegible_700Bold';
-const REGULAR = 'AtkinsonHyperlegible_400Regular';
+import { colors, fonts, radii } from '../theme';
+import { hashPin } from '../utils/pin';
 
 // Shown once, right after sign-up (App.js routes here via the
-// justSignedUp flag). Collects a 4-digit PIN twice to catch typos,
-// hashes it, and saves it to this user's Firestore doc — PINEntryScreen
-// later reads that same field to verify PIN attempts.
+// justSignedUp flag). Collects a 4-digit PIN twice via a tap-driven
+// number pad (to catch typos), hashes it, and saves it to this user's
+// Firestore doc — PINEntryScreen later reads that same field to verify
+// PIN attempts. Every role continues to JoinCreateOrganization next; the
+// "Skip this step" option lives on that screen instead.
 export default function PINSetupScreen({ navigation }) {
-  const [pin, setPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
+  const [stage, setStage] = useState('enter'); // 'enter' | 'confirm'
+  const [firstPin, setFirstPin] = useState('');
+  const [digits, setDigits] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function handleContinue() {
+  async function handleDigit(d) {
+    if (loading || digits.length >= 4) return;
+    const next = digits + d;
+    setDigits(next);
+    if (next.length !== 4) return;
+
+    if (stage === 'enter') {
+      setFirstPin(next);
+      setTimeout(() => {
+        setDigits('');
+        setStage('confirm');
+      }, 150);
+      return;
+    }
+
+    if (next !== firstPin) {
+      setError('PINs do not match. Please start over.');
+      setTimeout(() => {
+        setDigits('');
+        setFirstPin('');
+        setStage('enter');
+      }, 150);
+      return;
+    }
+
     setError('');
-    if (!isValidPin(pin)) {
-      setError('PIN must be exactly 4 digits.');
-      return;
-    }
-    if (pin !== confirmPin) {
-      setError('PINs do not match.');
-      return;
-    }
     setLoading(true);
     try {
       const uid = auth.currentUser?.uid;
-      const pinHash = await hashPin(pin);
+      const pinHash = await hashPin(next);
       await setDoc(doc(db, 'users', uid), { pinHash }, { merge: true });
-      // Family Caregivers skip the Join/Create Organization step entirely
-      // (per the app's sign-up flow); everyone else sees it once.
-      const snap = await getDoc(doc(db, 'users', uid));
-      const role = snap.data()?.role;
-      const nextScreen = role === 'Family Caregiver' ? 'ModeSelection' : 'JoinCreateOrganization';
-      navigation.reset({ index: 0, routes: [{ name: nextScreen }] });
+      navigation.reset({ index: 0, routes: [{ name: 'JoinCreateOrganization' }] });
     } catch (e) {
       console.log('PIN setup error:', e);
       setError('Something went wrong saving your PIN. Please try again.');
+      setDigits('');
+      setFirstPin('');
+      setStage('enter');
     } finally {
       setLoading(false);
     }
   }
 
+  function handleBackspace() {
+    setDigits((d) => d.slice(0, -1));
+  }
+
   return (
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.heading}>Create Your PIN</Text>
+        <Text style={styles.stepIndicator}>STEP 2 OF 3 — SET YOUR PIN</Text>
+        <Text style={styles.heading}>Set your PIN</Text>
         <Text style={styles.body}>
-          Set a 4-digit PIN. You'll use it to switch between modes and exit Resident Mode.
+          This PIN protects staff and family modes on the device.
         </Text>
 
         {error ? (
@@ -68,79 +82,59 @@ export default function PINSetupScreen({ navigation }) {
           </Text>
         ) : null}
 
-        <Text style={styles.label}>Enter PIN</Text>
-        <PinInput value={pin} onChangeText={setPin} autoFocus />
+        <Text style={styles.stageLabel}>
+          {stage === 'enter' ? 'Enter PIN' : 'Confirm PIN'}
+        </Text>
+        <PinDots value={digits} />
 
-        <Text style={[styles.label, styles.labelSpacing]}>Confirm PIN</Text>
-        <PinInput value={confirmPin} onChangeText={setConfirmPin} />
-
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleContinue}
-          disabled={loading}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={loading ? 'Saving PIN…' : 'Continue'}
-        >
-          <Text style={styles.buttonText}>{loading ? 'Saving…' : 'Continue'}</Text>
-        </TouchableOpacity>
+        <NumberPad onDigit={handleDigit} onBackspace={handleBackspace} disabled={loading} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: BG },
+  flex: { flex: 1, backgroundColor: colors.background },
   content: { padding: 28, paddingTop: 56, paddingBottom: 48 },
+  stepIndicator: {
+    fontFamily: fonts.sansBold,
+    fontSize: 13,
+    letterSpacing: 1,
+    color: colors.textMuted,
+    marginBottom: 8,
+  },
   heading: {
-    fontFamily: BOLD,
+    fontFamily: fonts.serifBold,
     fontSize: 26,
-    color: PRIMARY_DARK,
+    color: colors.textPrimary,
     marginBottom: 12,
   },
   body: {
-    fontFamily: REGULAR,
-    fontSize: 16,
-    color: TEXT_MUTED,
-    lineHeight: 24,
+    fontFamily: fonts.sansRegular,
+    fontSize: 18,
+    color: colors.textMuted,
+    lineHeight: 26,
     marginBottom: 24,
   },
   errorBanner: {
-    fontFamily: REGULAR,
-    backgroundColor: ERROR_BG,
-    borderColor: ERROR_BORDER,
+    fontFamily: fonts.sansRegular,
+    backgroundColor: '#F6E1DC',
+    borderColor: colors.destructive,
     borderWidth: 1,
-    borderRadius: 12,
-    color: ERROR,
-    fontSize: 15,
+    borderRadius: radii.sm,
+    color: colors.destructive,
+    fontSize: 18,
     padding: 14,
     marginBottom: 20,
-    lineHeight: 22,
+    lineHeight: 24,
   },
-  label: {
-    fontFamily: BOLD,
-    fontSize: 13,
-    color: PRIMARY_DARK,
+  stageLabel: {
+    fontFamily: fonts.sansBold,
+    fontSize: 18,
+    color: colors.textPrimary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    marginBottom: 12,
+    marginBottom: 16,
     textAlign: 'center',
-  },
-  labelSpacing: { marginTop: 28 },
-  button: {
-    backgroundColor: CTA,
-    borderRadius: 14,
-    paddingVertical: 18,
-    alignItems: 'center',
-    minHeight: 56,
-    justifyContent: 'center',
-    marginTop: 32,
-  },
-  buttonDisabled: { opacity: 0.5 },
-  buttonText: {
-    fontFamily: BOLD,
-    color: '#fff',
-    fontSize: 17,
-    letterSpacing: 0.2,
   },
 });

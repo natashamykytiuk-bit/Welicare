@@ -16,24 +16,38 @@ import {
 import BackButton from '../components/BackButton';
 import PasswordField from '../components/PasswordField';
 import { auth, db } from '../firebaseConfig';
+import { colors, fonts, radii } from '../theme';
+import { useIsTablet } from '../utils/responsive';
 import { getPasswordRules, isPasswordValid, isValidUsername } from '../utils/validation';
 
-const BG = '#ECFEFF';
-const PRIMARY = '#0891B2';
-const PRIMARY_DARK = '#164E63';
-const CTA = '#059669';
-const BORDER = '#BAE6FD';
-const TEXT_MUTED = '#6B7280';
-const ERROR = '#DC2626';
-const ERROR_BG = '#FEF2F2';
-const ERROR_BORDER = '#FCA5A5';
-const BOLD = 'AtkinsonHyperlegible_700Bold';
-const REGULAR = 'AtkinsonHyperlegible_400Regular';
+// The `value` stored on the user doc must match the role checks in
+// ModeSelectionScreen.js (which mode each role can see) and
+// JoinCreateOrganizationScreen.js — only the card `label` is renamed for
+// display ("Family Member" reads better than "Family Caregiver" here).
+const ROLE_CARDS = [
+  {
+    value: 'Family Caregiver',
+    label: 'Family Member',
+    description: "Track your loved one's wellbeing and activity history",
+  },
+  {
+    value: 'Caregiver',
+    label: 'Caregiver',
+    description: "Run sessions and manage residents' profiles",
+  },
+  {
+    value: 'Volunteer',
+    label: 'Volunteer',
+    description: 'Lead activity sessions and log your hours',
+  },
+  {
+    value: 'Administrator',
+    label: 'Administrator',
+    description: 'Manage staff, residents, and facility settings',
+  },
+];
 
-// These four options must match the role checks in ModeSelectionScreen.js
-// (which mode each role can see) and PINSetupScreen.js (which role skips
-// the Join/Create Organization step).
-const ROLES = ['Family Caregiver', 'Caregiver', 'Volunteer', 'Administrator'];
+const COUNTRIES = ['Canada', 'United States', 'United Kingdom', 'Australia', 'Other'];
 
 const PASSWORD_RULE_LABELS = [
   ['length', 'At least 8 characters'],
@@ -44,7 +58,6 @@ const PASSWORD_RULE_LABELS = [
   ['noSpaces', 'No spaces'],
 ];
 
-// Same idea as SignInScreen's version, but for the errors sign-up can hit.
 function getAuthErrorMessage(code) {
   switch (code) {
     case 'auth/email-already-in-use':
@@ -60,27 +73,47 @@ function getAuthErrorMessage(code) {
   }
 }
 
-// One line in the password requirements checklist shown while typing —
-// a checkmark once `met` becomes true, a hollow circle until then.
 function PasswordRule({ met, label }) {
   return (
     <View style={styles.ruleRow}>
       <Ionicons
         name={met ? 'checkmark-circle' : 'ellipse-outline'}
         size={15}
-        color={met ? CTA : '#9CA3AF'}
+        color={met ? colors.primary : colors.textMuted}
       />
       <Text style={[styles.ruleText, met && styles.ruleTextMet]}>{label}</Text>
     </View>
   );
 }
 
+function RoleCard({ role, selected, onPress }) {
+  return (
+    <TouchableOpacity
+      style={[styles.roleCard, selected && styles.roleCardSelected]}
+      onPress={onPress}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={role.label}
+    >
+      <Text style={[styles.roleCardTitle, selected && styles.roleCardTitleSelected]}>
+        {role.label}
+      </Text>
+      <Text style={[styles.roleCardDescription, selected && styles.roleCardDescriptionSelected]}>
+        {role.description}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 export default function SignUpScreen({ navigation }) {
+  const isTablet = useIsTablet();
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [country, setCountry] = useState('');
+  const [role, setRole] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -96,7 +129,7 @@ export default function SignUpScreen({ navigation }) {
 
   async function handleSignUp() {
     setError('');
-    if (!email || !role || !username || !password || !confirmPassword) {
+    if (!fullName || !email || !username || !password || !confirmPassword || !country || !role) {
       setError('Please fill in all fields.');
       return;
     }
@@ -114,22 +147,16 @@ export default function SignUpScreen({ navigation }) {
     }
     setLoading(true);
     try {
-      // Step 1: create the Firebase Auth account.
       const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      // Step 2: create the matching Firestore profile doc. Firestore's
-      // security rules only allow a user to write their own uid, so this
-      // must happen after auth succeeds, using the uid it just returned.
       await setDoc(doc(db, 'users', credential.user.uid), {
         uid: credential.user.uid,
         email: email.trim(),
+        fullName,
         username,
+        country,
         role,
         createdAt: serverTimestamp(),
       });
-      // Step 3: the account exists but isn't usable yet — App.js's
-      // onAuthStateChanged treats an unverified user as signed-out, so we
-      // send the user to EmailVerificationScreen (still in the signed-out
-      // stack) rather than letting them fall through into the app.
       await sendEmailVerification(credential.user);
       navigation.navigate('EmailVerification', { email: email.trim() });
     } catch (e) {
@@ -140,192 +167,298 @@ export default function SignUpScreen({ navigation }) {
     }
   }
 
+  const form = (
+    <>
+      <BackButton navigation={navigation} />
+
+      <TouchableOpacity
+        style={styles.switchLinkTop}
+        onPress={() => navigation.navigate('SignIn')}
+        accessibilityRole="link"
+      >
+        <Text style={styles.switchLinkText}>
+          Already have one? <Text style={styles.switchLinkBold}>Sign in instead</Text>
+        </Text>
+      </TouchableOpacity>
+
+      <Text style={styles.stepIndicator}>STEP 1 OF 3 — CREATE ACCOUNT</Text>
+      <Text style={styles.heading}>Create Account</Text>
+      <Text style={styles.subheading}>Join Welicare today</Text>
+
+      {error ? (
+        <Text style={styles.errorBanner} accessibilityRole="alert">
+          {error}
+        </Text>
+      ) : null}
+
+      <Text style={styles.label}>Full Name</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Your full name"
+        placeholderTextColor={colors.textMuted}
+        autoComplete="name"
+        value={fullName}
+        onChangeText={setFullName}
+        accessibilityLabel="Full name"
+      />
+
+      <Text style={styles.label}>Email Address</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="you@example.com"
+        placeholderTextColor={colors.textMuted}
+        autoCapitalize="none"
+        keyboardType="email-address"
+        autoComplete="email"
+        value={email}
+        onChangeText={setEmail}
+        accessibilityLabel="Email address"
+      />
+
+      <Text style={styles.label}>Username</Text>
+      <TextInput
+        style={[styles.input, usernameError && styles.inputError]}
+        placeholder="Choose a username"
+        placeholderTextColor={colors.textMuted}
+        autoCapitalize="none"
+        autoComplete="username-new"
+        value={username}
+        onChangeText={setUsername}
+        accessibilityLabel="Username"
+      />
+      {usernameError ? <Text style={styles.fieldError}>{usernameError}</Text> : null}
+
+      <Text style={styles.label}>Password</Text>
+      <PasswordField
+        placeholder="At least 8 characters"
+        autoComplete="password-new"
+        value={password}
+        onChangeText={setPassword}
+        accessibilityLabel="Password"
+      />
+      {password.length > 0 ? (
+        <View style={styles.rulesBox}>
+          {PASSWORD_RULE_LABELS.map(([key, label]) => (
+            <PasswordRule key={key} met={passwordRules[key]} label={label} />
+          ))}
+        </View>
+      ) : null}
+
+      <Text style={styles.label}>Confirm Password</Text>
+      <PasswordField
+        placeholder="Repeat your password"
+        autoComplete="password-new"
+        value={confirmPassword}
+        onChangeText={setConfirmPassword}
+        accessibilityLabel="Confirm password"
+        error={confirmError}
+      />
+
+      <Text style={styles.label}>Country</Text>
+      <View style={styles.pickerWrapper}>
+        <Picker
+          selectedValue={country}
+          onValueChange={setCountry}
+          style={styles.picker}
+          accessibilityLabel="Select your country"
+        >
+          <Picker.Item label="Select your country…" value="" color={colors.textMuted} />
+          {COUNTRIES.map((c) => (
+            <Picker.Item key={c} label={c} value={c} color={colors.textPrimary} />
+          ))}
+        </Picker>
+      </View>
+
+      <Text style={styles.label}>I am a...</Text>
+      <View style={styles.roleGrid}>
+        {ROLE_CARDS.map((r) => (
+          <RoleCard
+            key={r.value}
+            role={r}
+            selected={role === r.value}
+            onPress={() => setRole(r.value)}
+          />
+        ))}
+      </View>
+
+      <TouchableOpacity
+        style={[styles.button, loading && styles.buttonDisabled]}
+        onPress={handleSignUp}
+        disabled={loading}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={loading ? 'Creating account…' : 'Continue'}
+      >
+        <Text style={styles.buttonText}>{loading ? 'Creating Account…' : 'Continue →'}</Text>
+      </TouchableOpacity>
+    </>
+  );
+
   return (
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView
-        style={styles.flex}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        <BackButton navigation={navigation} />
-
-        <Text style={styles.heading}>Create Account</Text>
-        <Text style={styles.subheading}>Join Welicare today</Text>
-
-        {error ? (
-          <Text style={styles.errorBanner} accessibilityRole="alert">
-            {error}
-          </Text>
-        ) : null}
-
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="you@example.com"
-          placeholderTextColor="#93C5D9"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          autoComplete="email"
-          value={email}
-          onChangeText={setEmail}
-          accessibilityLabel="Email address"
-        />
-
-        <Text style={styles.label}>Role</Text>
-        <View style={styles.pickerWrapper}>
-          <Picker
-            selectedValue={role}
-            onValueChange={setRole}
-            style={styles.picker}
-            accessibilityLabel="Select your role"
-          >
-            <Picker.Item label="Select your role…" value="" color="#93C5D9" />
-            {ROLES.map((r) => (
-              <Picker.Item key={r} label={r} value={r} color={PRIMARY_DARK} />
-            ))}
-          </Picker>
-        </View>
-
-        <Text style={styles.label}>Username</Text>
-        <TextInput
-          style={[styles.input, usernameError && styles.inputError]}
-          placeholder="Choose a username"
-          placeholderTextColor="#93C5D9"
-          autoCapitalize="none"
-          autoComplete="username-new"
-          value={username}
-          onChangeText={setUsername}
-          accessibilityLabel="Username"
-        />
-        {usernameError ? <Text style={styles.fieldError}>{usernameError}</Text> : null}
-
-        <Text style={styles.label}>Password</Text>
-        <PasswordField
-          placeholder="At least 8 characters"
-          autoComplete="password-new"
-          value={password}
-          onChangeText={setPassword}
-          accessibilityLabel="Password"
-        />
-        {password.length > 0 ? (
-          <View style={styles.rulesBox}>
-            {PASSWORD_RULE_LABELS.map(([key, label]) => (
-              <PasswordRule key={key} met={passwordRules[key]} label={label} />
-            ))}
+      <View style={[styles.splitContainer, !isTablet && styles.splitContainerPhone]}>
+        {isTablet ? (
+          <View style={styles.brandPanel}>
+            <Text style={styles.logo}>Welicare</Text>
+            <Text style={styles.tagline}>Bringing joy to every day</Text>
           </View>
         ) : null}
-
-        <Text style={styles.label}>Confirm Password</Text>
-        <PasswordField
-          placeholder="Repeat your password"
-          autoComplete="password-new"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          accessibilityLabel="Confirm password"
-          error={confirmError}
-        />
-
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleSignUp}
-          disabled={loading}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={loading ? 'Creating account…' : 'Create account'}
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.buttonText}>
-            {loading ? 'Creating Account…' : 'Create Account'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.switchLink}
-          onPress={() => navigation.navigate('SignIn')}
-          accessibilityRole="link"
-        >
-          <Text style={styles.switchLinkText}>
-            Already have an account?{' '}
-            <Text style={styles.switchLinkBold}>Sign in</Text>
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
+          {form}
+        </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: BG },
+  flex: { flex: 1, backgroundColor: colors.background },
+  splitContainer: { flex: 1, flexDirection: 'row' },
+  splitContainerPhone: { flexDirection: 'column' },
+  brandPanel: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  logo: {
+    fontFamily: fonts.serifBold,
+    fontSize: 20,
+    color: colors.white,
+    marginBottom: 8,
+  },
+  tagline: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 16,
+    color: colors.white,
+    opacity: 0.85,
+  },
   content: { padding: 28, paddingTop: 24, paddingBottom: 48 },
+  switchLinkTop: { paddingVertical: 4, marginBottom: 12 },
+  switchLinkText: {
+    fontFamily: fonts.sansRegular,
+    color: colors.textMuted,
+    fontSize: 15,
+  },
+  switchLinkBold: {
+    fontFamily: fonts.sansBold,
+    color: colors.primary,
+  },
+  stepIndicator: {
+    fontFamily: fonts.sansBold,
+    fontSize: 13,
+    letterSpacing: 1,
+    color: colors.textMuted,
+    marginBottom: 8,
+  },
   heading: {
-    fontFamily: BOLD,
+    fontFamily: fonts.serifBold,
     fontSize: 30,
-    color: PRIMARY_DARK,
+    color: colors.textPrimary,
     marginBottom: 6,
   },
   subheading: {
-    fontFamily: REGULAR,
+    fontFamily: fonts.sansRegular,
     fontSize: 16,
-    color: TEXT_MUTED,
-    marginBottom: 36,
+    color: colors.textMuted,
+    marginBottom: 28,
   },
   errorBanner: {
-    fontFamily: REGULAR,
-    backgroundColor: ERROR_BG,
-    borderColor: ERROR_BORDER,
+    fontFamily: fonts.sansRegular,
+    backgroundColor: '#F6E1DC',
+    borderColor: colors.destructive,
     borderWidth: 1,
-    borderRadius: 12,
-    color: ERROR,
-    fontSize: 15,
+    borderRadius: radii.sm,
+    color: colors.destructive,
+    fontSize: 16,
     padding: 14,
     marginBottom: 24,
     lineHeight: 22,
   },
   label: {
-    fontFamily: BOLD,
+    fontFamily: fonts.sansBold,
     fontSize: 13,
-    color: PRIMARY,
+    color: colors.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 8,
   },
   input: {
-    fontFamily: REGULAR,
-    backgroundColor: '#fff',
-    borderWidth: 1.5,
-    borderColor: BORDER,
-    borderRadius: 12,
+    fontFamily: fonts.sansRegular,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
     paddingHorizontal: 16,
     paddingVertical: 15,
-    fontSize: 17,
-    color: PRIMARY_DARK,
+    fontSize: 16,
+    color: colors.textPrimary,
     marginBottom: 20,
-    minHeight: 52,
+    minHeight: 56,
   },
   inputError: {
-    borderColor: ERROR,
+    borderColor: colors.destructive,
     marginBottom: 6,
   },
   fieldError: {
-    fontFamily: REGULAR,
-    color: ERROR,
+    fontFamily: fonts.sansRegular,
+    color: colors.destructive,
     fontSize: 13,
     marginBottom: 14,
     marginLeft: 2,
   },
   pickerWrapper: {
-    backgroundColor: '#fff',
-    borderWidth: 1.5,
-    borderColor: BORDER,
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
     marginBottom: 20,
     overflow: 'hidden',
-    minHeight: 52,
+    minHeight: 56,
     justifyContent: 'center',
   },
-  picker: { color: PRIMARY_DARK },
+  picker: { color: colors.textPrimary },
+  roleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 24,
+  },
+  roleCard: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    padding: 16,
+  },
+  roleCardSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  roleCardTitle: {
+    fontFamily: fonts.sansBold,
+    fontSize: 16,
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  roleCardTitleSelected: { color: colors.white },
+  roleCardDescription: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 18,
+  },
+  roleCardDescriptionSelected: { color: colors.white, opacity: 0.9 },
   rulesBox: {
     marginTop: -10,
     marginBottom: 20,
@@ -337,16 +470,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   ruleText: {
-    fontFamily: REGULAR,
+    fontFamily: fonts.sansRegular,
     fontSize: 13,
-    color: '#9CA3AF',
+    color: colors.textMuted,
   },
   ruleTextMet: {
-    color: CTA,
+    color: colors.primary,
   },
   button: {
-    backgroundColor: CTA,
-    borderRadius: 14,
+    backgroundColor: colors.primary,
+    borderRadius: radii.sm,
     paddingVertical: 18,
     alignItems: 'center',
     marginTop: 8,
@@ -356,22 +489,9 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.5 },
   buttonText: {
-    fontFamily: BOLD,
-    color: '#fff',
+    fontFamily: fonts.serifBold,
+    color: colors.white,
     fontSize: 17,
     letterSpacing: 0.2,
-  },
-  switchLink: {
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  switchLinkText: {
-    fontFamily: REGULAR,
-    color: TEXT_MUTED,
-    fontSize: 15,
-  },
-  switchLinkBold: {
-    fontFamily: BOLD,
-    color: PRIMARY,
   },
 });

@@ -1,13 +1,6 @@
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import BackButton from '../components/BackButton';
-
-const BG = '#ECFEFF';
-const PRIMARY = '#0891B2';
-const PRIMARY_DARK = '#164E63';
-const TEXT_MUTED = '#6B7280';
-const BORDER = '#BAE6FD';
-const BOLD = 'AtkinsonHyperlegible_700Bold';
-const REGULAR = 'AtkinsonHyperlegible_400Regular';
+import { colors, fonts, radii } from '../theme';
 
 // Same pattern as FamilyModeScreen/CaregiverModeScreen — landed on after
 // the PIN gate, back button targets ModeSelection directly.
@@ -49,38 +42,38 @@ export default function AdministratorModeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: BG },
+  flex: { flex: 1, backgroundColor: colors.background },
   content: { padding: 28, paddingTop: 24, paddingBottom: 48 },
   heading: {
-    fontFamily: BOLD,
+    fontFamily: fonts.serifBold,
     fontSize: 26,
-    color: PRIMARY_DARK,
+    color: colors.textPrimary,
     marginBottom: 12,
   },
   body: {
-    fontFamily: REGULAR,
+    fontFamily: fonts.sansRegular,
     fontSize: 16,
-    color: TEXT_MUTED,
+    color: colors.textMuted,
     lineHeight: 24,
     marginBottom: 28,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
     padding: 20,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
     marginBottom: 14,
   },
   cardTitle: {
-    fontFamily: BOLD,
+    fontFamily: fonts.sansBold,
     fontSize: 18,
-    color: PRIMARY_DARK,
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   cardSubtitle: {
-    fontFamily: REGULAR,
+    fontFamily: fonts.sansRegular,
     fontSize: 14,
-    color: PRIMARY,
+    color: colors.primary,
   },
 });
