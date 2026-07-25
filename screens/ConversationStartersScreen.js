@@ -1,17 +1,16 @@
-import PlaceholderScreen from '../components/PlaceholderScreen';
+import AISuggestionsScreen from '../components/AISuggestionsScreen';
 
-// This screen is shared between two flows: Caregiver Mode's quick links
-// (plain back button) and Resident Mode's activity menu, which passes
-// `fromResidentMode: true` via route params so the PIN-gated home icon
-// shows up instead.
+// Shared between two flows: Caregiver Mode's quick links (plain back
+// button, no resident context) and Resident Mode's activity menu, which
+// passes `fromResidentMode: true` and `residentId` via route params.
 export default function ConversationStartersScreen({ navigation, route }) {
-  const fromResidentMode = route?.params?.fromResidentMode;
   return (
-    <PlaceholderScreen
+    <AISuggestionsScreen
       navigation={navigation}
+      route={route}
+      kind="conversationStarters"
       title="Conversation Starters"
       description="Find thoughtful conversation prompts to help spark meaningful moments together."
-      homeDestination={fromResidentMode ? 'ModeSelection' : undefined}
     />
   );
 }
