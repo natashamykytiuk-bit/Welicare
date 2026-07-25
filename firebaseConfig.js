@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import { getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // These values identify the "welicare" Firebase project (not secret —
@@ -21,9 +22,13 @@ const app = initializeApp(firebaseConfig);
 
 // getReactNativePersistence tells Firebase Auth to persist the signed-in
 // session in AsyncStorage, so users stay logged in between app launches.
-const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
-});
+// It only exists in the React Native build of firebase/auth — the web
+// build resolves to a different module that doesn't export it, so calling
+// it there throws and crashes the whole app before anything can render.
+// getAuth() on web already persists to localStorage by default.
+const auth = Platform.OS === 'web'
+  ? getAuth(app)
+  : initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
 
 // The Firestore database where user profiles (users/{uid}) are stored.
 const db = getFirestore(app);

@@ -2,21 +2,7 @@ import { sendEmailVerification, signOut } from 'firebase/auth';
 import { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { auth } from '../firebaseConfig';
-
-const BG = '#ECFEFF';
-const PRIMARY = '#0891B2';
-const PRIMARY_DARK = '#164E63';
-const CTA = '#059669';
-const BORDER = '#BAE6FD';
-const TEXT_MUTED = '#6B7280';
-const ERROR = '#DC2626';
-const ERROR_BG = '#FEF2F2';
-const ERROR_BORDER = '#FCA5A5';
-const SUCCESS_BG = '#ECFDF5';
-const SUCCESS_BORDER = '#A7F3D0';
-const SUCCESS = '#047857';
-const BOLD = 'AtkinsonHyperlegible_700Bold';
-const REGULAR = 'AtkinsonHyperlegible_400Regular';
+import { colors, fonts, radii } from '../theme';
 
 // Reached right after sign-up. The account already exists in Firebase Auth
 // at this point, but App.js's onAuthStateChanged treats an unverified user
@@ -146,46 +132,46 @@ export default function EmailVerificationScreen({ route, onVerified }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: BG },
+  flex: { flex: 1, backgroundColor: colors.background },
   content: { flex: 1, padding: 28, justifyContent: 'center' },
   heading: {
-    fontFamily: BOLD,
+    fontFamily: fonts.serifBold,
     fontSize: 30,
-    color: PRIMARY_DARK,
+    color: colors.textPrimary,
     marginBottom: 16,
     textAlign: 'center',
   },
   body: {
-    fontFamily: REGULAR,
+    fontFamily: fonts.sansRegular,
     fontSize: 16,
-    color: TEXT_MUTED,
+    color: colors.textMuted,
     lineHeight: 24,
     marginBottom: 28,
     textAlign: 'center',
   },
   emailText: {
-    fontFamily: BOLD,
-    color: PRIMARY_DARK,
+    fontFamily: fonts.sansBold,
+    color: colors.textPrimary,
   },
   errorBanner: {
-    fontFamily: REGULAR,
-    backgroundColor: ERROR_BG,
-    borderColor: ERROR_BORDER,
+    fontFamily: fonts.sansRegular,
+    backgroundColor: '#F6E1DC',
+    borderColor: colors.destructive,
     borderWidth: 1,
-    borderRadius: 12,
-    color: ERROR,
+    borderRadius: radii.sm,
+    color: colors.destructive,
     fontSize: 15,
     padding: 14,
     marginBottom: 20,
     lineHeight: 22,
   },
   successBanner: {
-    fontFamily: REGULAR,
-    backgroundColor: SUCCESS_BG,
-    borderColor: SUCCESS_BORDER,
+    fontFamily: fonts.sansRegular,
+    backgroundColor: colors.mistBackground,
+    borderColor: colors.primary,
     borderWidth: 1,
-    borderRadius: 12,
-    color: SUCCESS,
+    borderRadius: radii.sm,
+    color: colors.primary,
     fontSize: 15,
     padding: 14,
     marginBottom: 20,
@@ -193,8 +179,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   button: {
-    backgroundColor: CTA,
-    borderRadius: 14,
+    backgroundColor: colors.primary,
+    borderRadius: radii.sm,
     paddingVertical: 18,
     alignItems: 'center',
     marginBottom: 14,
@@ -202,10 +188,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryButton: {
-    backgroundColor: '#fff',
-    borderWidth: 1.5,
-    borderColor: BORDER,
-    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
     paddingVertical: 18,
     alignItems: 'center',
     marginBottom: 20,
@@ -214,14 +200,14 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.5 },
   buttonText: {
-    fontFamily: BOLD,
-    color: '#fff',
+    fontFamily: fonts.sansBold,
+    color: colors.white,
     fontSize: 17,
     letterSpacing: 0.2,
   },
   secondaryButtonText: {
-    fontFamily: BOLD,
-    color: PRIMARY,
+    fontFamily: fonts.sansBold,
+    color: colors.primary,
     fontSize: 17,
     letterSpacing: 0.2,
   },
@@ -230,12 +216,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   switchLinkText: {
-    fontFamily: REGULAR,
-    color: TEXT_MUTED,
+    fontFamily: fonts.sansRegular,
+    color: colors.textMuted,
     fontSize: 15,
   },
   switchLinkBold: {
-    fontFamily: BOLD,
-    color: PRIMARY,
+    fontFamily: fonts.sansBold,
+    color: colors.primary,
   },
 });

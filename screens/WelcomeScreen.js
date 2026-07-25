@@ -1,12 +1,5 @@
 import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-
-const BG = '#ECFEFF';
-const PRIMARY = '#0891B2';
-const PRIMARY_DARK = '#164E63';
-const CTA = '#059669';
-const TEXT_MUTED = '#6B7280';
-const BOLD = 'AtkinsonHyperlegible_700Bold';
-const REGULAR = 'AtkinsonHyperlegible_400Regular';
+import { colors, fonts, radii } from '../theme';
 
 // The very first screen a signed-out user sees (App.js's initialRouteName
 // for the signed-out stack). Just branding plus links into SignUp/SignIn.
@@ -16,7 +9,7 @@ export default function WelcomeScreen({ navigation }) {
       <View style={styles.hero}>
         <View style={styles.brandMark}>
           <View style={[styles.orb, styles.orbPrimary]} />
-          <View style={[styles.orb, styles.orbCta]} />
+          <View style={[styles.orb, styles.orbSecondary]} />
         </View>
         <Text style={styles.appName}>Welicare</Text>
         <Text style={styles.tagline}>
@@ -56,7 +49,7 @@ export default function WelcomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: BG,
+    backgroundColor: colors.background,
     paddingHorizontal: 28,
     paddingBottom: 36,
   },
@@ -74,32 +67,32 @@ const styles = StyleSheet.create({
   orb: {
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: radii.circular,
     position: 'absolute',
   },
   orbPrimary: {
-    backgroundColor: PRIMARY,
+    backgroundColor: colors.primary,
     opacity: 0.85,
     top: 0,
     left: 0,
   },
-  orbCta: {
-    backgroundColor: CTA,
+  orbSecondary: {
+    backgroundColor: colors.secondary,
     opacity: 0.85,
     bottom: 0,
     right: 0,
   },
   appName: {
-    fontFamily: BOLD,
+    fontFamily: fonts.serifBold,
     fontSize: 34,
-    color: PRIMARY_DARK,
+    color: colors.textPrimary,
     marginBottom: 12,
     letterSpacing: -0.3,
   },
   tagline: {
-    fontFamily: REGULAR,
+    fontFamily: fonts.sansRegular,
     fontSize: 17,
-    color: TEXT_MUTED,
+    color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 26,
   },
@@ -107,8 +100,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   ctaButton: {
-    backgroundColor: CTA,
-    borderRadius: 14,
+    backgroundColor: colors.primary,
+    borderRadius: radii.sm,
     paddingVertical: 18,
     marginHorizontal: 24,
     alignItems: 'center',
@@ -116,15 +109,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ctaButtonText: {
-    fontFamily: BOLD,
-    color: '#fff',
+    fontFamily: fonts.sansBold,
+    color: colors.white,
     fontSize: 17,
     letterSpacing: 0.2,
   },
   outlineButton: {
-    borderRadius: 14,
+    borderRadius: radii.sm,
     borderWidth: 2,
-    borderColor: PRIMARY,
+    borderColor: colors.primary,
     paddingVertical: 18,
     marginHorizontal: 24,
     alignItems: 'center',
@@ -132,15 +125,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   outlineButtonText: {
-    fontFamily: BOLD,
-    color: PRIMARY,
+    fontFamily: fonts.sansBold,
+    color: colors.primary,
     fontSize: 17,
     letterSpacing: 0.2,
   },
   tagNote: {
-    fontFamily: REGULAR,
+    fontFamily: fonts.sansRegular,
     fontSize: 13,
-    color: TEXT_MUTED,
+    color: colors.textMuted,
     textAlign: 'center',
     marginTop: 4,
   },

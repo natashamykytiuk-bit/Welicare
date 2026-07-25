@@ -1,23 +1,23 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import BackButton from '../components/BackButton';
-import PinInput from '../components/PinInput';
+import NumberPad from '../components/NumberPad';
+import PinDots from '../components/PinDots';
 import { auth, db } from '../firebaseConfig';
+import { colors, fonts, radii } from '../theme';
 import { hashPin, isValidPin } from '../utils/pin';
 
-const BG = '#ECFEFF';
-const PRIMARY = '#0891B2';
-const PRIMARY_DARK = '#164E63';
-const CTA = '#059669';
-const TEXT_MUTED = '#6B7280';
-const ERROR = '#DC2626';
-const ERROR_BG = '#FEF2F2';
-const ERROR_BORDER = '#FCA5A5';
-const BOLD = 'AtkinsonHyperlegible_700Bold';
-const REGULAR = 'AtkinsonHyperlegible_400Regular';
-
 const MAX_ATTEMPTS = 5;
+
+function initialsOf(name) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+}
 
 // The single reusable PIN gate. Every entry point (Family/Caregiver/
 // Volunteer/Administrator Mode, and Resident Mode's exit) navigates here
@@ -25,40 +25,47 @@ const MAX_ATTEMPTS = 5;
 // ModeSelectionScreen.js and ResidentModeScreen.js for the callers.
 export default function PINEntryScreen({ navigation, route }) {
   const destination = route?.params?.destination ?? 'ModeSelection';
-  const [pin, setPin] = useState('');
+  const [digits, setDigits] = useState('');
   // undefined while loading, null if the user has no PIN set up yet
   const [storedHash, setStoredHash] = useState(undefined);
+  const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
   const [attempts, setAttempts] = useState(0);
   const [checking, setChecking] = useState(false);
 
-  // Load the hash to check against as soon as this screen mounts.
   useEffect(() => {
     let cancelled = false;
-    async function loadHash() {
+    async function load() {
       const uid = auth.currentUser?.uid;
       const snap = uid ? await getDoc(doc(db, 'users', uid)) : null;
-      if (!cancelled) setStoredHash(snap?.data()?.pinHash ?? null);
+      if (cancelled) return;
+      setStoredHash(snap?.data()?.pinHash ?? null);
+      setDisplayName(snap?.data()?.fullName || snap?.data()?.username || 'your account');
     }
-    loadHash();
+    load();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  async function handleContinue() {
-    setError('');
-    if (!isValidPin(pin)) {
-      setError('Enter your 4-digit PIN.');
-      return;
-    }
-    if (!storedHash) {
+  const lockedOut = attempts >= MAX_ATTEMPTS;
+
+  async function handleDigit(d) {
+    if (checking || lockedOut || digits.length >= 4) return;
+    const next = digits + d;
+    setDigits(next);
+    if (next.length !== 4) return;
+
+    if (!isValidPin(next) || !storedHash) {
       setError('No PIN has been set up for this account yet.');
+      setDigits('');
       return;
     }
+
     setChecking(true);
+    setError('');
     try {
-      const enteredHash = await hashPin(pin);
+      const enteredHash = await hashPin(next);
       if (enteredHash === storedHash) {
         // navigation.reset (not navigate) clears everything before this
         // screen, so e.g. leaving Resident Mode can't be undone by just
@@ -66,10 +73,9 @@ export default function PINEntryScreen({ navigation, route }) {
         navigation.reset({ index: 0, routes: [{ name: destination }] });
         return;
       }
-      // Wrong PIN: clear the input and count the attempt toward lockout.
       const nextAttempts = attempts + 1;
       setAttempts(nextAttempts);
-      setPin('');
+      setDigits('');
       setError(
         nextAttempts >= MAX_ATTEMPTS
           ? 'Too many incorrect attempts. Please try again later.'
@@ -80,38 +86,33 @@ export default function PINEntryScreen({ navigation, route }) {
     }
   }
 
-  const lockedOut = attempts >= MAX_ATTEMPTS;
+  function handleBackspace() {
+    setDigits((d) => d.slice(0, -1));
+  }
 
   return (
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <BackButton navigation={navigation} />
 
-        <Text style={styles.heading}>Enter PIN</Text>
-        <Text style={styles.body}>Enter your 4-digit PIN to continue.</Text>
-
-        {error ? (
-          <Text style={styles.errorBanner} accessibilityRole="alert">
-            {error}
-          </Text>
-        ) : null}
-
         {storedHash === undefined ? (
-          <ActivityIndicator size="large" color={PRIMARY} style={styles.loading} />
+          <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
         ) : (
           <>
-            <PinInput value={pin} onChangeText={setPin} autoFocus />
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initialsOf(displayName)}</Text>
+            </View>
+            <Text style={styles.heading}>Enter your PIN</Text>
+            <Text style={styles.body}>to sign in as {displayName}</Text>
 
-            <TouchableOpacity
-              style={[styles.button, (checking || lockedOut) && styles.buttonDisabled]}
-              onPress={handleContinue}
-              disabled={checking || lockedOut}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={checking ? 'Checking…' : 'Continue'}
-            >
-              <Text style={styles.buttonText}>{checking ? 'Checking…' : 'Continue'}</Text>
-            </TouchableOpacity>
+            {error ? (
+              <Text style={styles.errorBanner} accessibilityRole="alert">
+                {error}
+              </Text>
+            ) : null}
+
+            <PinDots value={digits} />
+            <NumberPad onDigit={handleDigit} onBackspace={handleBackspace} disabled={checking || lockedOut} />
           </>
         )}
       </ScrollView>
@@ -120,48 +121,50 @@ export default function PINEntryScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: BG },
-  content: { padding: 28, paddingTop: 24, paddingBottom: 48 },
+  flex: { flex: 1, backgroundColor: colors.background },
+  content: { padding: 28, paddingTop: 24, paddingBottom: 48, alignItems: 'center' },
+  loading: { marginTop: 20 },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: radii.circular,
+    backgroundColor: colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+    alignSelf: 'center',
+  },
+  avatarText: {
+    fontFamily: fonts.sansBold,
+    fontSize: 22,
+    color: colors.white,
+  },
   heading: {
-    fontFamily: BOLD,
+    fontFamily: fonts.serifBold,
     fontSize: 26,
-    color: PRIMARY_DARK,
-    marginBottom: 12,
+    color: colors.textPrimary,
+    marginBottom: 8,
+    textAlign: 'center',
   },
   body: {
-    fontFamily: REGULAR,
-    fontSize: 16,
-    color: TEXT_MUTED,
-    lineHeight: 24,
+    fontFamily: fonts.sansRegular,
+    fontSize: 18,
+    color: colors.textMuted,
     marginBottom: 24,
+    textAlign: 'center',
   },
   errorBanner: {
-    fontFamily: REGULAR,
-    backgroundColor: ERROR_BG,
-    borderColor: ERROR_BORDER,
+    fontFamily: fonts.sansRegular,
+    backgroundColor: '#F6E1DC',
+    borderColor: colors.destructive,
     borderWidth: 1,
-    borderRadius: 12,
-    color: ERROR,
-    fontSize: 15,
+    borderRadius: radii.sm,
+    color: colors.destructive,
+    fontSize: 16,
     padding: 14,
     marginBottom: 20,
     lineHeight: 22,
-  },
-  loading: { marginTop: 20 },
-  button: {
-    backgroundColor: CTA,
-    borderRadius: 14,
-    paddingVertical: 18,
-    alignItems: 'center',
-    minHeight: 56,
-    justifyContent: 'center',
-    marginTop: 28,
-  },
-  buttonDisabled: { opacity: 0.5 },
-  buttonText: {
-    fontFamily: BOLD,
-    color: '#fff',
-    fontSize: 17,
-    letterSpacing: 0.2,
+    width: '100%',
   },
 });

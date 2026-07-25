@@ -19,6 +19,7 @@ import BuildProfileScreen from './screens/BuildProfileScreen';
 import CaregiverModeScreen from './screens/CaregiverModeScreen';
 import CaregiverResidentsScreen from './screens/CaregiverResidentsScreen';
 import ConversationStartersScreen from './screens/ConversationStartersScreen';
+import CreateOrganizationScreen from './screens/CreateOrganizationScreen';
 import EmailVerificationScreen from './screens/EmailVerificationScreen';
 import FamilyFeedScreen from './screens/FamilyFeedScreen';
 import FamilyModeScreen from './screens/FamilyModeScreen';
@@ -27,11 +28,13 @@ import GamesScreen from './screens/GamesScreen';
 import GuidedMeditationScreen from './screens/GuidedMeditationScreen';
 import HourTrackerScreen from './screens/HourTrackerScreen';
 import JoinCreateOrganizationScreen from './screens/JoinCreateOrganizationScreen';
+import JoinOrganizationScreen from './screens/JoinOrganizationScreen';
 import ManageUsersScreen from './screens/ManageUsersScreen';
 import ModeSelectionScreen from './screens/ModeSelectionScreen';
 import MolehuntScreen from './screens/MolehuntScreen';
 import MusicMovieRecsScreen from './screens/MusicMovieRecsScreen';
 import MusicPlayerScreen from './screens/MusicPlayerScreen';
+import MusicSelectionScreen from './screens/MusicSelectionScreen';
 import OrganizationalSettingsScreen from './screens/OrganizationalSettingsScreen';
 import OverallStatsScreen from './screens/OverallStatsScreen';
 import PhotoAlbumScreen from './screens/PhotoAlbumScreen';
@@ -105,6 +108,8 @@ export default function App() {
             {/* Onboarding, shown only right after sign-up */}
             <Stack.Screen name="PINSetup" component={PINSetupScreen} />
             <Stack.Screen name="JoinCreateOrganization" component={JoinCreateOrganizationScreen} />
+            <Stack.Screen name="JoinOrganization" component={JoinOrganizationScreen} />
+            <Stack.Screen name="CreateOrganization" component={CreateOrganizationScreen} />
 
             {/* The post-login hub, plus screens reachable from anywhere */}
             <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
@@ -142,6 +147,7 @@ export default function App() {
             />
             <Stack.Screen name="ActivityMenu" component={ActivityMenuScreen} />
             <Stack.Screen name="GuidedMeditation" component={GuidedMeditationScreen} />
+            <Stack.Screen name="MusicSelection" component={MusicSelectionScreen} />
             <Stack.Screen name="MusicPlayer" component={MusicPlayerScreen} />
             <Stack.Screen name="Games" component={GamesScreen} />
             <Stack.Screen name="WordGames" component={WordGamesScreen} />

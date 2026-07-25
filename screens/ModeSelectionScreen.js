@@ -12,54 +12,53 @@ import {
   View,
 } from 'react-native';
 import { auth, db } from '../firebaseConfig';
+import { colors, fonts, radii } from '../theme';
 
-const BG = '#ECFEFF';
-const PRIMARY = '#0891B2';
-const PRIMARY_DARK = '#164E63';
-const PRIMARY_LIGHT = '#BAE6FD';
-const TEXT_MUTED = '#6B7280';
-const BORDER = '#BAE6FD';
-const BOLD = 'AtkinsonHyperlegible_700Bold';
-const REGULAR = 'AtkinsonHyperlegible_400Regular';
+function initialsOf(name) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+}
 
-// The hub screen after login. Each entry describes one mode card:
+// The hub screen after login. Each entry describes one mode card (other
+// than Resident Mode, which gets its own large card above these):
 // whether it shows for the signed-in user's role (`isVisible`), and
 // where tapping it goes (`onPress`). Every mode except Resident routes
 // through PINEntry first — Resident Mode has no entry PIN, only an exit
 // one (see ResidentModeScreen.js).
 const MODES = [
   {
-    key: 'Resident',
-    label: 'Resident Mode',
-    icon: 'person-outline',
-    isVisible: () => true,
-    onPress: (navigation) => navigation.navigate('ResidentMode'),
-  },
-  {
     key: 'Family',
     label: 'Family Mode',
-    icon: 'people-outline',
+    icon: 'heart-outline',
+    description: 'View resident stats and activity history',
     isVisible: (role) => role === 'Family Caregiver',
     onPress: (navigation) => navigation.navigate('PINEntry', { destination: 'FamilyMode' }),
   },
   {
     key: 'Caregiver',
     label: 'Caregiver Mode',
-    icon: 'medkit-outline',
+    icon: 'people-outline',
+    description: 'Resident profiles, sessions, and overall stats',
     isVisible: (role) => role === 'Caregiver' || role === 'Administrator',
     onPress: (navigation) => navigation.navigate('PINEntry', { destination: 'CaregiverMode' }),
   },
   {
     key: 'Volunteer',
     label: 'Volunteer Mode',
-    icon: 'heart-outline',
+    icon: 'star-outline',
+    description: 'Run activity sessions and track your hours',
     isVisible: (role) => role === 'Volunteer',
     onPress: (navigation) => navigation.navigate('PINEntry', { destination: 'VolunteerMode' }),
   },
   {
     key: 'Administrator',
-    label: 'Administrator Mode',
+    label: 'Admin Mode',
     icon: 'settings-outline',
+    description: 'User management and organization settings',
     isVisible: (role) => role === 'Administrator',
     onPress: (navigation) => navigation.navigate('PINEntry', { destination: 'AdministratorMode' }),
   },
@@ -68,19 +67,25 @@ const MODES = [
 export default function ModeSelectionScreen({ navigation }) {
   // undefined while loading, then either the role string or null
   const [role, setRole] = useState(undefined);
+  const [fullName, setFullName] = useState('');
+  const [facilityName, setFacilityName] = useState('');
 
-  // Fetch the signed-in user's role from Firestore so we know which mode
-  // cards to show. `cancelled` avoids setting state if the screen unmounts
-  // before the fetch resolves.
   useEffect(() => {
     let cancelled = false;
-    async function loadRole() {
+    async function loadUser() {
       const uid = auth.currentUser?.uid;
       if (!uid) return;
       const snap = await getDoc(doc(db, 'users', uid));
-      if (!cancelled) setRole(snap.data()?.role ?? null);
+      const data = snap.data();
+      if (cancelled) return;
+      setRole(data?.role ?? null);
+      setFullName(data?.fullName || data?.username || '');
+      if (data?.orgId) {
+        const orgSnap = await getDoc(doc(db, 'organizations', data.orgId));
+        if (!cancelled) setFacilityName(orgSnap.data()?.name ?? '');
+      }
     }
-    loadRole();
+    loadUser();
     return () => {
       cancelled = true;
     };
@@ -90,6 +95,25 @@ export default function ModeSelectionScreen({ navigation }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
+          <Text style={styles.logo}>Welicare</Text>
+          <View style={styles.headerRight}>
+            {role !== undefined ? (
+              <View style={styles.userInfo}>
+                <Text style={styles.userName} numberOfLines={1}>
+                  {fullName || 'Welcome'}
+                </Text>
+                <Text style={styles.userMeta} numberOfLines={1}>
+                  {[role, facilityName].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+            ) : null}
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{fullName ? initialsOf(fullName) : ''}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.topRow}>
           <TouchableOpacity
             style={styles.iconButton}
             onPress={() => navigation.navigate('Settings')}
@@ -97,9 +121,8 @@ export default function ModeSelectionScreen({ navigation }) {
             accessibilityRole="button"
             accessibilityLabel="Settings"
           >
-            <Ionicons name="settings-outline" size={20} color={PRIMARY_DARK} />
+            <Ionicons name="settings-outline" size={20} color={colors.textPrimary} />
           </TouchableOpacity>
-
           <TouchableOpacity
             onPress={() => signOut(auth)}
             style={styles.signOutButton}
@@ -110,25 +133,51 @@ export default function ModeSelectionScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.heading}>Welicare</Text>
-        <Text style={styles.subheading}>Choose a mode to get started</Text>
+        <Text style={styles.heading}>How are you using Welicare today?</Text>
 
         {role === undefined ? (
-          <ActivityIndicator size="large" color={PRIMARY} style={styles.loading} />
+          <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
         ) : (
-          MODES.filter((mode) => mode.isVisible(role)).map((mode) => (
+          <>
             <TouchableOpacity
-              key={mode.key}
-              style={styles.card}
-              onPress={() => mode.onPress(navigation)}
-              activeOpacity={0.8}
+              style={styles.residentCard}
+              onPress={() => navigation.navigate('ResidentMode')}
+              activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel={mode.label}
+              accessibilityLabel="Resident Mode"
             >
-              <Ionicons name={mode.icon} size={26} color={PRIMARY} style={styles.cardIcon} />
-              <Text style={styles.cardTitle}>{mode.label}</Text>
+              <View style={styles.residentCardText}>
+                <Text style={styles.residentCardTitle}>Resident Mode</Text>
+                <Text style={styles.residentCardSubtitle}>
+                  Start an activity session with a resident. Music, trivia, meditation, photo
+                  albums, conversation starters, and more.
+                </Text>
+              </View>
+              <Ionicons name="person-circle-outline" size={44} color={colors.white} />
             </TouchableOpacity>
-          ))
+
+            <View style={styles.modeGrid}>
+              {MODES.filter((mode) => mode.isVisible(role)).map((mode) => (
+                <TouchableOpacity
+                  key={mode.key}
+                  style={styles.card}
+                  onPress={() => mode.onPress(navigation)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={mode.label}
+                >
+                  <View style={styles.cardTopRow}>
+                    <Ionicons name={mode.icon} size={24} color={colors.primary} />
+                    <View style={styles.pinBadge}>
+                      <Text style={styles.pinBadgeText}>PIN</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.cardTitle}>{mode.label}</Text>
+                  <Text style={styles.cardDescription}>{mode.description}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -136,9 +185,49 @@ export default function ModeSelectionScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: BG },
+  flex: { flex: 1, backgroundColor: colors.background },
   content: { padding: 28, paddingTop: 24, paddingBottom: 48 },
   headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  logo: {
+    fontFamily: fonts.serifBold,
+    fontSize: 20,
+    color: colors.primary,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  userInfo: { alignItems: 'flex-end', maxWidth: 160 },
+  userName: {
+    fontFamily: fonts.sansBold,
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  userMeta: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.circular,
+    backgroundColor: colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontFamily: fonts.sansBold,
+    fontSize: 14,
+    color: colors.white,
+  },
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -147,59 +236,100 @@ const styles = StyleSheet.create({
   iconButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: radii.circular,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
   },
   signOutButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: PRIMARY_LIGHT,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
     minHeight: 40,
     justifyContent: 'center',
   },
   signOutText: {
-    fontFamily: REGULAR,
+    fontFamily: fonts.sansRegular,
     fontSize: 14,
-    color: TEXT_MUTED,
+    color: colors.textMuted,
   },
   heading: {
-    fontFamily: BOLD,
-    fontSize: 30,
-    color: PRIMARY_DARK,
-    marginBottom: 6,
+    fontFamily: fonts.serifBold,
+    fontSize: 26,
+    color: colors.textPrimary,
+    marginBottom: 20,
   },
-  subheading: {
-    fontFamily: REGULAR,
-    fontSize: 16,
-    color: TEXT_MUTED,
-    marginBottom: 28,
-  },
-  loading: {
-    marginTop: 40,
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: BORDER,
-    marginBottom: 14,
+  loading: { marginTop: 40 },
+  residentCard: {
+    backgroundColor: colors.primary,
+    borderRadius: radii.lg,
+    padding: 24,
+    marginBottom: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    justifyContent: 'space-between',
+    gap: 16,
   },
-  cardIcon: {
-    flexShrink: 0,
+  residentCardText: { flex: 1 },
+  residentCardTitle: {
+    fontFamily: fonts.serifBold,
+    fontSize: 22,
+    color: colors.white,
+    marginBottom: 8,
+  },
+  residentCardSubtitle: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 16,
+    color: colors.white,
+    opacity: 0.9,
+    lineHeight: 22,
+  },
+  modeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  card: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radii.sm,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  pinBadge: {
+    backgroundColor: colors.mistBackground,
+    borderRadius: radii.circular,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  pinBadgeText: {
+    fontFamily: fonts.sansBold,
+    fontSize: 11,
+    color: colors.primary,
+    letterSpacing: 0.5,
   },
   cardTitle: {
-    fontFamily: BOLD,
-    fontSize: 18,
-    color: PRIMARY_DARK,
+    fontFamily: fonts.sansBold,
+    fontSize: 17,
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  cardDescription: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 14,
+    color: colors.textMuted,
+    lineHeight: 20,
   },
 });

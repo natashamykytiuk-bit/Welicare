@@ -1,14 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { colors, fonts, radii } from '../theme';
 import BackButton from './BackButton';
-
-const BG = '#ECFEFF';
-const PRIMARY = '#0891B2';
-const PRIMARY_DARK = '#164E63';
-const TEXT_MUTED = '#6B7280';
-const BORDER = '#BAE6FD';
-const BOLD = 'AtkinsonHyperlegible_700Bold';
-const REGULAR = 'AtkinsonHyperlegible_400Regular';
 
 // The reusable shell behind most "not built yet" screens: just a title,
 // a description, and a "Coming soon" badge. Most screens in this app are
@@ -50,7 +43,7 @@ export default function PlaceholderScreen({
                   accessibilityRole="button"
                   accessibilityLabel="Settings"
                 >
-                  <Ionicons name="settings-outline" size={20} color={PRIMARY_DARK} />
+                  <Ionicons name="settings-outline" size={20} color={colors.textPrimary} />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -62,7 +55,7 @@ export default function PlaceholderScreen({
                 accessibilityRole="button"
                 accessibilityLabel="Return to Mode Selection"
               >
-                <Ionicons name="home-outline" size={20} color={PRIMARY_DARK} />
+                <Ionicons name="home-outline" size={20} color={colors.textPrimary} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -78,7 +71,7 @@ export default function PlaceholderScreen({
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: BG },
+  flex: { flex: 1, backgroundColor: colors.background },
   content: { padding: 28, paddingTop: 24, paddingBottom: 48 },
   headerRow: {
     flexDirection: 'row',
@@ -95,38 +88,38 @@ const styles = StyleSheet.create({
   iconButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: radii.circular,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
   },
   heading: {
-    fontFamily: BOLD,
+    fontFamily: fonts.serifBold,
     fontSize: 26,
-    color: PRIMARY_DARK,
+    color: colors.textPrimary,
     marginBottom: 12,
   },
   body: {
-    fontFamily: REGULAR,
+    fontFamily: fonts.sansRegular,
     fontSize: 16,
-    color: TEXT_MUTED,
+    color: colors.textMuted,
     lineHeight: 24,
     marginBottom: 24,
   },
   badge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#fff',
-    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderRadius: radii.circular,
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
   },
   badgeText: {
-    fontFamily: REGULAR,
+    fontFamily: fonts.sansRegular,
     fontSize: 13,
-    color: PRIMARY,
+    color: colors.primary,
   },
 });
