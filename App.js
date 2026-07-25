@@ -17,6 +17,7 @@ import AdministratorModeScreen from './screens/AdministratorModeScreen';
 import CaregiverModeScreen from './screens/CaregiverModeScreen';
 import CaregiverResidentsScreen from './screens/CaregiverResidentsScreen';
 import ConversationStartersScreen from './screens/ConversationStartersScreen';
+import EmailVerificationScreen from './screens/EmailVerificationScreen';
 import FamilyFeedScreen from './screens/FamilyFeedScreen';
 import FamilyModeScreen from './screens/FamilyModeScreen';
 import FamilyResidentsScreen from './screens/FamilyResidentsScreen';
@@ -60,10 +61,14 @@ export default function App() {
 
   // Firebase notifies us here whenever the signed-in/out state changes —
   // this is what actually flips the app between the two screen sets below.
+  // An unverified email is treated identically to signed-out (Option A:
+  // login is blocked entirely until verification), so the user only ever
+  // reaches PINSetup/ModeSelection once emailVerified is true.
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u ?? null);
-      if (!u) setJustSignedUp(false);
+      const verifiedUser = u && u.emailVerified ? u : null;
+      setUser(verifiedUser);
+      if (!verifiedUser) setJustSignedUp(false);
     });
     return unsubscribe;
   }, []);
@@ -151,13 +156,27 @@ export default function App() {
         ) : (
           <>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
-            {/* Rendered via a children function (instead of `component`)
-                so we can pass onSignUpSuccess, which flips justSignedUp
-                without SignUpScreen needing to know about App's state. */}
-            <Stack.Screen name="SignUp">
-              {(props) => <SignUpScreen {...props} onSignUpSuccess={() => setJustSignedUp(true)} />}
-            </Stack.Screen>
+            <Stack.Screen name="SignUp" component={SignUpScreen} />
             <Stack.Screen name="SignIn" component={SignInScreen} />
+            {/* Reached right after sign-up, while the account exists in
+                Firebase Auth but isn't verified yet — still part of the
+                signed-out stack since `user` above is null until then.
+                Rendered via a children function (instead of `component`)
+                so we can pass onVerified, which flips justSignedUp and
+                hands the now-verified user back to onAuthStateChanged's
+                next check without EmailVerificationScreen needing to know
+                about App's state. */}
+            <Stack.Screen name="EmailVerification">
+              {(props) => (
+                <EmailVerificationScreen
+                  {...props}
+                  onVerified={() => {
+                    setJustSignedUp(true);
+                    setUser(auth.currentUser);
+                  }}
+                />
+              )}
+            </Stack.Screen>
           </>
         )}
       </Stack.Navigator>

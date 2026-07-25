@@ -34,7 +34,10 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git push *)",
-      "Bash(curl -s \"http://localhost:8081/index.bundle?platform=android&dev=true\" -o /tmp/final_check.js -w \"HTTP %{http_code}\\\\n\" --max-time 90)"
+      "Bash(curl -s \"http://localhost:8081/index.bundle?platform=android&dev=true\" -o /tmp/final_check.js -w \"HTTP %{http_code}\\\\n\" --max-time 90)",
+      "Read(//c/Users/Natas/Projects/**)",
+      "Bash(mv \"CareCompanion\" \"Welicare\")",
+      "PowerShell(robocopy \"C:\\\\Users\\\\Natas\\\\Projects\\\\CareCompanion\" \"C:\\\\Users\\\\Natas\\\\Projects\\\\Welicare\" /E /R:1 /W:1 /NFL /NDL /NJH /NP; \"ROBOCOPY_EXIT:$LASTEXITCODE\")"
     ]
   }
 }

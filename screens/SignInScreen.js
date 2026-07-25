@@ -1,4 +1,4 @@
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { sendEmailVerification, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -48,22 +48,54 @@ export default function SignInScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [unverified, setUnverified] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
 
   async function handleSignIn() {
     setError('');
+    setUnverified(false);
+    setResendSent(false);
     if (!email || !password) {
       setError('Please enter your email and password.');
       return;
     }
     setLoading(true);
     try {
+      const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      if (!credential.user.emailVerified) {
+        // Option A: unverified users are blocked entirely, not just
+        // nudged — sign them back out so no session survives on device.
+        await signOut(auth);
+        setUnverified(true);
+        setError('Please verify your email before signing in. Check your inbox for the verification link.');
+        return;
+      }
       // On success, App.js's onAuthStateChanged listener picks up the
       // signed-in user automatically — no manual navigation needed here.
-      await signInWithEmailAndPassword(auth, email.trim(), password);
     } catch (e) {
       setError(getAuthErrorMessage(e.code));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    setError('');
+    setResendSent(false);
+    setResending(true);
+    try {
+      // sendEmailVerification needs a live user object, and this screen
+      // doesn't have one (we sign out unverified users immediately) — so
+      // sign in again just long enough to resend, then sign back out.
+      const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      await sendEmailVerification(credential.user);
+      await signOut(auth);
+      setResendSent(true);
+    } catch (e) {
+      setError(getAuthErrorMessage(e.code));
+    } finally {
+      setResending(false);
     }
   }
 
@@ -86,6 +118,27 @@ export default function SignInScreen({ navigation }) {
           <Text style={styles.errorBanner} accessibilityRole="alert">
             {error}
           </Text>
+        ) : null}
+
+        {resendSent ? (
+          <Text style={styles.successBanner}>
+            Verification email sent again. Please check your inbox.
+          </Text>
+        ) : null}
+
+        {unverified ? (
+          <TouchableOpacity
+            style={[styles.secondaryButton, resending && styles.buttonDisabled]}
+            onPress={handleResend}
+            disabled={resending}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={resending ? 'Resending…' : 'Resend verification email'}
+          >
+            <Text style={styles.secondaryButtonText}>
+              {resending ? 'Resending…' : 'Resend verification email'}
+            </Text>
+          </TouchableOpacity>
         ) : null}
 
         <Text style={styles.label}>Email</Text>
@@ -186,6 +239,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     minHeight: 52,
   },
+  successBanner: {
+    fontFamily: REGULAR,
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    borderWidth: 1,
+    borderRadius: 12,
+    color: '#047857',
+    fontSize: 15,
+    padding: 14,
+    marginBottom: 20,
+    lineHeight: 22,
+  },
   button: {
     backgroundColor: CTA,
     borderRadius: 14,
@@ -195,6 +260,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     minHeight: 56,
     justifyContent: 'center',
+  },
+  secondaryButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    borderRadius: 14,
+    paddingVertical: 18,
+    alignItems: 'center',
+    marginBottom: 20,
+    minHeight: 56,
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    fontFamily: BOLD,
+    color: PRIMARY,
+    fontSize: 17,
+    letterSpacing: 0.2,
   },
   buttonDisabled: { opacity: 0.5 },
   buttonText: {

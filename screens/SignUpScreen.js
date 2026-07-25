@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import {
@@ -75,7 +75,7 @@ function PasswordRule({ met, label }) {
   );
 }
 
-export default function SignUpScreen({ navigation, onSignUpSuccess }) {
+export default function SignUpScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('');
   const [username, setUsername] = useState('');
@@ -126,9 +126,12 @@ export default function SignUpScreen({ navigation, onSignUpSuccess }) {
         role,
         createdAt: serverTimestamp(),
       });
-      // Tells App.js this was a fresh sign-up, so it routes to PINSetup
-      // next instead of straight to ModeSelection.
-      onSignUpSuccess?.();
+      // Step 3: the account exists but isn't usable yet — App.js's
+      // onAuthStateChanged treats an unverified user as signed-out, so we
+      // send the user to EmailVerificationScreen (still in the signed-out
+      // stack) rather than letting them fall through into the app.
+      await sendEmailVerification(credential.user);
+      navigation.navigate('EmailVerification', { email: email.trim() });
     } catch (e) {
       console.log('Sign up error:', e);
       setError(getAuthErrorMessage(e.code));
