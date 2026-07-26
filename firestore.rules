@@ -9,13 +9,53 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Residents belong to whichever caregiver/user created them. Any
-    // signed-in user can read/create (no cross-org isolation exists yet —
-    // there's no organizations collection in this pass), but only the
-    // creator can edit or remove a resident's doc.
+    // Residents can be shared across an organization. caregiverId is the
+    // creator (checked on create); createdBy is the same value, kept for
+    // back-compat with residents created before org-wide sharing existed.
+    // assignedCaregivers lists every caregiver who has added this resident
+    // to their own list. facilityId links a resident to an organization —
+    // it's null for residents created outside of one.
     match /residents/{residentId} {
-      allow read, create: if request.auth != null;
-      allow update, delete: if request.auth != null && resource.data.createdBy == request.auth.uid;
+      // Readable by the creator, anyone already assigned, or any signed-in
+      // user in the same organization (so the "Select from [Organization]"
+      // picker can list shared residents before the viewer is assigned).
+      allow read: if request.auth != null && (
+        resource.data.caregiverId == request.auth.uid ||
+        resource.data.createdBy == request.auth.uid ||
+        (resource.data.assignedCaregivers is list && request.auth.uid in resource.data.assignedCaregivers) ||
+        (resource.data.facilityId != null &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId)
+      );
+
+      // A new resident must be self-attributed — the creator's own uid has
+      // to be the caregiverId being written.
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.caregiverId;
+
+      allow update: if request.auth != null && (
+        // Full write access: the creator or an already-assigned caregiver
+        // (covers e.g. BuildProfileScreen editing a shared resident's
+        // lifeStory).
+        resource.data.caregiverId == request.auth.uid ||
+        resource.data.createdBy == request.auth.uid ||
+        (resource.data.assignedCaregivers is list && request.auth.uid in resource.data.assignedCaregivers) ||
+        // Self-assignment: a caregiver in the same organization who isn't
+        // assigned yet may add themselves to assignedCaregivers and change
+        // nothing else — this is what "Select from [Organization]" does.
+        (
+          resource.data.facilityId != null &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignedCaregivers']) &&
+          request.resource.data.assignedCaregivers == resource.data.assignedCaregivers.concat([request.auth.uid])
+        )
+      );
+
+      // Deleting removes the resident for every caregiver it's shared
+      // with, so it's restricted to Administrators rather than the
+      // creator — role is read from the requester's own user doc, the
+      // same field ModeSelectionScreen and JoinCreateOrganizationScreen
+      // already branch on.
+      allow delete: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Administrator';
     }
 
     // Any signed-in user can read an organization (needed to look up an

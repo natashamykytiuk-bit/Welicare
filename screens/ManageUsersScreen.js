@@ -8,6 +8,7 @@ export default function ManageUsersScreen({ navigation }) {
       title="Manage Users"
       description="Add, remove, and edit the roles of users in your organization."
       settingsTarget="Settings"
+      showOrgId
     />
   );
 }

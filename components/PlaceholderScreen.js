@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, fonts, radii } from '../theme';
 import BackButton from './BackButton';
+import OrgIdBadge from './OrgIdBadge';
 
 // The reusable shell behind most "not built yet" screens: just a title,
 // a description, and a "Coming soon" badge. Most screens in this app are
@@ -15,6 +16,8 @@ import BackButton from './BackButton';
 //     through the PIN gate (PINEntryScreen) before landing there. Used by
 //     Resident Mode screens, which require a PIN to exit.
 //   - showBack / onBackPress: control or override the default back button.
+//   - showOrgId: pass true on Administrator Mode screens to show the
+//     signed-in admin's organization ID at the top (see OrgIdBadge).
 export default function PlaceholderScreen({
   navigation,
   title,
@@ -23,6 +26,7 @@ export default function PlaceholderScreen({
   onBackPress,
   settingsTarget,
   homeDestination,
+  showOrgId,
 }) {
   const showHeaderRow = showBack || settingsTarget || homeDestination;
 
@@ -60,6 +64,7 @@ export default function PlaceholderScreen({
             ) : null}
           </View>
         ) : null}
+        {showOrgId ? <OrgIdBadge /> : null}
         <Text style={styles.heading}>{title}</Text>
         <Text style={styles.body}>{description}</Text>
         <View style={styles.badge}>

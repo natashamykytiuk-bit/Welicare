@@ -8,6 +8,7 @@ export default function OrganizationalSettingsScreen({ navigation }) {
       title="Organizational Settings"
       description="Configure organization-wide preferences, branding, and policies."
       settingsTarget="Settings"
+      showOrgId
     />
   );
 }

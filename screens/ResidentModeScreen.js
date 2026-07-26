@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { collection, deleteDoc, doc, getDocs, orderBy, query, where } from 'firebase/firestore';
-import { useCallback, useState } from 'react';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,9 @@ import {
 import BackButton from '../components/BackButton';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import { withTimeout } from '../utils/withTimeout';
+
+const LOAD_TIMEOUT_MS = 10000;
 
 function initialsOf(name) {
   return name
@@ -36,7 +39,26 @@ function initialsOf(name) {
 export default function ResidentModeScreen({ navigation }) {
   const [residents, setResidents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [menuFor, setMenuFor] = useState(null);
+  // undefined while loading, then either the role string or null. Deleting
+  // is Administrator-only (see firestore.rules), so the menu item is hidden
+  // for everyone else rather than shown and then failing on tap.
+  const [role, setRole] = useState(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadRole() {
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+      const snap = await getDoc(doc(db, 'users', uid));
+      if (!cancelled) setRole(snap.data()?.role ?? null);
+    }
+    loadRole();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -48,21 +70,45 @@ export default function ResidentModeScreen({ navigation }) {
     }, [navigation])
   );
 
+  // Two simple single-field queries merged client-side, rather than one
+  // where()+orderBy() compound query — that combination needs a composite
+  // Firestore index, and this project doesn't ship one. An undeployed
+  // index makes getDocs() throw failed-precondition, which (before this
+  // fix) was never caught, so `loading` stayed true forever. Splitting the
+  // OR into two simple queries and sorting client-side sidesteps needing
+  // any composite index at all, and the try/catch below means a real
+  // failure now surfaces an error instead of an infinite spinner.
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       async function loadResidents() {
         setLoading(true);
+        setError('');
         const uid = auth.currentUser?.uid;
-        const q = query(
-          collection(db, 'residents'),
-          where('createdBy', '==', uid),
-          orderBy('createdAt', 'asc')
-        );
-        const snapshot = await getDocs(q);
-        if (cancelled) return;
-        setResidents(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setLoading(false);
+        console.log('[ResidentMode] loading residents for', uid);
+        try {
+          const [ownedSnap, assignedSnap] = await withTimeout(
+            Promise.all([
+              getDocs(query(collection(db, 'residents'), where('createdBy', '==', uid))),
+              getDocs(query(collection(db, 'residents'), where('assignedCaregivers', 'array-contains', uid))),
+            ]),
+            LOAD_TIMEOUT_MS,
+            'Loading residents is taking longer than expected. Please check your connection and try again.'
+          );
+          if (cancelled) return;
+          const merged = new Map();
+          [...ownedSnap.docs, ...assignedSnap.docs].forEach((d) => merged.set(d.id, { id: d.id, ...d.data() }));
+          const list = Array.from(merged.values()).sort(
+            (a, b) => (a.createdAt?.toMillis?.() ?? 0) - (b.createdAt?.toMillis?.() ?? 0)
+          );
+          console.log('[ResidentMode] loaded', list.length, 'residents');
+          setResidents(list);
+        } catch (e) {
+          console.error('[ResidentMode] failed to load residents:', e.code, e.message, e);
+          setError(e.code ? 'Could not load your residents. Please try again.' : e.message);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
       }
       loadResidents();
       return () => {
@@ -70,6 +116,10 @@ export default function ResidentModeScreen({ navigation }) {
       };
     }, [])
   );
+
+  function canDelete() {
+    return role === 'Administrator';
+  }
 
   async function handleRemove(resident) {
     Alert.alert(
@@ -81,8 +131,13 @@ export default function ResidentModeScreen({ navigation }) {
           text: 'Remove',
           style: 'destructive',
           onPress: async () => {
-            await deleteDoc(doc(db, 'residents', resident.id));
-            setResidents((prev) => prev.filter((r) => r.id !== resident.id));
+            try {
+              await deleteDoc(doc(db, 'residents', resident.id));
+              setResidents((prev) => prev.filter((r) => r.id !== resident.id));
+            } catch (e) {
+              console.error('[ResidentMode] failed to remove resident:', e.code, e.message, e);
+              Alert.alert('Could not remove resident', 'Please try again.');
+            }
           },
         },
       ]
@@ -112,7 +167,14 @@ export default function ResidentModeScreen({ navigation }) {
         numColumns={3}
         contentContainerStyle={styles.grid}
         ListHeaderComponent={
-          loading ? <ActivityIndicator style={styles.spinner} color={colors.primary} /> : null
+          <>
+            {error ? (
+              <Text style={styles.errorBanner} accessibilityRole="alert">
+                {error}
+              </Text>
+            ) : null}
+            {loading ? <ActivityIndicator style={styles.spinner} color={colors.primary} /> : null}
+          </>
         }
         ListFooterComponent={
           <View style={styles.footerRow}>
@@ -177,17 +239,19 @@ export default function ResidentModeScreen({ navigation }) {
               <Ionicons name="create-outline" size={20} color={colors.textPrimary} />
               <Text style={styles.menuItemText}>Edit Profile</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                const resident = menuFor;
-                setMenuFor(null);
-                if (resident) handleRemove(resident);
-              }}
-            >
-              <Ionicons name="trash-outline" size={20} color={colors.destructive} />
-              <Text style={[styles.menuItemText, { color: colors.destructive }]}>Remove Resident</Text>
-            </TouchableOpacity>
+            {menuFor && canDelete() ? (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  const resident = menuFor;
+                  setMenuFor(null);
+                  if (resident) handleRemove(resident);
+                }}
+              >
+                <Ionicons name="trash-outline" size={20} color={colors.destructive} />
+                <Text style={[styles.menuItemText, { color: colors.destructive }]}>Remove Resident</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </Pressable>
       </Modal>
@@ -217,6 +281,19 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   spinner: { marginTop: 24 },
+  errorBanner: {
+    fontFamily: fonts.sansRegular,
+    backgroundColor: '#F6E1DC',
+    borderColor: colors.destructive,
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    color: colors.destructive,
+    fontSize: 15,
+    padding: 14,
+    margin: 16,
+    marginBottom: 0,
+    lineHeight: 21,
+  },
   grid: { padding: 16, paddingBottom: 40 },
   card: {
     flex: 1 / 3,

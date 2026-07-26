@@ -4,6 +4,10 @@ import BackButton from '../components/BackButton';
 import { colors, fonts, radii } from '../theme';
 import { joinOrganizationByCode } from '../utils/inviteCode';
 
+// Reached from JoinCreateOrganizationScreen's "Join" card. Error message
+// comes straight from joinOrganizationByCode() (e.g. "not found") since it's
+// more useful to the user than a generic fallback. Resets to ModeSelection
+// on success for the same reason as CreateOrganizationScreen.
 export default function JoinOrganizationScreen({ navigation }) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');

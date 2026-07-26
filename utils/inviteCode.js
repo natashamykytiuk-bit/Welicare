@@ -24,10 +24,17 @@ async function codeExists(code) {
   return !snapshot.empty;
 }
 
-// Creates a new organization with a unique invite code, then links the
-// current user to it. Collisions are rare (2 letters x 4 digits) but we
-// retry a few times rather than trusting a single random draw.
-export async function createOrganization({ name, type, province, city, email }) {
+// Creates a new organization with a unique invite/join code (2 letters + 4
+// digits — 6 alphanumeric characters, e.g. "XY-4829"), then links the
+// current user to it. Collisions are rare but we retry a few times rather
+// than trusting a single random draw. adminId mirrors createdBy: whoever
+// creates an org is its administrator, regardless of their platform role
+// (createdBy stays the field firestore.rules checks for edit/delete, so it
+// isn't renamed — adminId is purely additive for admin-facing screens).
+// The org's email is the creator's own account email — there's no separate
+// "organization email" to collect, so CreateOrganizationScreen doesn't ask
+// for one.
+export async function createOrganization({ name, type, province, city }) {
   let code = generateInviteCode();
   for (let attempt = 0; attempt < MAX_ATTEMPTS && (await codeExists(code)); attempt += 1) {
     code = generateInviteCode();
@@ -39,9 +46,10 @@ export async function createOrganization({ name, type, province, city, email }) 
     type,
     province,
     city,
-    email,
+    email: auth.currentUser?.email ?? null,
     inviteCode: code,
     createdBy: uid,
+    adminId: uid,
     createdAt: serverTimestamp(),
   });
   await setDoc(doc(db, 'users', uid), { orgId: orgRef.id }, { merge: true });
@@ -49,7 +57,10 @@ export async function createOrganization({ name, type, province, city, email }) 
 }
 
 // Looks up an organization by its invite code and links the current user
-// to it. Returns the orgId, or throws if no organization matches.
+// to it via orgId (the field every screen already reads — ModeSelectionScreen's
+// facility-name lookup, etc.). Returns the orgId, or throws if no
+// organization matches. The user's role was already written to Firestore at
+// sign-up, so joining doesn't need to touch it.
 export async function joinOrganizationByCode(code) {
   const snapshot = await getDocs(
     query(collection(db, 'organizations'), where('inviteCode', '==', code.trim().toUpperCase()))

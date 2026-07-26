@@ -1,5 +1,6 @@
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import BackButton from '../components/BackButton';
+import OrgIdBadge from '../components/OrgIdBadge';
 import { colors, fonts, radii } from '../theme';
 
 // Same pattern as FamilyModeScreen/CaregiverModeScreen — landed on after
@@ -9,6 +10,7 @@ export default function AdministratorModeScreen({ navigation }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <BackButton navigation={navigation} onPress={() => navigation.navigate('ModeSelection')} />
+        <OrgIdBadge />
 
         <Text style={styles.heading}>Administrator Mode</Text>
         <Text style={styles.body}>
