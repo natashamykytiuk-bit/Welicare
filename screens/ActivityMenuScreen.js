@@ -81,6 +81,9 @@ export default function ActivityMenuScreen({ navigation, route }) {
     resident?.lifeStory?.preferredName || resident?.name?.split(' ')[0] || residentName;
   const showBanner = !!residentId && !bannerDismissed && !hasAnyLifeStoryData(resident?.lifeStory);
   const avatarName = resident?.name || residentName;
+  // A real resident is picked (not Guest Mode) whenever residentId is set —
+  // greet them by name instead of the caregiver running the session.
+  const greetingName = residentId ? preferredName : caregiverFirstName;
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -150,7 +153,7 @@ export default function ActivityMenuScreen({ navigation, route }) {
         ) : null}
 
         <Text style={styles.heading}>
-          {timeGreeting()}{caregiverFirstName ? `, ${caregiverFirstName}` : ''}.
+          {timeGreeting()}{greetingName ? `, ${greetingName}` : ''}.
         </Text>
         <Text style={styles.body}>What would you like to do today?</Text>
 
@@ -166,8 +169,8 @@ export default function ActivityMenuScreen({ navigation, route }) {
                 accessibilityRole="button"
                 accessibilityLabel={activity.label}
               >
-                <Ionicons name={activity.icon} size={28} color={accent.icon} style={styles.tileIcon} />
-                <Text style={[styles.tileLabel, { color: accent.icon }]}>{activity.label}</Text>
+                <Ionicons name={activity.icon} size={28} color={colors.textPrimary} style={styles.tileIcon} />
+                <Text style={styles.tileLabel}>{activity.label}</Text>
               </TouchableOpacity>
             );
           })}
@@ -281,6 +284,7 @@ const styles = StyleSheet.create({
   tileIcon: { marginBottom: 10 },
   tileLabel: {
     fontFamily: fonts.sansBold,
-    fontSize: 16,
+    fontSize: 18,
+    color: colors.textPrimary,
   },
 });
