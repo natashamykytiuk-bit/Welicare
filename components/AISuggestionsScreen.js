@@ -1,6 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { generateSuggestions } from '../utils/aiSuggestions';
@@ -56,10 +57,27 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
   return (
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
-        <BackButton
-          navigation={navigation}
-          onPress={homeDestination ? () => navigation.navigate('PINEntry', { destination: homeDestination }) : undefined}
-        />
+        <View style={styles.headerRow}>
+          {/* Back always just returns to the previous screen (Activity
+              Menu when reached from Resident Mode) — it used to be
+              repurposed as a PIN-gated exit straight to Mode Selection
+              whenever fromResidentMode was set, which is wrong; that exit
+              is what the separate home icon below is for, matching the
+              back+home split every other activity screen (PlaceholderScreen,
+              ActivityMenuScreen) already uses. */}
+          <BackButton navigation={navigation} style={styles.iconNoMargin} />
+          {homeDestination ? (
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => navigation.navigate('PINEntry', { destination: homeDestination })}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Return to Mode Selection"
+            >
+              <Ionicons name="home-outline" size={20} color={colors.textPrimary} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <Text style={styles.heading}>{title}</Text>
         <Text style={styles.body}>{description}</Text>
 
@@ -78,6 +96,23 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   content: { padding: 28, paddingTop: 24, paddingBottom: 48 },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  iconNoMargin: { marginBottom: 0 },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.circular,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   heading: {
     fontFamily: fonts.serifBold,
     fontSize: 26,
