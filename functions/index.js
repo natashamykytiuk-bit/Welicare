@@ -80,6 +80,8 @@ function buildPrompt(kind, lifeStory) {
   ].join('\n');
 }
 
+// Redeployed to repair a missing public-invoker IAM binding on the
+// underlying Cloud Run service, left over from a failed first deploy.
 exports.generateSuggestions = onCall({ secrets: [anthropicApiKey] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');

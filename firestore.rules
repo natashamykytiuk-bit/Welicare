@@ -16,16 +16,47 @@ service cloud.firestore {
     // to their own list. facilityId links a resident to an organization —
     // it's null for residents created outside of one.
     match /residents/{residentId} {
-      // Readable by the creator, anyone already assigned, or any signed-in
-      // user in the same organization (so the "Select from [Organization]"
-      // picker can list shared residents before the viewer is assigned).
-      allow read: if request.auth != null && (
+      // Split into get/list rather than one combined `read`: Firestore
+      // validates list/query requests against the rule's structure before
+      // running the query, and can't reliably prove safety when a plain
+      // field-match OR-branch is mixed with a get()-based one in the same
+      // rule — it just rejects the whole query with permission-denied, even
+      // when the branch that would actually apply doesn't use get() at all.
+      // That's what broke ResidentModeScreen's createdBy/assignedCaregivers
+      // queries. Single-document get()s (ActivityMenuScreen,
+      // BuildProfileScreen, AISuggestionsScreen) don't have this problem —
+      // they're evaluated once with no query to validate — so `get` below
+      // keeps the full combined condition.
+      allow get: if request.auth != null && (
         resource.data.caregiverId == request.auth.uid ||
         resource.data.createdBy == request.auth.uid ||
         (resource.data.assignedCaregivers is list && request.auth.uid in resource.data.assignedCaregivers) ||
         (resource.data.facilityId != null &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId)
       );
+
+      // Powers ResidentModeScreen's two queries: where('createdBy','==',uid)
+      // and where('assignedCaregivers','array-contains',uid). The
+      // assignedCaregivers branch MUST be the bare `uid in resource.data.X`
+      // form — wrapping it in `X is list && uid in X` (as the get/update
+      // rules do, safely, since those are evaluated per-document) breaks
+      // Firestore's ability to structurally match it against an
+      // array-contains query filter, and the whole list request gets
+      // rejected as permission-denied. The type-guard is redundant here
+      // anyway: array-contains itself guarantees the field is an array
+      // containing the value for any document the query could return.
+      allow list: if request.auth != null && (
+        resource.data.caregiverId == request.auth.uid ||
+        resource.data.createdBy == request.auth.uid ||
+        request.auth.uid in resource.data.assignedCaregivers
+      );
+
+      // Powers SelectOrganizationResidentScreen's
+      // where('facilityId','==',orgId) query. Kept as its own rule (not
+      // OR'd into the one above) so Firestore can validate this query shape
+      // independently of the plain field-match one.
+      allow list: if request.auth != null && resource.data.facilityId != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId;
 
       // A new resident must be self-attributed — the creator's own uid has
       // to be the caregiverId being written.
