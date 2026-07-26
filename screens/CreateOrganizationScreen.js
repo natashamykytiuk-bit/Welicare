@@ -31,25 +31,33 @@ const PROVINCES = [
   'Other',
 ];
 
+// Reached from JoinCreateOrganizationScreen's "Create" card. On success,
+// createOrganization() writes the org doc and merges orgId onto the user's
+// own record, so we reset (not push) straight to ModeSelection — there's
+// nothing useful to go "back" to in this sub-flow.
 export default function CreateOrganizationScreen({ navigation }) {
   const [name, setName] = useState('');
   const [type, setType] = useState('');
   const [province, setProvince] = useState('');
   const [city, setCity] = useState('');
-  const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const canSubmit = name && type && province && city && email;
+  const canSubmit = name && type && province && city;
 
   async function handleCreate() {
     if (!canSubmit) return;
     setError('');
     setLoading(true);
     try {
-      await createOrganization({ name, type, province, city, email });
+      await createOrganization({ name, type, province, city });
       navigation.reset({ index: 0, routes: [{ name: 'ModeSelection' }] });
     } catch (e) {
+      // Firestore errors carry a `.code` (e.g. "permission-denied") that the
+      // generic user-facing message below deliberately hides — log it so
+      // the real cause shows up in the console instead of just "something
+      // went wrong".
+      console.error('Org creation error:', e.code, e.message, e);
       setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
@@ -106,18 +114,6 @@ export default function CreateOrganizationScreen({ navigation }) {
           value={city}
           onChangeText={setCity}
           accessibilityLabel="City"
-        />
-
-        <Text style={styles.label}>Organization email</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="contact@example.com"
-          placeholderTextColor={colors.textMuted}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-          accessibilityLabel="Organization email"
         />
 
         <TouchableOpacity

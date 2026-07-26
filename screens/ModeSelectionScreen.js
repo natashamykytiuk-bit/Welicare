@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import OrgIdBadge from '../components/OrgIdBadge';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 
@@ -132,6 +133,8 @@ export default function ModeSelectionScreen({ navigation }) {
             <Text style={styles.signOutText}>Sign Out</Text>
           </TouchableOpacity>
         </View>
+
+        <OrgIdBadge />
 
         <Text style={styles.heading}>How are you using Welicare today?</Text>
 
