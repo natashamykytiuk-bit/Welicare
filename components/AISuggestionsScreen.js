@@ -38,6 +38,10 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
         const text = await generateSuggestions(kind, lifeStory);
         if (!cancelled) setSuggestions(text);
       } catch (e) {
+        // httpsCallable errors carry `.code` (e.g. "unauthenticated",
+        // "internal") and `.details` — both hidden by the generic message
+        // below, so log them for debugging.
+        console.error('generateSuggestions error:', e.code, e.message, e.details, e);
         if (!cancelled) setError('Something went wrong generating suggestions. Please try again.');
       } finally {
         if (!cancelled) setLoading(false);

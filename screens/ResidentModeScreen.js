@@ -87,14 +87,25 @@ export default function ResidentModeScreen({ navigation }) {
         const uid = auth.currentUser?.uid;
         console.log('[ResidentMode] loading residents for', uid);
         try {
-          const [ownedSnap, assignedSnap] = await withTimeout(
-            Promise.all([
-              getDocs(query(collection(db, 'residents'), where('createdBy', '==', uid))),
-              getDocs(query(collection(db, 'residents'), where('assignedCaregivers', 'array-contains', uid))),
-            ]),
+          // Queried and caught separately (not Promise.all) so a
+          // permission-denied on one doesn't hide which one it was — a
+          // single combined catch made this impossible to diagnose.
+          const ownedSnap = await withTimeout(
+            getDocs(query(collection(db, 'residents'), where('createdBy', '==', uid))),
             LOAD_TIMEOUT_MS,
             'Loading residents is taking longer than expected. Please check your connection and try again.'
-          );
+          ).catch((e) => {
+            console.error('[ResidentMode] createdBy query failed:', e.code, e.message, e);
+            throw e;
+          });
+          const assignedSnap = await withTimeout(
+            getDocs(query(collection(db, 'residents'), where('assignedCaregivers', 'array-contains', uid))),
+            LOAD_TIMEOUT_MS,
+            'Loading residents is taking longer than expected. Please check your connection and try again.'
+          ).catch((e) => {
+            console.error('[ResidentMode] assignedCaregivers query failed:', e.code, e.message, e);
+            throw e;
+          });
           if (cancelled) return;
           const merged = new Map();
           [...ownedSnap.docs, ...assignedSnap.docs].forEach((d) => merged.set(d.id, { id: d.id, ...d.data() }));
