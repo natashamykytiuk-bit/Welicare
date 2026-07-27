@@ -71,6 +71,10 @@ export default function SettingsScreen({ navigation }) {
             onPress={() =>
               navigation.navigate('ForgotPassword', { email: auth.currentUser?.email })
             }
+          />
+          <Row
+            label="Change Username"
+            onPress={() => navigation.navigate('ChangeUsername')}
             last
           />
         </View>

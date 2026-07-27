@@ -19,6 +19,7 @@ import AdministratorModeScreen from './screens/AdministratorModeScreen';
 import BuildProfileScreen from './screens/BuildProfileScreen';
 import CaregiverModeScreen from './screens/CaregiverModeScreen';
 import CaregiverResidentsScreen from './screens/CaregiverResidentsScreen';
+import ChangeUsernameScreen from './screens/ChangeUsernameScreen';
 import ConversationStartersScreen from './screens/ConversationStartersScreen';
 import CreateOrganizationScreen from './screens/CreateOrganizationScreen';
 import EmailVerificationScreen from './screens/EmailVerificationScreen';
@@ -151,6 +152,8 @@ export default function App() {
             {/* The post-login hub, plus screens reachable from anywhere */}
             <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
+            {/* "Change Username" on SettingsScreen. */}
+            <Stack.Screen name="ChangeUsername" component={ChangeUsernameScreen} />
             {/* Reusable PIN check — every mode entry (and Resident Mode's
                 exit) routes through here with a `destination` param.
                 transparentModal keeps the screen underneath mounted and

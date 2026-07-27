@@ -1,4 +1,5 @@
 import { sendEmailVerification, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -11,8 +12,9 @@ import {
 } from 'react-native';
 import BackButton from '../components/BackButton';
 import PasswordField from '../components/PasswordField';
-import { auth } from '../firebaseConfig';
+import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import { normalizeUsername } from '../utils/username';
 
 // Maps Firebase Auth error codes to messages a user can actually act on,
 // instead of showing a generic "something went wrong" for everything.
@@ -40,6 +42,19 @@ export default function SignInScreen({ navigation }) {
   const [resending, setResending] = useState(false);
   const [resendSent, setResendSent] = useState(false);
 
+  // The "Email or Username" field accepts either — an "@" means it's an
+  // email already; otherwise it's looked up in the public usernames/{key}
+  // collection to find the real email signInWithEmailAndPassword needs.
+  // Returns null if a username was entered but no such username exists,
+  // which callers fold into the same generic "incorrect" error so this
+  // can't be used to probe which usernames are registered.
+  async function resolveEmail(value) {
+    const trimmed = value.trim();
+    if (trimmed.includes('@')) return trimmed;
+    const usernameSnap = await getDoc(doc(db, 'usernames', normalizeUsername(trimmed)));
+    return usernameSnap.exists() ? usernameSnap.data().email : null;
+  }
+
   async function handleSignIn() {
     setError('');
     setUnverified(false);
@@ -50,7 +65,12 @@ export default function SignInScreen({ navigation }) {
     }
     setLoading(true);
     try {
-      const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const resolvedEmail = await resolveEmail(email);
+      if (!resolvedEmail) {
+        setError(getAuthErrorMessage('auth/invalid-credential'));
+        return;
+      }
+      const credential = await signInWithEmailAndPassword(auth, resolvedEmail, password);
       if (!credential.user.emailVerified) {
         // Option A: unverified users are blocked entirely, not just
         // nudged — sign them back out so no session survives on device.
@@ -76,7 +96,12 @@ export default function SignInScreen({ navigation }) {
       // sendEmailVerification needs a live user object, and this screen
       // doesn't have one (we sign out unverified users immediately) — so
       // sign in again just long enough to resend, then sign back out.
-      const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const resolvedEmail = await resolveEmail(email);
+      if (!resolvedEmail) {
+        setError(getAuthErrorMessage('auth/invalid-credential'));
+        return;
+      }
+      const credential = await signInWithEmailAndPassword(auth, resolvedEmail, password);
       await sendEmailVerification(credential.user);
       await signOut(auth);
       setResendSent(true);
@@ -129,17 +154,16 @@ export default function SignInScreen({ navigation }) {
           </TouchableOpacity>
         ) : null}
 
-        <Text style={styles.label}>Email</Text>
+        <Text style={styles.label}>Email or Username</Text>
         <TextInput
           style={styles.input}
-          placeholder="you@example.com"
+          placeholder="Email or username"
           placeholderTextColor={colors.textMuted}
           autoCapitalize="none"
-          keyboardType="email-address"
-          autoComplete="email"
+          autoComplete="username"
           value={email}
           onChangeText={setEmail}
-          accessibilityLabel="Email address"
+          accessibilityLabel="Email or username"
         />
 
         <Text style={styles.label}>Password</Text>
@@ -166,7 +190,12 @@ export default function SignInScreen({ navigation }) {
 
         <TouchableOpacity
           style={styles.switchLink}
-          onPress={() => navigation.navigate('ForgotPassword', email ? { email } : undefined)}
+          onPress={() =>
+            // Only prefill when it's actually an email — ForgotPasswordScreen
+            // needs a real email address, and this field now also accepts a
+            // username, which wouldn't be a valid prefill there.
+            navigation.navigate('ForgotPassword', email.includes('@') ? { email } : undefined)
+          }
           accessibilityRole="link"
         >
           <Text style={styles.switchLinkText}>Forgot password?</Text>
