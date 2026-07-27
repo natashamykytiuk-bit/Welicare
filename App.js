@@ -24,6 +24,8 @@ import EmailVerificationScreen from './screens/EmailVerificationScreen';
 import FamilyFeedScreen from './screens/FamilyFeedScreen';
 import FamilyModeScreen from './screens/FamilyModeScreen';
 import FamilyResidentsScreen from './screens/FamilyResidentsScreen';
+import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
+import ForgotPinScreen from './screens/ForgotPinScreen';
 import GamesScreen from './screens/GamesScreen';
 import GuidedMeditationScreen from './screens/GuidedMeditationScreen';
 import HourTrackerScreen from './screens/HourTrackerScreen';
@@ -116,8 +118,22 @@ export default function App() {
             <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             {/* Reusable PIN check — every mode entry (and Resident Mode's
-                exit) routes through here with a `destination` param. */}
-            <Stack.Screen name="PINEntry" component={PINEntryScreen} />
+                exit) routes through here with a `destination` param.
+                transparentModal keeps the screen underneath mounted and
+                visible instead of unmounting it, which is what lets
+                PINEntryScreen's own dark overlay show it dimmed behind
+                the floating card. */}
+            <Stack.Screen
+              name="PINEntry"
+              component={PINEntryScreen}
+              options={{ presentation: 'transparentModal', animation: 'fade' }}
+            />
+            {/* "Forgot PIN?" on PINEntryScreen — re-verifies the user's
+                password, then hands off to PINSetup in reset mode. */}
+            <Stack.Screen name="ForgotPin" component={ForgotPinScreen} />
+            {/* Also reachable from SettingsScreen's "Change Password" row,
+                pre-filled with the signed-in user's email. */}
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
 
             {/* Family Mode */}
             <Stack.Screen name="FamilyMode" component={FamilyModeScreen} />
@@ -173,6 +189,9 @@ export default function App() {
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="SignUp" component={SignUpScreen} />
             <Stack.Screen name="SignIn" component={SignInScreen} />
+            {/* "Forgot password?" on SignInScreen — sends a Firebase Auth
+                password reset email. */}
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             {/* Reached right after sign-up, while the account exists in
                 Firebase Auth but isn't verified yet — still part of the
                 signed-out stack since `user` above is null until then.

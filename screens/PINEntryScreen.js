@@ -1,7 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
-import BackButton from '../components/BackButton';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import NumberPad from '../components/NumberPad';
 import PinDots from '../components/PinDots';
 import { auth, db } from '../firebaseConfig';
@@ -9,6 +9,22 @@ import { colors, fonts, radii } from '../theme';
 import { hashPin, isValidPin } from '../utils/pin';
 
 const MAX_ATTEMPTS = 5;
+
+// Route names PINEntry gets sent as `destination` don't read well as
+// user-facing copy on their own (e.g. "AdministratorMode"), so map the
+// ones we know about to a readable label. Anything unrecognized still
+// gets a reasonable fallback by splitting on the camelCase boundary.
+const DESTINATION_LABELS = {
+  FamilyMode: 'Family Mode',
+  CaregiverMode: 'Caregiver Mode',
+  VolunteerMode: 'Volunteer Mode',
+  AdministratorMode: 'Administrator Mode',
+  ModeSelection: 'Mode Selection',
+};
+
+function destinationLabel(routeName) {
+  return DESTINATION_LABELS[routeName] ?? routeName.replace(/([a-z])([A-Z])/g, '$1 $2');
+}
 
 function initialsOf(name) {
   return name
@@ -23,6 +39,10 @@ function initialsOf(name) {
 // Volunteer/Administrator Mode, and Resident Mode's exit) navigates here
 // with a `destination` route param saying where to go on success — see
 // ModeSelectionScreen.js and ResidentModeScreen.js for the callers.
+//
+// Presented as a transparentModal (see App.js) so the screen underneath
+// stays mounted and visible — that's what shows through the dark overlay
+// below, giving the floating-card-over-dimmed-background look.
 export default function PINEntryScreen({ navigation, route }) {
   const destination = route?.params?.destination ?? 'ModeSelection';
   const [digits, setDigits] = useState('');
@@ -91,39 +111,107 @@ export default function PINEntryScreen({ navigation, route }) {
   }
 
   return (
-    <SafeAreaView style={styles.flex}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <BackButton navigation={navigation} />
+    <View style={styles.container}>
+      {/* Dimmed backdrop — a sibling of the centered card (not its parent)
+          so the card itself doesn't inherit the backdrop's transparency. */}
+      <View style={styles.backdrop} />
 
-        {storedHash === undefined ? (
-          <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
-        ) : (
-          <>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initialsOf(displayName)}</Text>
-            </View>
-            <Text style={styles.heading}>Enter your PIN</Text>
-            <Text style={styles.body}>to sign in as {displayName}</Text>
+      <View style={styles.centerWrap}>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="close" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
 
-            {error ? (
-              <Text style={styles.errorBanner} accessibilityRole="alert">
-                {error}
-              </Text>
-            ) : null}
+          <ScrollView style={styles.cardScroll} contentContainerStyle={styles.cardContent} showsVerticalScrollIndicator={false}>
+            {storedHash === undefined ? (
+              <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
+            ) : (
+              <>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{initialsOf(displayName)}</Text>
+                </View>
 
-            <PinDots value={digits} />
-            <NumberPad onDigit={handleDigit} onBackspace={handleBackspace} disabled={checking || lockedOut} />
-          </>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+                <Text style={styles.eyebrow}>PIN REQUIRED</Text>
+                <Text style={styles.heading}>Enter your PIN</Text>
+                <Text style={styles.body}>
+                  to access <Text style={styles.bodyEmphasis}>{destinationLabel(destination)}</Text>
+                </Text>
+
+                {error ? (
+                  <Text style={styles.errorBanner} accessibilityRole="alert">
+                    {error}
+                  </Text>
+                ) : null}
+
+                <PinDots value={digits} />
+                <NumberPad onDigit={handleDigit} onBackspace={handleBackspace} disabled={checking || lockedOut} />
+
+                <TouchableOpacity
+                  style={styles.forgotLink}
+                  onPress={() => navigation.navigate('ForgotPin', { destination })}
+                  accessibilityRole="link"
+                  accessibilityLabel="Forgot PIN?"
+                >
+                  <Text style={styles.forgotLinkText}>Forgot PIN?</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 28, paddingTop: 24, paddingBottom: 48, alignItems: 'center' },
-  loading: { marginTop: 20 },
+  container: { flex: 1 },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.primary,
+    opacity: 0.55,
+  },
+  centerWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  card: {
+    width: '85%',
+    maxWidth: 400,
+    maxHeight: '85%',
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 1,
+    width: 36,
+    height: 36,
+    borderRadius: radii.circular,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // RN's Yoga defaults flexShrink to 0 (unlike CSS's 1), so without this the
+  // ScrollView ignores the card's maxHeight and overflows uncontrollably
+  // instead of clipping to it and scrolling its own content internally.
+  cardScroll: { flexShrink: 1 },
+  cardContent: { padding: 28, paddingTop: 32, alignItems: 'center' },
+  loading: { marginTop: 20, marginBottom: 12 },
   avatar: {
     width: 64,
     height: 64,
@@ -131,14 +219,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.secondary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
     marginBottom: 16,
-    alignSelf: 'center',
   },
   avatarText: {
     fontFamily: fonts.sansBold,
     fontSize: 22,
     color: colors.white,
+  },
+  eyebrow: {
+    fontFamily: fonts.sansBold,
+    fontSize: 13,
+    letterSpacing: 1,
+    color: colors.textMuted,
+    marginBottom: 8,
   },
   heading: {
     fontFamily: fonts.serifBold,
@@ -151,8 +244,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansRegular,
     fontSize: 18,
     color: colors.textMuted,
+    lineHeight: 26,
     marginBottom: 24,
     textAlign: 'center',
+  },
+  bodyEmphasis: {
+    fontFamily: fonts.sansBold,
   },
   errorBanner: {
     fontFamily: fonts.sansRegular,
@@ -161,10 +258,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radii.sm,
     color: colors.destructive,
-    fontSize: 16,
+    fontSize: 18,
     padding: 14,
     marginBottom: 20,
-    lineHeight: 22,
+    lineHeight: 24,
     width: '100%',
+    textAlign: 'center',
+  },
+  forgotLink: {
+    marginTop: 20,
+    paddingVertical: 10,
+  },
+  forgotLinkText: {
+    fontFamily: fonts.sansRegular,
+    color: colors.textMuted,
+    fontSize: 15,
   },
 });

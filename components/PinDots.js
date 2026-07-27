@@ -17,13 +17,13 @@ export default function PinDots({ value, length = 4 }) {
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 14,
     justifyContent: 'center',
     marginBottom: 24,
   },
   dot: {
-    width: 20,
-    height: 20,
+    width: 13,
+    height: 13,
     borderRadius: radii.circular,
     borderWidth: 2,
     borderColor: colors.border,
