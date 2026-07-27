@@ -13,7 +13,14 @@ import { hashPin } from '../utils/pin';
 // Firestore doc — PINEntryScreen later reads that same field to verify
 // PIN attempts. Every role continues to JoinCreateOrganization next; the
 // "Skip this step" option lives on that screen instead.
-export default function PINSetupScreen({ navigation }) {
+//
+// Also reused for PIN reset: ForgotPinScreen navigates here with
+// `mode: 'reset'` and a `destination` after re-verifying the user's
+// password, in which case saving lands back on `destination` instead of
+// continuing the onboarding flow.
+export default function PINSetupScreen({ navigation, route }) {
+  const mode = route?.params?.mode ?? 'onboarding';
+  const destination = route?.params?.destination;
   const [stage, setStage] = useState('enter'); // 'enter' | 'confirm'
   const [firstPin, setFirstPin] = useState('');
   const [digits, setDigits] = useState('');
@@ -51,7 +58,11 @@ export default function PINSetupScreen({ navigation }) {
       const uid = auth.currentUser?.uid;
       const pinHash = await hashPin(next);
       await setDoc(doc(db, 'users', uid), { pinHash }, { merge: true });
-      navigation.reset({ index: 0, routes: [{ name: 'JoinCreateOrganization' }] });
+      if (mode === 'reset' && destination) {
+        navigation.reset({ index: 0, routes: [{ name: destination }] });
+      } else {
+        navigation.reset({ index: 0, routes: [{ name: 'JoinCreateOrganization' }] });
+      }
     } catch (e) {
       console.log('PIN setup error:', e);
       setError('Something went wrong saving your PIN. Please try again.');
@@ -70,10 +81,14 @@ export default function PINSetupScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.stepIndicator}>STEP 2 OF 3 — SET YOUR PIN</Text>
-        <Text style={styles.heading}>Set your PIN</Text>
+        {mode !== 'reset' ? (
+          <Text style={styles.stepIndicator}>STEP 2 OF 3 — SET YOUR PIN</Text>
+        ) : null}
+        <Text style={styles.heading}>{mode === 'reset' ? 'Set a new PIN' : 'Set your PIN'}</Text>
         <Text style={styles.body}>
-          This PIN protects staff and family modes on the device.
+          {mode === 'reset'
+            ? 'Choose a new PIN to protect staff and family modes on this device.'
+            : 'This PIN protects staff and family modes on the device.'}
         </Text>
 
         {error ? (

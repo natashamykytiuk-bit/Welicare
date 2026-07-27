@@ -1,4 +1,10 @@
 {
+  "skillOverrides": {
+    "ui-ux-pro-max": "off"
+  },
+  "enabledPlugins": {
+    "expo@claude-plugins-official": false
+  },
   "permissions": {
     "allow": [
       "PowerShell(Out-File *)",

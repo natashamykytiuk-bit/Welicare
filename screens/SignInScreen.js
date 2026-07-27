@@ -166,6 +166,14 @@ export default function SignInScreen({ navigation }) {
 
         <TouchableOpacity
           style={styles.switchLink}
+          onPress={() => navigation.navigate('ForgotPassword', email ? { email } : undefined)}
+          accessibilityRole="link"
+        >
+          <Text style={styles.switchLinkText}>Forgot password?</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.switchLink}
           onPress={() => navigation.navigate('SignUp')}
           accessibilityRole="link"
         >

@@ -30,7 +30,7 @@ export default function NumberPad({ onDigit, onBackspace, disabled }) {
                   accessibilityRole="button"
                   accessibilityLabel="Backspace"
                 >
-                  <Ionicons name="backspace-outline" size={24} color={colors.textPrimary} />
+                  <Ionicons name="backspace-outline" size={26} color={colors.textPrimary} />
                 </TouchableOpacity>
               );
             }
@@ -54,10 +54,18 @@ export default function NumberPad({ onDigit, onBackspace, disabled }) {
   );
 }
 
+// Fixed dimensions (not percentages of the parent) so the pad renders the
+// same size everywhere it's dropped, regardless of whether the surrounding
+// screen stretches or center-aligns its content.
+const KEY_SIZE = 76;
+const KEY_GAP = 18;
+
 const styles = StyleSheet.create({
-  grid: { gap: 12 },
-  row: { flexDirection: 'row', gap: 12 },
-  key: { flex: 1, minHeight: 72 },
+  // alignItems: 'center' keeps each row centered within whatever width the
+  // parent gives the grid, instead of the row stretching edge-to-edge.
+  grid: { alignItems: 'center', gap: KEY_GAP },
+  row: { flexDirection: 'row', gap: KEY_GAP },
+  key: { width: KEY_SIZE, height: KEY_SIZE },
   keyButton: {
     backgroundColor: colors.surface,
     borderRadius: radii.sm,
@@ -68,7 +76,7 @@ const styles = StyleSheet.create({
   },
   keyText: {
     fontFamily: fonts.sansBold,
-    fontSize: 24,
+    fontSize: 29,
     color: colors.textPrimary,
   },
 });
