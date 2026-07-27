@@ -7,9 +7,10 @@ import { Lora_400Regular, Lora_700Bold } from '@expo-google-fonts/lora';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { auth } from './firebaseConfig';
+import { auth, db } from './firebaseConfig';
 
 import ActivityIdeasScreen from './screens/ActivityIdeasScreen';
 import ActivityMenuScreen from './screens/ActivityMenuScreen';
@@ -59,10 +60,12 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   // undefined = still resolving, null = signed out, object = signed in
   const [user, setUser] = useState(undefined);
-  // True only for the moment right after a brand-new sign-up, so the very
-  // first screen after auth can be PINSetup instead of ModeSelection.
-  // Reset to false on sign-out so a later sign-in doesn't show it again.
-  const [justSignedUp, setJustSignedUp] = useState(false);
+  // undefined while this user's onboarding doc is loading, then an object
+  // of { needsPin, needsOrg } computed from what's actually saved in
+  // Firestore — this is what initialRouteName below reads, instead of a
+  // one-shot "just signed up" flag, so the routing decision survives app
+  // restarts and sign-out/sign-in cycles.
+  const [onboardingStatus, setOnboardingStatus] = useState(undefined);
   const [fontsLoaded] = useFonts({
     AtkinsonHyperlegible_400Regular,
     AtkinsonHyperlegible_700Bold,
@@ -79,18 +82,51 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       const verifiedUser = u && u.emailVerified ? u : null;
       setUser(verifiedUser);
-      if (!verifiedUser) setJustSignedUp(false);
     });
     return unsubscribe;
   }, []);
 
-  if (user === undefined || !fontsLoaded) {
+  // Reads this user's own Firestore doc once per sign-in to figure out
+  // what onboarding, if any, is still outstanding. Administrators can't
+  // skip connecting to an org, so orgStepSkipped only excuses everyone
+  // else from needing one.
+  useEffect(() => {
+    if (!user) {
+      setOnboardingStatus(undefined);
+      return;
+    }
+    let cancelled = false;
+    async function loadOnboardingStatus() {
+      const snap = await getDoc(doc(db, 'users', user.uid));
+      if (cancelled) return;
+      const data = snap.data() ?? {};
+      const needsPin = !data.pinHash;
+      const needsOrg = data.role === 'Administrator'
+        ? !data.orgId
+        : !data.orgId && !data.orgStepSkipped;
+      setOnboardingStatus({ needsPin, needsOrg });
+    }
+    loadOnboardingStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  if (user === undefined || !fontsLoaded || (user && !onboardingStatus)) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color="#2D9B8A" />
       </View>
     );
   }
+
+  const initialRouteName = !user
+    ? 'Welcome'
+    : onboardingStatus.needsPin
+    ? 'PINSetup'
+    : onboardingStatus.needsOrg
+    ? 'JoinCreateOrganization'
+    : 'ModeSelection';
 
   return (
     <NavigationContainer>
@@ -102,9 +138,7 @@ export default function App() {
       */}
       <Stack.Navigator
         screenOptions={{ headerShown: false }}
-        initialRouteName={
-          user ? (justSignedUp ? 'PINSetup' : 'ModeSelection') : 'Welcome'
-        }
+        initialRouteName={initialRouteName}
       >
         {user ? (
           <>
@@ -196,18 +230,17 @@ export default function App() {
                 Firebase Auth but isn't verified yet — still part of the
                 signed-out stack since `user` above is null until then.
                 Rendered via a children function (instead of `component`)
-                so we can pass onVerified, which flips justSignedUp and
-                hands the now-verified user back to onAuthStateChanged's
-                next check without EmailVerificationScreen needing to know
-                about App's state. */}
+                so we can pass onVerified, which hands the now-verified
+                user back to onAuthStateChanged's next check without
+                EmailVerificationScreen needing to know about App's state.
+                The onboarding-status effect above then naturally routes a
+                brand-new user to PINSetup, since they won't have a
+                pinHash yet. */}
             <Stack.Screen name="EmailVerification">
               {(props) => (
                 <EmailVerificationScreen
                   {...props}
-                  onVerified={() => {
-                    setJustSignedUp(true);
-                    setUser(auth.currentUser);
-                  }}
+                  onVerified={() => setUser(auth.currentUser)}
                 />
               )}
             </Stack.Screen>
