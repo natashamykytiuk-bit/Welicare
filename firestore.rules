@@ -9,6 +9,28 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Public lookup collection keyed by lowercased username, used to
+    // enforce uniqueness (sign-up, ChangeUsernameScreen) and to resolve a
+    // username to an email for sign-in-by-username — both need to work
+    // before/without the person being signed in as themselves.
+    match /usernames/{usernameLower} {
+      // Public read: needed to resolve a username to an email before the
+      // person is signed in (sign-in-by-username) and to check
+      // availability during sign-up/username changes.
+      allow get: if true;
+      // Only the account it belongs to can claim it, and only if this
+      // exact username isn't already taken — `create` only matches when
+      // no document currently exists at this path, so a second person
+      // trying to grab the same username hits `update` semantics instead
+      // and is rejected below.
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      // Only the owner can release their own old username (used when
+      // changing usernames).
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow update: if false;
+      allow list: if false;
+    }
+
     // Residents can be shared across an organization. caregiverId is the
     // creator (checked on create); createdBy is the same value, kept for
     // back-compat with residents created before org-wide sharing existed.

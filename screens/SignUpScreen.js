@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
-import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, deleteUser, sendEmailVerification } from 'firebase/auth';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -18,6 +18,7 @@ import PasswordField from '../components/PasswordField';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { useIsTablet } from '../utils/responsive';
+import { normalizeUsername } from '../utils/username';
 import { getPasswordRules, isPasswordValid, isValidUsername } from '../utils/validation';
 
 // The `value` stored on the user doc must match the role checks in
@@ -147,6 +148,13 @@ export default function SignUpScreen({ navigation }) {
     }
     setLoading(true);
     try {
+      const usernameKey = normalizeUsername(username);
+      const usernameSnap = await getDoc(doc(db, 'usernames', usernameKey));
+      if (usernameSnap.exists()) {
+        setError('This username is already taken.');
+        return;
+      }
+
       const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       await setDoc(doc(db, 'users', credential.user.uid), {
         uid: credential.user.uid,
@@ -157,6 +165,24 @@ export default function SignUpScreen({ navigation }) {
         role,
         createdAt: serverTimestamp(),
       });
+
+      try {
+        // No merge: an unmerged setDoc is only permitted by firestore.rules
+        // as a `create`, which only succeeds while no document exists at
+        // this path yet — so this is also what catches the race where
+        // someone else claimed the same username in between the
+        // availability check above and this write.
+        await setDoc(doc(db, 'usernames', usernameKey), {
+          uid: credential.user.uid,
+          email: email.trim(),
+        });
+      } catch (claimError) {
+        console.log('Username claim error:', claimError);
+        await deleteUser(credential.user);
+        setError('This username was just taken — please choose another and try again.');
+        return;
+      }
+
       await sendEmailVerification(credential.user);
       navigation.navigate('EmailVerification', { email: email.trim() });
     } catch (e) {
