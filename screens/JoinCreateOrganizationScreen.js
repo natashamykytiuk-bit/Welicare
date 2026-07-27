@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,11 +13,12 @@ import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 
 // Shown once during onboarding, after PINSetupScreen, for every role.
-// Role isn't threaded through as a navigation param — PINSetup is reached
-// via App.js's justSignedUp-driven initialRouteName (not a `navigate` call),
-// so route params wouldn't survive the hop. Instead we read the role the
-// same way ModeSelectionScreen does: straight from the user's own Firestore
-// doc, which SignUpScreen already wrote at account creation.
+// Role isn't threaded through as a navigation param — this screen is
+// reached via App.js's onboarding-status-driven initialRouteName (not a
+// `navigate` call), so route params wouldn't survive the hop. Instead we
+// read the role the same way ModeSelectionScreen does: straight from the
+// user's own Firestore doc, which SignUpScreen already wrote at account
+// creation.
 //
 // Administrators must connect to an organization before continuing (they
 // manage staff/residents at the org level, so a facility-less admin account
@@ -42,7 +43,19 @@ export default function JoinCreateOrganizationScreen({ navigation }) {
 
   const isAdministrator = role === 'Administrator';
 
-  function handleSkip() {
+  // Skipping is recorded on the user's own doc (not just a navigation
+  // shortcut) so App.js's onboarding-status check treats it as a durable
+  // decision — otherwise the user would land back on this screen on every
+  // future sign-in since they'd still lack an orgId.
+  async function handleSkip() {
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      try {
+        await setDoc(doc(db, 'users', uid), { orgStepSkipped: true }, { merge: true });
+      } catch (e) {
+        console.log('Failed to record org step skip:', e);
+      }
+    }
     navigation.reset({ index: 0, routes: [{ name: 'ModeSelection' }] });
   }
 
