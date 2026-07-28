@@ -71,7 +71,7 @@ export default function MusicPlayerScreen({ navigation, route }) {
   }, [navigation, isFullscreen, exitFullscreen]);
 
   return (
-    <SafeAreaView style={styles.flex}>
+    <SafeAreaView style={[styles.flex, isFullscreen && styles.flexFullscreen]}>
       <StatusBar hidden={isFullscreen} />
       <View style={[styles.content, isFullscreen && styles.contentFullscreen]}>
         {!isFullscreen ? (
@@ -125,10 +125,16 @@ export default function MusicPlayerScreen({ navigation, route }) {
   );
 }
 
+// Letterbox/background color while fullscreen — a near-black dark grey
+// rather than pure black so any Android status/nav-bar sliver visible
+// around the edges doesn't read as a jarring void.
+const FULLSCREEN_BG = '#111111';
+
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
+  flexFullscreen: { backgroundColor: FULLSCREEN_BG },
   content: { flex: 1, padding: 28, paddingTop: 24, alignItems: 'center' },
-  contentFullscreen: { padding: 0, alignItems: 'stretch' },
+  contentFullscreen: { padding: 0, alignItems: 'stretch', backgroundColor: FULLSCREEN_BG },
   backLink: {
     fontFamily: fonts.sansBold,
     fontSize: 15,
@@ -155,6 +161,10 @@ const styles = StyleSheet.create({
   playerWrapFullscreen: {
     borderRadius: 0,
     borderWidth: 0,
+    // Letterbox bars: when the 16:9 video doesn't exactly fill a landscape
+    // screen's aspect ratio, this shows through above/below it instead of
+    // the light mistBackground card color, which looked wrong full-bleed.
+    backgroundColor: FULLSCREEN_BG,
   },
   fullscreenToggle: {
     position: 'absolute',
