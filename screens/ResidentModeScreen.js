@@ -163,10 +163,15 @@ export default function ResidentModeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.flex}>
       <View style={styles.header}>
+        {/* Not a plain goBack: this screen is reached via navigation.reset()
+            when the PIN gate lets someone in (see the hardware-back handler
+            above, and ActivityMenuScreen's back button), which wipes any
+            prior stack entry — goBack() would then have nothing to pop to. */}
         <BackButton
           navigation={navigation}
           color={colors.white}
           style={styles.headerBack}
+          onPress={() => navigation.navigate('ModeSelection', { animation: 'slide_from_left' })}
         />
         <Text style={styles.headerTitle}>Hello! Who are we visiting today?</Text>
         <Text style={styles.headerSubtitle}>Select a resident to begin their session</Text>

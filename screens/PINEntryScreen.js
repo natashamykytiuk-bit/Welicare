@@ -10,6 +10,13 @@ import { hashPin, isValidPin } from '../utils/pin';
 
 const MAX_ATTEMPTS = 5;
 
+// Destinations that mean "leaving a mode" rather than "entering one" — the
+// reset below sends these through with animation: 'slide_from_left' so the
+// transition reads as a back navigation (previous screen slides in from the
+// left) instead of the default forward-push look, which is what native-stack
+// would otherwise use since navigation.reset() isn't a real pop.
+const BACK_STYLE_DESTINATIONS = new Set(['ModeSelection', 'ResidentMode']);
+
 // Route names PINEntry gets sent as `destination` don't read well as
 // user-facing copy on their own (e.g. "AdministratorMode"), so map the
 // ones we know about to a readable label. Anything unrecognized still
@@ -20,6 +27,7 @@ const DESTINATION_LABELS = {
   VolunteerMode: 'Volunteer Mode',
   AdministratorMode: 'Administrator Mode',
   ModeSelection: 'Mode Selection',
+  ResidentMode: 'Resident Selection',
 };
 
 function destinationLabel(routeName) {
@@ -90,7 +98,17 @@ export default function PINEntryScreen({ navigation, route }) {
         // navigation.reset (not navigate) clears everything before this
         // screen, so e.g. leaving Resident Mode can't be undone by just
         // pressing back afterward.
-        navigation.reset({ index: 0, routes: [{ name: destination }] });
+        navigation.reset({
+          index: 0,
+          routes: [
+            {
+              name: destination,
+              params: BACK_STYLE_DESTINATIONS.has(destination)
+                ? { animation: 'slide_from_left' }
+                : undefined,
+            },
+          ],
+        });
         return;
       }
       const nextAttempts = attempts + 1;

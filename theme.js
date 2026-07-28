@@ -19,6 +19,7 @@ export const colors = {
     conversation: { icon: '#2D7D8F', bg: '#DAF0F4' },
     photoAlbum: { icon: '#8A6040', bg: '#F0E8DF' },
     games: { icon: '#5A7A3A', bg: '#E4EDD9' },
+    moviesVideos: { icon: '#C17F5A', bg: '#F0E0D0' },
   },
 };
 

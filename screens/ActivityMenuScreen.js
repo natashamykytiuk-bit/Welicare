@@ -3,7 +3,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import BackButton from '../components/BackButton';
-import { auth, db } from '../firebaseConfig';
+import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { hasAnyLifeStoryData } from '../utils/lifeStory';
 
@@ -31,6 +31,7 @@ const ACTIVITIES = [
   { label: 'Games', screen: 'Games', accent: 'games', icon: 'game-controller-outline' },
   { label: 'Trivia', screen: 'Trivia', accent: 'trivia', icon: 'help-circle-outline' },
   { label: 'Photo Album', screen: 'PhotoAlbum', accent: 'photoAlbum', icon: 'images-outline' },
+  { label: 'Movies & Videos', screen: 'MoviesVideos', accent: 'moviesVideos', icon: 'film-outline' },
   {
     label: 'Conversation Starters',
     screen: 'ConversationStarters',
@@ -41,7 +42,9 @@ const ACTIVITIES = [
 ];
 
 // The main hub once a resident (or Guest Mode) has been picked in
-// ResidentModeScreen. Header: back (to ResidentModeScreen), resident
+// ResidentModeScreen. Header: back (PIN-gated exit to ResidentMode, the
+// resident-selection screen — a caregiver mid-session with a resident
+// shouldn't be able to just tap back into the resident list), resident
 // avatar+name centered, settings gear (to ResidentProfile, for editing
 // this resident's info — not the global SettingsScreen), and home
 // (PIN-gated exit to ModeSelection, same as ResidentModeScreen).
@@ -49,7 +52,6 @@ export default function ActivityMenuScreen({ navigation, route }) {
   const residentId = route?.params?.residentId;
   const residentName = route?.params?.residentName ?? 'this resident';
   const [resident, setResident] = useState(null);
-  const [caregiverFirstName, setCaregiverFirstName] = useState('');
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   useEffect(() => {
@@ -63,33 +65,25 @@ export default function ActivityMenuScreen({ navigation, route }) {
     };
   }, [residentId]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const uid = auth.currentUser?.uid;
-    if (!uid) return undefined;
-    getDoc(doc(db, 'users', uid)).then((snapshot) => {
-      if (cancelled) return;
-      const name = snapshot.data()?.fullName || snapshot.data()?.username || '';
-      setCaregiverFirstName(name.split(' ')[0] || '');
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const preferredName =
     resident?.lifeStory?.preferredName || resident?.name?.split(' ')[0] || residentName;
   const showBanner = !!residentId && !bannerDismissed && !hasAnyLifeStoryData(resident?.lifeStory);
   const avatarName = resident?.name || residentName;
   // A real resident is picked (not Guest Mode) whenever residentId is set —
-  // greet them by name instead of the caregiver running the session.
-  const greetingName = residentId ? preferredName : caregiverFirstName;
+  // greet them by name. In Guest Mode there's no resident to name, and we
+  // don't want to expose the account owner's name in a shared/guest session,
+  // so the greeting stays name-less.
+  const greetingName = residentId ? preferredName : '';
 
   return (
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
-          <BackButton navigation={navigation} style={styles.iconNoMargin} />
+          <BackButton
+            navigation={navigation}
+            style={styles.iconNoMargin}
+            onPress={() => navigation.navigate('PINEntry', { destination: 'ResidentMode' })}
+          />
           <View style={styles.headerCenter}>
             <View style={styles.residentAvatar}>
               <Text style={styles.residentAvatarText}>{initialsOf(avatarName)}</Text>
@@ -106,7 +100,7 @@ export default function ActivityMenuScreen({ navigation, route }) {
               accessibilityRole="button"
               accessibilityLabel="Edit resident info"
             >
-              <Ionicons name="settings-outline" size={20} color={colors.textPrimary} />
+              <Ionicons name="settings-outline" size={22} color={colors.textPrimary} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconButton}
@@ -115,7 +109,7 @@ export default function ActivityMenuScreen({ navigation, route }) {
               accessibilityRole="button"
               accessibilityLabel="Return to Mode Selection"
             >
-              <Ionicons name="home-outline" size={20} color={colors.textPrimary} />
+              <Ionicons name="home-outline" size={22} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -125,7 +119,7 @@ export default function ActivityMenuScreen({ navigation, route }) {
             <View style={styles.bannerAccent} />
             <View style={styles.bannerBody}>
               <View style={styles.bannerHeaderRow}>
-                <Ionicons name="sparkles" size={18} color={colors.primary} style={styles.bannerIcon} />
+                <Ionicons name="sparkles" size={20} color={colors.primary} style={styles.bannerIcon} />
                 <Text style={styles.bannerTitle}>Personalize {preferredName}'s experience</Text>
                 <TouchableOpacity
                   onPress={() => setBannerDismissed(true)}
@@ -133,7 +127,7 @@ export default function ActivityMenuScreen({ navigation, route }) {
                   accessibilityLabel="Dismiss"
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons name="close" size={18} color={colors.textMuted} />
+                  <Ionicons name="close" size={20} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.bannerSubtext}>
@@ -169,7 +163,7 @@ export default function ActivityMenuScreen({ navigation, route }) {
                 accessibilityRole="button"
                 accessibilityLabel={activity.label}
               >
-                <Ionicons name={activity.icon} size={28} color={colors.textPrimary} style={styles.tileIcon} />
+                <Ionicons name={activity.icon} size={32} color={colors.textPrimary} style={styles.tileIcon} />
                 <Text style={styles.tileLabel}>{activity.label}</Text>
               </TouchableOpacity>
             );
@@ -192,8 +186,8 @@ const styles = StyleSheet.create({
   iconNoMargin: { marginBottom: 0 },
   headerCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   residentAvatar: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     borderRadius: radii.circular,
     backgroundColor: colors.primary,
     alignItems: 'center',
@@ -202,12 +196,12 @@ const styles = StyleSheet.create({
   },
   residentAvatarText: {
     fontFamily: fonts.sansBold,
-    fontSize: 14,
+    fontSize: 16,
     color: colors.white,
   },
   residentName: {
     fontFamily: fonts.sansBold,
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textPrimary,
   },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -245,27 +239,27 @@ const styles = StyleSheet.create({
   },
   bannerSubtext: {
     fontFamily: fonts.sansRegular,
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textMuted,
     marginBottom: 10,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   bannerAction: {
     fontFamily: fonts.sansBold,
-    fontSize: 15,
+    fontSize: 16,
     color: colors.primary,
   },
   heading: {
     fontFamily: fonts.serifBold,
-    fontSize: 26,
+    fontSize: 32,
     color: colors.textPrimary,
     marginBottom: 8,
   },
   body: {
     fontFamily: fonts.sansRegular,
-    fontSize: 16,
+    fontSize: 20,
     color: colors.textMuted,
-    lineHeight: 24,
+    lineHeight: 28,
     marginBottom: 24,
   },
   grid: {
@@ -278,13 +272,14 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     borderRadius: radii.lg,
     padding: 20,
-    minHeight: 120,
+    minHeight: 136,
     justifyContent: 'flex-end',
   },
   tileIcon: { marginBottom: 10 },
   tileLabel: {
     fontFamily: fonts.sansBold,
-    fontSize: 18,
+    fontSize: 22,
+    lineHeight: 27,
     color: colors.textPrimary,
   },
 });

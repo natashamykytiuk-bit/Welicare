@@ -36,6 +36,7 @@ import JoinOrganizationScreen from './screens/JoinOrganizationScreen';
 import ManageUsersScreen from './screens/ManageUsersScreen';
 import ModeSelectionScreen from './screens/ModeSelectionScreen';
 import MolehuntScreen from './screens/MolehuntScreen';
+import MoviesVideosScreen from './screens/MoviesVideosScreen';
 import MusicMovieRecsScreen from './screens/MusicMovieRecsScreen';
 import MusicPlayerScreen from './screens/MusicPlayerScreen';
 import MusicSelectionScreen from './screens/MusicSelectionScreen';
@@ -149,8 +150,17 @@ export default function App() {
             <Stack.Screen name="JoinOrganization" component={JoinOrganizationScreen} />
             <Stack.Screen name="CreateOrganization" component={CreateOrganizationScreen} />
 
-            {/* The post-login hub, plus screens reachable from anywhere */}
-            <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
+            {/* The post-login hub, plus screens reachable from anywhere.
+                animation is dynamic (not a fixed screenOption) because this
+                screen is reached both going forward (finishing onboarding)
+                and going "back" out of a mode — the back-style callers pass
+                params.animation: 'slide_from_left' so the transition mirrors
+                a real pop instead of looking like another forward push. */}
+            <Stack.Screen
+              name="ModeSelection"
+              component={ModeSelectionScreen}
+              options={({ route }) => ({ animation: route.params?.animation ?? 'default' })}
+            />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             {/* "Change Username" on SettingsScreen. */}
             <Stack.Screen name="ChangeUsername" component={ChangeUsernameScreen} />
@@ -193,11 +203,18 @@ export default function App() {
 
             {/* Resident Mode. gestureEnabled: false blocks the iOS
                 swipe-back gesture here, so the only way out is the
-                Home icon, which goes through the PIN gate. */}
+                Home icon, which goes through the PIN gate. animation is
+                dynamic for the same reason as ModeSelection above: entering
+                from ModeSelectionScreen is a forward push, but arriving via
+                ActivityMenuScreen's PIN-gated back button is conceptually a
+                back navigation and passes params.animation accordingly. */}
             <Stack.Screen
               name="ResidentMode"
               component={ResidentModeScreen}
-              options={{ gestureEnabled: false }}
+              options={({ route }) => ({
+                gestureEnabled: false,
+                animation: route.params?.animation ?? 'default',
+              })}
             />
             <Stack.Screen name="ActivityMenu" component={ActivityMenuScreen} />
             <Stack.Screen name="GuidedMeditation" component={GuidedMeditationScreen} />
@@ -207,6 +224,7 @@ export default function App() {
             <Stack.Screen name="WordGames" component={WordGamesScreen} />
             <Stack.Screen name="Trivia" component={TriviaScreen} />
             <Stack.Screen name="PhotoAlbum" component={PhotoAlbumScreen} />
+            <Stack.Screen name="MoviesVideos" component={MoviesVideosScreen} />
             <Stack.Screen name="Molehunt" component={MolehuntScreen} />
 
             {/* Shared screens used across multiple modes (mainly
