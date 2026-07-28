@@ -11,6 +11,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { auth, db } from './firebaseConfig';
+import { ResidentLockProvider } from './contexts/ResidentLockContext';
 
 import ActivityIdeasScreen from './screens/ActivityIdeasScreen';
 import ActivityMenuScreen from './screens/ActivityMenuScreen';
@@ -132,6 +133,13 @@ export default function App() {
     : 'ModeSelection';
 
   return (
+    // Wraps the whole navigator (not just Resident Mode's screens) because
+    // React Context only flows through the component tree, and every
+    // Resident Mode screen is a separate sibling route on the same flat
+    // Stack.Navigator below rather than a nested child of ActivityMenuScreen
+    // — this is the only place a single Provider can reach all of them.
+    // Other modes just never call useResidentLock(), so it's inert for them.
+    <ResidentLockProvider>
     <NavigationContainer>
       {/*
         Only one of the two branches below is ever rendered, based on
@@ -271,6 +279,7 @@ export default function App() {
         )}
       </Stack.Navigator>
     </NavigationContainer>
+    </ResidentLockProvider>
   );
 }
 

@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useResidentLock } from '../contexts/ResidentLockContext';
 import { colors, fonts, radii } from '../theme';
 import BackButton from './BackButton';
 import OrgIdBadge from './OrgIdBadge';
@@ -13,8 +14,13 @@ import OrgIdBadge from './OrgIdBadge';
 //   - settingsTarget: pass a screen name (e.g. "Settings") to show a gear
 //     icon that navigates there.
 //   - homeDestination: pass a screen name to show a home icon that routes
-//     through the PIN gate (PINEntryScreen) before landing there. Used by
-//     Resident Mode screens, which require a PIN to exit.
+//     there. Used by Resident Mode's activity screens (GuidedMeditation,
+//     Trivia, PhotoAlbum, WordGames, Molehunt) — every current caller that
+//     sets this is one of those, so its presence doubles as "this is a
+//     Resident Mode screen" and is what gates the lock-feature behavior
+//     below (see contexts/ResidentLockContext.js): while Resident Mode is
+//     locked, the back button hides and the home icon requires a PIN
+//     instead of navigating straight there.
 //   - showBack / onBackPress: control or override the default back button.
 //   - showOrgId: pass true on Administrator Mode screens to show the
 //     signed-in admin's organization ID at the top (see OrgIdBadge).
@@ -28,7 +34,18 @@ export default function PlaceholderScreen({
   homeDestination,
   showOrgId,
 }) {
-  const showHeaderRow = showBack || settingsTarget || homeDestination;
+  const { locked, requestPin } = useResidentLock();
+  const residentModeLocked = !!homeDestination && locked;
+  const effectiveShowBack = showBack && !residentModeLocked;
+  const showHeaderRow = effectiveShowBack || settingsTarget || homeDestination;
+
+  function goHome() {
+    // slide_from_left makes this read as a back transition rather than a
+    // forward push — see App.js's dynamic animation option on the
+    // ModeSelection screen, which every other exit-to-ModeSelection in the
+    // app already uses.
+    navigation.navigate(homeDestination, { animation: 'slide_from_left' });
+  }
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -36,7 +53,7 @@ export default function PlaceholderScreen({
         {showHeaderRow ? (
           <View style={styles.headerRow}>
             <View style={styles.headerLeft}>
-              {showBack ? (
+              {effectiveShowBack ? (
                 <BackButton navigation={navigation} onPress={onBackPress} style={styles.iconNoMargin} />
               ) : null}
               {settingsTarget ? (
@@ -54,7 +71,7 @@ export default function PlaceholderScreen({
             {homeDestination ? (
               <TouchableOpacity
                 style={styles.iconButton}
-                onPress={() => navigation.navigate('PINEntry', { destination: homeDestination })}
+                onPress={() => (residentModeLocked ? requestPin(goHome) : goHome())}
                 activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel="Return to Mode Selection"
