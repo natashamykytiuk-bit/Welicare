@@ -119,10 +119,9 @@ exports.generateSuggestions = onCall({ secrets: [anthropicApiKey] }, async (requ
   return { text };
 });
 
-// Server-side YouTube search so the API key never ships in the app —
-// same reasoning as generateSuggestions and Anthropic. videoCategoryId=10
-// scopes results to Music so a query like an artist's name doesn't surface
-// interviews, news clips, etc.
+// Server-side YouTube search so the API key never ships in the app — same
+// reasoning as generateSuggestions and Anthropic. Shared by both Music and
+// Movies & Videos; category picks the filtering behavior for each.
 exports.searchYouTube = onCall({ secrets: [youtubeApiKey] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
@@ -133,14 +132,24 @@ exports.searchYouTube = onCall({ secrets: [youtubeApiKey] }, async (request) => 
     throw new HttpsError('invalid-argument', 'query must be a non-empty string.');
   }
 
+  const category = request.data?.category === 'video' ? 'video' : 'music';
+
   const params = new URLSearchParams({
     part: 'snippet',
     type: 'video',
-    videoCategoryId: '10',
     maxResults: '10',
     q: query,
     key: youtubeApiKey.value(),
   });
+  // videoCategoryId=10 scopes Music results so an artist's name doesn't
+  // surface interviews, news clips, etc. There's no equivalently reliable
+  // category for older films/TV clips — videoCategoryId=1 (Film &
+  // Animation) is inconsistently tagged and would exclude a lot of
+  // legitimate results — so 'video' search omits the category filter
+  // entirely for better coverage.
+  if (category === 'music') {
+    params.set('videoCategoryId', '10');
+  }
 
   const response = await fetch(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`);
 
