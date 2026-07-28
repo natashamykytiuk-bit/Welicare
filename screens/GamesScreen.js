@@ -1,5 +1,6 @@
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import BackButton from '../components/BackButton';
+import { useResidentLock } from '../contexts/ResidentLockContext';
 import { colors, fonts, radii } from '../theme';
 
 const GAMES = [
@@ -11,11 +12,12 @@ const GAMES = [
 // types available for this resident; each one navigates to its own
 // (currently placeholder) screen.
 export default function GamesScreen({ navigation }) {
+  const { locked } = useResidentLock();
   return (
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
-          <BackButton navigation={navigation} style={styles.iconNoMargin} />
+          {!locked ? <BackButton navigation={navigation} style={styles.iconNoMargin} /> : null}
         </View>
 
         <Text style={styles.heading}>Games</Text>

@@ -3,6 +3,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import BackButton from '../components/BackButton';
+import { useResidentLock } from '../contexts/ResidentLockContext';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { hasAnyLifeStoryData } from '../utils/lifeStory';
@@ -24,7 +25,8 @@ function timeGreeting() {
 }
 
 // Conversation Starters passes fromResidentMode so that screen knows to
-// show the PIN-gated home icon instead of its normal back-only header.
+// show a home icon (gated by the Resident Mode lock, like every other
+// activity screen) instead of its normal back-only header.
 const ACTIVITIES = [
   { label: 'Guided Meditation & Exercise', screen: 'GuidedMeditation', accent: 'meditation', icon: 'leaf-outline' },
   { label: 'Music Player', screen: 'MusicSelection', accent: 'music', icon: 'musical-notes-outline' },
@@ -42,17 +44,17 @@ const ACTIVITIES = [
 ];
 
 // The main hub once a resident (or Guest Mode) has been picked in
-// ResidentModeScreen. Header: back (PIN-gated exit to ResidentMode, the
-// resident-selection screen — a caregiver mid-session with a resident
-// shouldn't be able to just tap back into the resident list), resident
-// avatar+name centered, settings gear (to ResidentProfile, for editing
-// this resident's info — not the global SettingsScreen), and home
-// (PIN-gated exit to ModeSelection, same as ResidentModeScreen).
+// ResidentModeScreen. Header: back (hidden while locked; plain goBack, no
+// PIN, while unlocked), resident avatar+name centered, then the lock
+// toggle, settings gear (ResidentProfile), and home icon — the latter two
+// require a PIN before proceeding while locked, same as the lock toggle
+// itself, but don't otherwise change lock state.
 export default function ActivityMenuScreen({ navigation, route }) {
   const residentId = route?.params?.residentId;
   const residentName = route?.params?.residentName ?? 'this resident';
   const [resident, setResident] = useState(null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const { locked, toggleLock, requestPin, resetLock } = useResidentLock();
 
   useEffect(() => {
     let cancelled = false;
@@ -64,6 +66,30 @@ export default function ActivityMenuScreen({ navigation, route }) {
       cancelled = true;
     };
   }, [residentId]);
+
+  // Every fresh resident (or Guest Mode) session starts unlocked, per the
+  // lock's session-only design — this only fires on a genuine new mount of
+  // this screen (a fresh `navigate('ActivityMenu', ...)` from
+  // ResidentModeScreen), not when merely returning here via goBack from an
+  // activity screen, since React Navigation keeps this instance alive
+  // rather than remounting it for a plain back navigation.
+  useEffect(() => {
+    resetLock();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function goHome() {
+    // animation: 'slide_from_left' makes this read as a back transition
+    // rather than a forward push — see App.js's dynamic animation option on
+    // the ModeSelection screen and PINEntryScreen's BACK_STYLE_DESTINATIONS
+    // for the rest of this pattern, which every other exit-to-ModeSelection
+    // in the app already uses.
+    navigation.navigate('ModeSelection', { animation: 'slide_from_left' });
+  }
+
+  function openSettings() {
+    navigation.navigate('ResidentProfile');
+  }
 
   const preferredName =
     resident?.lifeStory?.preferredName || resident?.name?.split(' ')[0] || residentName;
@@ -79,11 +105,16 @@ export default function ActivityMenuScreen({ navigation, route }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
-          <BackButton
-            navigation={navigation}
-            style={styles.iconNoMargin}
-            onPress={() => navigation.navigate('PINEntry', { destination: 'ResidentMode' })}
-          />
+          {!locked ? (
+            <BackButton navigation={navigation} style={styles.iconNoMargin} />
+          ) : (
+            // Same footprint as BackButton's 40x40 so headerCenter's
+            // avatar+name stays centered instead of drifting toward the
+            // now-empty left edge — the back button itself is genuinely
+            // gone (no goBack, no accessibility target), just its layout
+            // slot is preserved.
+            <View style={styles.headerBackSpacer} />
+          )}
           <View style={styles.headerCenter}>
             <View style={styles.residentAvatar}>
               <Text style={styles.residentAvatarText}>{initialsOf(avatarName)}</Text>
@@ -95,7 +126,20 @@ export default function ActivityMenuScreen({ navigation, route }) {
           <View style={styles.headerRight}>
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={() => navigation.navigate('ResidentProfile')}
+              onPress={toggleLock}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={locked ? 'Unlock screen' : 'Lock screen'}
+            >
+              <Ionicons
+                name={locked ? 'lock-closed-outline' : 'lock-open-outline'}
+                size={22}
+                color={locked ? colors.primary : colors.textMuted}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => (locked ? requestPin(openSettings) : openSettings())}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Edit resident info"
@@ -104,7 +148,7 @@ export default function ActivityMenuScreen({ navigation, route }) {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={() => navigation.navigate('PINEntry', { destination: 'ModeSelection' })}
+              onPress={() => (locked ? requestPin(goHome) : goHome())}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Return to Mode Selection"
@@ -184,6 +228,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   iconNoMargin: { marginBottom: 0 },
+  headerBackSpacer: { width: 40, height: 40 },
   headerCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   residentAvatar: {
     width: 40,

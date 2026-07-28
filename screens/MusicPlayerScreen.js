@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import YoutubePlayer from 'react-native-youtube-iframe';
+import { useResidentLock } from '../contexts/ResidentLockContext';
 import { colors, fonts, radii } from '../theme';
 
 // Real YouTube-backed playback via react-native-youtube-iframe, replacing
@@ -19,6 +20,7 @@ import { colors, fonts, radii } from '../theme';
 export default function MusicPlayerScreen({ navigation, route }) {
   const videoId = route?.params?.videoId;
   const title = route?.params?.title ?? 'Untitled';
+  const { locked } = useResidentLock();
   // The player fills its wrapper, but YoutubePlayer needs explicit pixel
   // dimensions (no flex/percentage sizing), so this measures the wrapper
   // via onLayout instead of hardcoding a fixed height.
@@ -32,13 +34,15 @@ export default function MusicPlayerScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.flex}>
       <View style={styles.content}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          accessibilityRole="link"
-          accessibilityLabel="Back to activities"
-        >
-          <Text style={styles.backLink}>← Back to activities</Text>
-        </TouchableOpacity>
+        {!locked ? (
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            accessibilityRole="link"
+            accessibilityLabel="Back to activities"
+          >
+            <Text style={styles.backLink}>← Back to activities</Text>
+          </TouchableOpacity>
+        ) : null}
 
         <Text style={styles.title} numberOfLines={2}>
           {title}

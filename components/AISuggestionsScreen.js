@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useResidentLock } from '../contexts/ResidentLockContext';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { generateSuggestions } from '../utils/aiSuggestions';
@@ -16,7 +17,22 @@ import BackButton from './BackButton';
 // states.
 export default function AISuggestionsScreen({ navigation, route, kind, title, description }) {
   const residentId = route?.params?.residentId;
+  // fromResidentMode is only ever set when ActivityMenuScreen navigates
+  // here for Conversation Starters — Activity Ideas/Music & Movie Recs
+  // (Caregiver Mode) never set it, so this doubles as "is this a Resident
+  // Mode screen" and gates the lock-feature behavior below the same way
+  // PlaceholderScreen's homeDestination does.
   const homeDestination = route?.params?.fromResidentMode ? 'ModeSelection' : undefined;
+  const { locked, requestPin } = useResidentLock();
+  const residentModeLocked = !!homeDestination && locked;
+
+  function goHome() {
+    // slide_from_left makes this read as a back transition rather than a
+    // forward push — see App.js's dynamic animation option on the
+    // ModeSelection screen, which every other exit-to-ModeSelection in the
+    // app already uses.
+    navigation.navigate(homeDestination, { animation: 'slide_from_left' });
+  }
 
   const [hasProfile, setHasProfile] = useState(false);
   const [suggestions, setSuggestions] = useState('');
@@ -58,18 +74,22 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
-          {/* Back always just returns to the previous screen (Activity
-              Menu when reached from Resident Mode) — it used to be
-              repurposed as a PIN-gated exit straight to Mode Selection
-              whenever fromResidentMode was set, which is wrong; that exit
-              is what the separate home icon below is for, matching the
-              back+home split every other activity screen (PlaceholderScreen,
-              ActivityMenuScreen) already uses. */}
-          <BackButton navigation={navigation} style={styles.iconNoMargin} />
+          {/* Back returns to the previous screen (Activity Menu when
+              reached from Resident Mode) — hidden entirely while Resident
+              Mode is locked, same as PlaceholderScreen/ActivityMenuScreen.
+              The separate home icon below is the actual exit-to-Mode-
+              Selection affordance. A same-size spacer fills the slot when
+              hidden so the home icon doesn't jump from the right edge to
+              the left under justifyContent: 'space-between'. */}
+          {!residentModeLocked ? (
+            <BackButton navigation={navigation} style={styles.iconNoMargin} />
+          ) : (
+            <View style={styles.headerBackSpacer} />
+          )}
           {homeDestination ? (
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={() => navigation.navigate('PINEntry', { destination: homeDestination })}
+              onPress={() => (residentModeLocked ? requestPin(goHome) : goHome())}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Return to Mode Selection"
@@ -103,6 +123,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   iconNoMargin: { marginBottom: 0 },
+  headerBackSpacer: { width: 40, height: 40 },
   iconButton: {
     width: 40,
     height: 40,
