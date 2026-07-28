@@ -31,7 +31,7 @@ const ACTIVITIES = [
   { label: 'Games', screen: 'Games', accent: 'games', icon: 'game-controller-outline' },
   { label: 'Trivia', screen: 'Trivia', accent: 'trivia', icon: 'help-circle-outline' },
   { label: 'Photo Album', screen: 'PhotoAlbum', accent: 'photoAlbum', icon: 'images-outline' },
-  { label: 'Movies & Videos', screen: 'MoviesVideos', accent: 'moviesVideos', icon: 'film-outline' },
+  { label: 'Movies & Videos', screen: 'MoviesSelection', accent: 'moviesVideos', icon: 'film-outline' },
   {
     label: 'Conversation Starters',
     screen: 'ConversationStarters',
@@ -163,7 +163,7 @@ export default function ActivityMenuScreen({ navigation, route }) {
                 accessibilityRole="button"
                 accessibilityLabel={activity.label}
               >
-                <Ionicons name={activity.icon} size={32} color={colors.textPrimary} style={styles.tileIcon} />
+                <Ionicons name={activity.icon} size={34} color={colors.textPrimary} style={styles.tileIcon} />
                 <Text style={styles.tileLabel}>{activity.label}</Text>
               </TouchableOpacity>
             );
@@ -262,24 +262,40 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     marginBottom: 24,
   },
+  // space-between (not a plain `gap`) so the two 47%-wide tiles sit flush
+  // against the row's left/right edges with the leftover width becoming
+  // one even gap between them — a fixed `gap` here left that leftover
+  // trailing after the second tile instead, making the right-hand margin
+  // visibly wider than the left. rowGap keeps the vertical spacing between
+  // wrapped rows without affecting horizontal distribution.
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
+    rowGap: 16,
   },
+  // Fixed width (not flexGrow) so every tile stays at half the row's width
+  // regardless of label length or how many tiles land in the last row — a
+  // lone tile in an odd-numbered last row no longer stretches to fill the
+  // full row width the way flexGrow did. Fixed height for the same reason:
+  // sized to fit the longest label ("Guided Meditation & Exercise") at up
+  // to 3 lines; a short label like "Games" just centers with more space
+  // around it.
   tile: {
-    flexBasis: '47%',
-    flexGrow: 1,
+    width: '48.5%',
+    height: 132,
     borderRadius: radii.lg,
-    padding: 20,
-    minHeight: 136,
-    justifyContent: 'flex-end',
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
   },
-  tileIcon: { marginBottom: 10 },
+  tileIcon: { flexShrink: 0 },
   tileLabel: {
+    flex: 1,
     fontFamily: fonts.sansBold,
-    fontSize: 22,
-    lineHeight: 27,
+    fontSize: 28,
+    lineHeight: 34,
     color: colors.textPrimary,
   },
 });

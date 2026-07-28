@@ -36,7 +36,8 @@ import JoinOrganizationScreen from './screens/JoinOrganizationScreen';
 import ManageUsersScreen from './screens/ManageUsersScreen';
 import ModeSelectionScreen from './screens/ModeSelectionScreen';
 import MolehuntScreen from './screens/MolehuntScreen';
-import MoviesVideosScreen from './screens/MoviesVideosScreen';
+import MoviesPlayerScreen from './screens/MoviesPlayerScreen';
+import MoviesSelectionScreen from './screens/MoviesSelectionScreen';
 import MusicMovieRecsScreen from './screens/MusicMovieRecsScreen';
 import MusicPlayerScreen from './screens/MusicPlayerScreen';
 import MusicSelectionScreen from './screens/MusicSelectionScreen';
@@ -224,7 +225,8 @@ export default function App() {
             <Stack.Screen name="WordGames" component={WordGamesScreen} />
             <Stack.Screen name="Trivia" component={TriviaScreen} />
             <Stack.Screen name="PhotoAlbum" component={PhotoAlbumScreen} />
-            <Stack.Screen name="MoviesVideos" component={MoviesVideosScreen} />
+            <Stack.Screen name="MoviesSelection" component={MoviesSelectionScreen} />
+            <Stack.Screen name="MoviesPlayer" component={MoviesPlayerScreen} />
             <Stack.Screen name="Molehunt" component={MolehuntScreen} />
 
             {/* Shared screens used across multiple modes (mainly
