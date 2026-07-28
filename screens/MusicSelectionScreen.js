@@ -1,44 +1,195 @@
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { doc, getDoc } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import BackButton from '../components/BackButton';
+import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { DEMO_SONGS } from '../utils/demoSongs';
+import { buildMusicQueries } from '../utils/musicQueries';
+import { searchYouTube } from '../utils/youtube';
 
-// Browse screen shown before MusicPlayerScreen — lets the caregiver or
-// resident pick a song first instead of landing straight in a player.
+// Browse screen shown before MusicPlayerScreen. Results are real YouTube
+// search results (searchYouTube Cloud Function): on mount this loads the
+// resident's lifeStory and searches YouTube for the first query
+// buildMusicQueries derives from it (favourite musicians, then genres, then
+// a safe fallback — same pattern AISuggestionsScreen uses for prompts).
+// Staff can also search anything manually via the field above the results.
 export default function MusicSelectionScreen({ navigation, route }) {
   const residentId = route?.params?.residentId;
 
+  const [searchText, setSearchText] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [searched, setSearched] = useState(false);
+
+  async function runSearch(query) {
+    setLoading(true);
+    setError('');
+    try {
+      const found = await searchYouTube(query);
+      setResults(found);
+    } catch (e) {
+      // httpsCallable errors carry `.code` (e.g. "unauthenticated",
+      // "internal") and `.details` — both hidden by the generic message
+      // below, so log them for debugging.
+      console.error('searchYouTube error:', e.code, e.message, e.details, e);
+      setError('Something went wrong searching for music. Please try again.');
+      setResults([]);
+    } finally {
+      setLoading(false);
+      setSearched(true);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      setLoading(true);
+      setError('');
+      let lifeStory = null;
+      if (residentId) {
+        const snapshot = await getDoc(doc(db, 'residents', residentId));
+        lifeStory = snapshot.data()?.lifeStory ?? null;
+      }
+      if (cancelled) return;
+      const [firstQuery] = buildMusicQueries(lifeStory);
+      try {
+        const found = await searchYouTube(firstQuery);
+        if (!cancelled) setResults(found);
+      } catch (e) {
+        console.error('searchYouTube error:', e.code, e.message, e.details, e);
+        if (!cancelled) {
+          setError('Something went wrong searching for music. Please try again.');
+          setResults([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setSearched(true);
+        }
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [residentId]);
+
+  function handleManualSearch() {
+    const trimmed = searchText.trim();
+    if (!trimmed) return;
+    runSearch(trimmed);
+  }
+
+  const showEmptyState = !loading && !error && searched && results.length === 0;
+
   return (
     <SafeAreaView style={styles.flex}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <BackButton navigation={navigation} />
         <Text style={styles.heading}>Music</Text>
         <Text style={styles.body}>Choose a song to play.</Text>
 
-        {DEMO_SONGS.map((song) => (
+        <View style={styles.searchRow}>
+          <TextInput
+            style={styles.searchInput}
+            value={searchText}
+            onChangeText={setSearchText}
+            placeholder="Search for any song or artist"
+            placeholderTextColor={colors.textMuted}
+            onSubmitEditing={handleManualSearch}
+            returnKeyType="search"
+          />
           <TouchableOpacity
-            key={song.id}
-            style={styles.card}
-            onPress={() => navigation.navigate('MusicPlayer', { songId: song.id, residentId })}
+            style={styles.searchButton}
+            onPress={handleManualSearch}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel={`${song.title} by ${song.artist}`}
+            accessibilityLabel="Search"
           >
-            <View style={styles.artPlaceholder}>
-              <Ionicons name="musical-note" size={22} color={colors.primary} />
-            </View>
-            <View style={styles.cardText}>
-              <Text style={styles.cardTitle} numberOfLines={1}>
-                {song.title}
-              </Text>
-              <Text style={styles.cardSubtitle} numberOfLines={1}>
-                {song.artist} · {song.year}
-              </Text>
-            </View>
-            <Ionicons name="play-circle-outline" size={26} color={colors.primary} />
+            <Ionicons name="search" size={20} color={colors.white} />
           </TouchableOpacity>
-        ))}
+        </View>
+
+        {loading ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        {showEmptyState ? (
+          <>
+            <Text style={styles.note}>No results found — here are some classics to try instead.</Text>
+            {DEMO_SONGS.map((song) => (
+              <TouchableOpacity
+                key={song.id}
+                style={styles.card}
+                onPress={() => runSearch(`${song.title} ${song.artist}`)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`Search for ${song.title} by ${song.artist}`}
+              >
+                <View style={styles.artPlaceholder}>
+                  <Ionicons name="musical-note" size={22} color={colors.primary} />
+                </View>
+                <View style={styles.cardText}>
+                  <Text style={styles.cardTitle} numberOfLines={1}>
+                    {song.title}
+                  </Text>
+                  <Text style={styles.cardSubtitle} numberOfLines={1}>
+                    {song.artist} · {song.year}
+                  </Text>
+                </View>
+                <Ionicons name="search-outline" size={22} color={colors.primary} />
+              </TouchableOpacity>
+            ))}
+          </>
+        ) : null}
+
+        {!loading && !error
+          ? results.map((video) => (
+              <TouchableOpacity
+                key={video.videoId}
+                style={styles.card}
+                onPress={() =>
+                  navigation.navigate('MusicPlayer', {
+                    videoId: video.videoId,
+                    title: video.title,
+                    residentId,
+                  })
+                }
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={video.title}
+              >
+                {video.thumbnailUrl ? (
+                  <Image source={{ uri: video.thumbnailUrl }} style={styles.thumbnail} />
+                ) : (
+                  <View style={styles.artPlaceholder}>
+                    <Ionicons name="musical-note" size={22} color={colors.primary} />
+                  </View>
+                )}
+                <View style={styles.cardText}>
+                  <Text style={styles.cardTitle} numberOfLines={1}>
+                    {video.title}
+                  </Text>
+                  <Text style={styles.cardSubtitle} numberOfLines={1}>
+                    {video.channelTitle}
+                  </Text>
+                </View>
+                <Ionicons name="play-circle-outline" size={26} color={colors.primary} />
+              </TouchableOpacity>
+            ))
+          : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -58,7 +209,48 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansRegular,
     fontSize: 16,
     color: colors.textMuted,
-    marginBottom: 24,
+    marginBottom: 20,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 20,
+  },
+  searchInput: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    fontFamily: fonts.sansRegular,
+    fontSize: 16,
+    color: colors.textPrimary,
+    paddingHorizontal: 16,
+    minHeight: 52,
+  },
+  searchButton: {
+    width: 52,
+    height: 52,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spinner: { marginBottom: 16 },
+  error: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 15,
+    color: colors.destructive,
+    marginBottom: 16,
+  },
+  note: {
+    fontFamily: fonts.sansBold,
+    fontSize: 14,
+    color: colors.secondary,
+    backgroundColor: colors.mistBackground,
+    borderRadius: radii.sm,
+    padding: 12,
+    marginBottom: 16,
   },
   card: {
     flexDirection: 'row',
@@ -78,6 +270,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.mistBackground,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  thumbnail: {
+    width: 48,
+    height: 48,
+    borderRadius: radii.sm,
+    backgroundColor: colors.mistBackground,
   },
   cardText: { flex: 1 },
   cardTitle: {

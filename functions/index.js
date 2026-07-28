@@ -2,6 +2,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 
 const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
+const youtubeApiKey = defineSecret('YOUTUBE_API_KEY');
 
 const KIND_PHRASES = {
   activityIdeas: 'activity ideas',
@@ -116,4 +117,48 @@ exports.generateSuggestions = onCall({ secrets: [anthropicApiKey] }, async (requ
   const data = await response.json();
   const text = data.content?.map((block) => block.text).join('\n') ?? '';
   return { text };
+});
+
+// Server-side YouTube search so the API key never ships in the app —
+// same reasoning as generateSuggestions and Anthropic. videoCategoryId=10
+// scopes results to Music so a query like an artist's name doesn't surface
+// interviews, news clips, etc.
+exports.searchYouTube = onCall({ secrets: [youtubeApiKey] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+
+  const query = typeof request.data?.query === 'string' ? request.data.query.trim() : '';
+  if (!query) {
+    throw new HttpsError('invalid-argument', 'query must be a non-empty string.');
+  }
+
+  const params = new URLSearchParams({
+    part: 'snippet',
+    type: 'video',
+    videoCategoryId: '10',
+    maxResults: '10',
+    q: query,
+    key: youtubeApiKey.value(),
+  });
+
+  const response = await fetch(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new HttpsError('internal', `YouTube API error: ${errorText}`);
+  }
+
+  const data = await response.json();
+  const results = (data.items ?? [])
+    .filter((item) => item.id?.videoId)
+    .slice(0, 10)
+    .map((item) => ({
+      videoId: item.id.videoId,
+      title: item.snippet?.title ?? '',
+      channelTitle: item.snippet?.channelTitle ?? '',
+      thumbnailUrl: item.snippet?.thumbnails?.medium?.url ?? item.snippet?.thumbnails?.default?.url ?? '',
+    }));
+
+  return { results };
 });
