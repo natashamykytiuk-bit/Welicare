@@ -1,5 +1,8 @@
-// Placeholder song catalog for the Music Selection / Music Player screens.
-// No real audio playback yet — this just powers the browsing + player UI.
+// Music is now backed by real YouTube search (see utils/youtube.js) rather
+// than this catalog. DEMO_SONGS survives only as a hardcoded fallback for
+// MusicSelectionScreen's "no results" empty state — tapping one re-runs a
+// YouTube search for that title/artist rather than "playing" it directly,
+// since these entries have no real videoId behind them.
 export const DEMO_SONGS = [
   { id: '1', title: 'Fly Me to the Moon', artist: 'Frank Sinatra', year: '1964' },
   { id: '2', title: 'What a Wonderful World', artist: 'Louis Armstrong', year: '1967' },
@@ -10,7 +13,3 @@ export const DEMO_SONGS = [
   { id: '7', title: 'Somewhere Over the Rainbow', artist: 'Judy Garland', year: '1939' },
   { id: '8', title: 'La Vie en Rose', artist: 'Édith Piaf', year: '1947' },
 ];
-
-export function getSongById(id) {
-  return DEMO_SONGS.find((s) => s.id === id) ?? DEMO_SONGS[0];
-}

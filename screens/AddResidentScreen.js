@@ -80,6 +80,11 @@ export default function AddResidentScreen({ navigation }) {
           assignedCaregivers: [uid],
           createdAt: serverTimestamp(),
           lifeStory: null,
+          // Which backend Music search hits for this resident. Only
+          // 'youtube' exists today; keeping it as a named field (rather than
+          // assuming YouTube everywhere) means Spotify/Apple Music can be
+          // added later as alternate values without restructuring the doc.
+          musicProvider: 'youtube',
         }),
         CREATE_TIMEOUT_MS,
         'Creating this resident is taking longer than expected. Please check your connection and try again.'
