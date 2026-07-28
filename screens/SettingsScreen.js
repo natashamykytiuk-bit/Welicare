@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
@@ -65,16 +66,19 @@ export default function SettingsScreen({ navigation }) {
           <Row
             label="Change PIN"
             onPress={() => navigation.navigate('ForgotPin', { destination: 'Settings' })}
+            showArrow
           />
           <Row
             label="Change Password"
             onPress={() =>
               navigation.navigate('ForgotPassword', { email: auth.currentUser?.email })
             }
+            showArrow
           />
           <Row
             label="Change Username"
             onPress={() => navigation.navigate('ChangeUsername')}
+            showArrow
             last
           />
         </View>
@@ -119,7 +123,7 @@ function InfoRow({ label, value, last }) {
   );
 }
 
-function Row({ label, onPress, destructive, last }) {
+function Row({ label, onPress, destructive, last, showArrow }) {
   return (
     <TouchableOpacity
       style={[styles.row, !last && styles.rowBorder]}
@@ -129,6 +133,9 @@ function Row({ label, onPress, destructive, last }) {
       accessibilityLabel={label}
     >
       <Text style={[styles.rowLabel, destructive && styles.rowLabelDestructive]}>{label}</Text>
+      {showArrow ? (
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      ) : null}
     </TouchableOpacity>
   );
 }

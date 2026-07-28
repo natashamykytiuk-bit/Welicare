@@ -8,7 +8,10 @@ export default function VolunteerModeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
-        <BackButton navigation={navigation} onPress={() => navigation.navigate('ModeSelection')} />
+        <BackButton
+          navigation={navigation}
+          onPress={() => navigation.navigate('ModeSelection', { animation: 'slide_from_left' })}
+        />
 
         <Text style={styles.heading}>Volunteer Mode</Text>
         <Text style={styles.body}>

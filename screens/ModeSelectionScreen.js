@@ -280,12 +280,14 @@ const styles = StyleSheet.create({
   residentCardText: { flex: 1 },
   residentCardTitle: {
     fontFamily: fonts.serifBold,
+    fontWeight: '700',
     fontSize: 22,
     color: colors.white,
     marginBottom: 8,
   },
   residentCardSubtitle: {
     fontFamily: fonts.sansRegular,
+    fontWeight: '400',
     fontSize: 16,
     color: colors.white,
     opacity: 0.9,
@@ -324,15 +326,17 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   cardTitle: {
-    fontFamily: fonts.sansBold,
-    fontSize: 17,
+    fontFamily: fonts.serifBold,
+    fontWeight: '700',
+    fontSize: 22,
     color: colors.textPrimary,
     marginBottom: 4,
   },
   cardDescription: {
     fontFamily: fonts.sansRegular,
-    fontSize: 14,
+    fontWeight: '400',
+    fontSize: 16,
     color: colors.textMuted,
-    lineHeight: 20,
+    lineHeight: 22,
   },
 });
