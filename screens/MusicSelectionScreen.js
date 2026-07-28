@@ -13,7 +13,6 @@ import {
   View,
 } from 'react-native';
 import BackButton from '../components/BackButton';
-import { useResidentLock } from '../contexts/ResidentLockContext';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { DEMO_SONGS } from '../utils/demoSongs';
@@ -28,7 +27,6 @@ import { searchYouTube } from '../utils/youtube';
 // Staff can also search anything manually via the field above the results.
 export default function MusicSelectionScreen({ navigation, route }) {
   const residentId = route?.params?.residentId;
-  const { locked } = useResidentLock();
 
   const [searchText, setSearchText] = useState('');
   const [results, setResults] = useState([]);
@@ -100,7 +98,7 @@ export default function MusicSelectionScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {!locked ? <BackButton navigation={navigation} /> : null}
+        <BackButton navigation={navigation} />
         <Text style={styles.heading}>Music</Text>
         <Text style={styles.body}>Choose a song to play.</Text>
 

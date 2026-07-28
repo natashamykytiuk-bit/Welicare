@@ -13,7 +13,6 @@ import {
   View,
 } from 'react-native';
 import BackButton from '../components/BackButton';
-import { useResidentLock } from '../contexts/ResidentLockContext';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { buildMovieQueries } from '../utils/movieQueries';
@@ -27,7 +26,6 @@ import { searchMovies } from '../utils/youtube';
 // above the results.
 export default function MoviesSelectionScreen({ navigation, route }) {
   const residentId = route?.params?.residentId;
-  const { locked } = useResidentLock();
 
   const [searchText, setSearchText] = useState('');
   const [results, setResults] = useState([]);
@@ -99,7 +97,7 @@ export default function MoviesSelectionScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {!locked ? <BackButton navigation={navigation} /> : null}
+        <BackButton navigation={navigation} />
         <Text style={styles.heading}>Movies & Videos</Text>
         <Text style={styles.body}>Choose something to watch.</Text>
 

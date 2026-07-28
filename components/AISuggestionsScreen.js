@@ -24,7 +24,6 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
   // PlaceholderScreen's homeDestination does.
   const homeDestination = route?.params?.fromResidentMode ? 'ModeSelection' : undefined;
   const { locked, requestPin } = useResidentLock();
-  const residentModeLocked = !!homeDestination && locked;
 
   function goHome() {
     // slide_from_left makes this read as a back transition rather than a
@@ -74,22 +73,17 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
-          {/* Back returns to the previous screen (Activity Menu when
-              reached from Resident Mode) — hidden entirely while Resident
-              Mode is locked, same as PlaceholderScreen/ActivityMenuScreen.
-              The separate home icon below is the actual exit-to-Mode-
-              Selection affordance. A same-size spacer fills the slot when
-              hidden so the home icon doesn't jump from the right edge to
-              the left under justifyContent: 'space-between'. */}
-          {!residentModeLocked ? (
-            <BackButton navigation={navigation} style={styles.iconNoMargin} />
-          ) : (
-            <View style={styles.headerBackSpacer} />
-          )}
+          {/* Back always just returns to the previous screen (Activity
+              Menu when reached from Resident Mode) — unaffected by the
+              Resident Mode lock, which only blocks paths that leave
+              Resident Mode entirely. The separate home icon below is the
+              actual exit-to-Mode-Selection affordance, and is what the
+              lock gates. */}
+          <BackButton navigation={navigation} style={styles.iconNoMargin} />
           {homeDestination ? (
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={() => (residentModeLocked ? requestPin(goHome) : goHome())}
+              onPress={() => (locked ? requestPin(goHome) : goHome())}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Return to Mode Selection"
@@ -123,7 +117,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   iconNoMargin: { marginBottom: 0 },
-  headerBackSpacer: { width: 40, height: 40 },
   iconButton: {
     width: 40,
     height: 40,

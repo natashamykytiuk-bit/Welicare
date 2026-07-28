@@ -19,8 +19,11 @@ import OrgIdBadge from './OrgIdBadge';
 //     sets this is one of those, so its presence doubles as "this is a
 //     Resident Mode screen" and is what gates the lock-feature behavior
 //     below (see contexts/ResidentLockContext.js): while Resident Mode is
-//     locked, the back button hides and the home icon requires a PIN
-//     instead of navigating straight there.
+//     locked, the home icon requires a PIN instead of navigating straight
+//     there. The back button is unaffected by the lock — it only returns
+//     to ActivityMenuScreen, not out of Resident Mode, so it's always
+//     available; the lock only blocks paths that leave Resident Mode
+//     entirely (ActivityMenuScreen's own back/home, and this home icon).
 //   - showBack / onBackPress: control or override the default back button.
 //   - showOrgId: pass true on Administrator Mode screens to show the
 //     signed-in admin's organization ID at the top (see OrgIdBadge).
@@ -35,9 +38,7 @@ export default function PlaceholderScreen({
   showOrgId,
 }) {
   const { locked, requestPin } = useResidentLock();
-  const residentModeLocked = !!homeDestination && locked;
-  const effectiveShowBack = showBack && !residentModeLocked;
-  const showHeaderRow = effectiveShowBack || settingsTarget || homeDestination;
+  const showHeaderRow = showBack || settingsTarget || homeDestination;
 
   function goHome() {
     // slide_from_left makes this read as a back transition rather than a
@@ -53,7 +54,7 @@ export default function PlaceholderScreen({
         {showHeaderRow ? (
           <View style={styles.headerRow}>
             <View style={styles.headerLeft}>
-              {effectiveShowBack ? (
+              {showBack ? (
                 <BackButton navigation={navigation} onPress={onBackPress} style={styles.iconNoMargin} />
               ) : null}
               {settingsTarget ? (
@@ -71,7 +72,7 @@ export default function PlaceholderScreen({
             {homeDestination ? (
               <TouchableOpacity
                 style={styles.iconButton}
-                onPress={() => (residentModeLocked ? requestPin(goHome) : goHome())}
+                onPress={() => (locked ? requestPin(goHome) : goHome())}
                 activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel="Return to Mode Selection"
