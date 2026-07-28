@@ -10,6 +10,14 @@ Whenever I ask you to save, push, or commit my changes to GitHub (in any phrasin
 
 Always show me the commit message before pushing, in case I want to edit it.
 
+## Cloud Functions deploys
+
+After every `firebase deploy --only functions`, verify the generateSuggestions Cloud Run service allows public access. If AI suggestions stop working after a deploy, run:
+
+```
+gcloud run services add-iam-policy-binding generatesuggestions --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare
+```
+
 
 
 \## Code comments
