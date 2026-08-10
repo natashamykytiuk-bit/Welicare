@@ -23,6 +23,7 @@ import CaregiverResidentsScreen from './screens/CaregiverResidentsScreen';
 import ChangeUsernameScreen from './screens/ChangeUsernameScreen';
 import ConversationStartersScreen from './screens/ConversationStartersScreen';
 import CreateOrganizationScreen from './screens/CreateOrganizationScreen';
+import CurateResidentMusicScreen from './screens/CurateResidentMusicScreen';
 import EmailVerificationScreen from './screens/EmailVerificationScreen';
 import FamilyFeedScreen from './screens/FamilyFeedScreen';
 import FamilyModeScreen from './screens/FamilyModeScreen';
@@ -34,11 +35,13 @@ import GuidedMeditationScreen from './screens/GuidedMeditationScreen';
 import HourTrackerScreen from './screens/HourTrackerScreen';
 import JoinCreateOrganizationScreen from './screens/JoinCreateOrganizationScreen';
 import JoinOrganizationScreen from './screens/JoinOrganizationScreen';
+import ManageMusicScreen from './screens/ManageMusicScreen';
 import ManageUsersScreen from './screens/ManageUsersScreen';
 import ModeSelectionScreen from './screens/ModeSelectionScreen';
 import MolehuntScreen from './screens/MolehuntScreen';
 import MoviesPlayerScreen from './screens/MoviesPlayerScreen';
 import MoviesSelectionScreen from './screens/MoviesSelectionScreen';
+import MusicLibraryScreen from './screens/MusicLibraryScreen';
 import MusicMovieRecsScreen from './screens/MusicMovieRecsScreen';
 import MusicPlayerScreen from './screens/MusicPlayerScreen';
 import MusicSelectionScreen from './screens/MusicSelectionScreen';
@@ -199,6 +202,9 @@ export default function App() {
             <Stack.Screen name="CaregiverMode" component={CaregiverModeScreen} />
             <Stack.Screen name="CaregiverResidents" component={CaregiverResidentsScreen} />
             <Stack.Screen name="OverallStats" component={OverallStatsScreen} />
+            <Stack.Screen name="ManageMusic" component={ManageMusicScreen} />
+            <Stack.Screen name="MusicLibrary" component={MusicLibraryScreen} />
+            <Stack.Screen name="CurateResidentMusic" component={CurateResidentMusicScreen} />
 
             {/* Administrator Mode */}
             <Stack.Screen name="AdministratorMode" component={AdministratorModeScreen} />

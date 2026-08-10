@@ -11,6 +11,7 @@ const QUICK_LINKS = [
   { label: 'Conversation Starters', screen: 'ConversationStarters' },
   { label: 'Music & Movie Recs', screen: 'MusicMovieRecs' },
   { label: 'Family Feed', screen: 'FamilyFeed' },
+  { label: 'Manage Music & Videos', screen: 'ManageMusic' },
 ];
 
 // Landed on after the PIN gate, same pattern as FamilyModeScreen — see

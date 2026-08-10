@@ -52,7 +52,10 @@ const CREATIVE_HOBBY_OPTIONS = [
   'Painting', 'Drawing', 'Knitting', 'Sewing', 'Woodworking', 'Photography',
   'Writing', 'Playing Music', 'Singing', 'None', 'Other',
 ];
-const MUSIC_GENRE_OPTIONS = [
+// Exported so MusicLibraryScreen/CurateResidentMusicScreen can reuse the
+// same genre vocabulary when curating musicLibrary — keeps filter chips
+// there consistent with what a resident's lifeStory.musicGenres can hold.
+export const MUSIC_GENRE_OPTIONS = [
   'Classic Rock', 'Country', 'Jazz', 'Classical', 'Folk', 'Big Band',
   'Oldies/50s-60s', 'Gospel', 'Pop', 'Blues', 'Opera', 'Other',
 ];
