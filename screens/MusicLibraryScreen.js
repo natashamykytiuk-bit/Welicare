@@ -1,14 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  serverTimestamp,
-  updateDoc,
-} from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -32,7 +24,7 @@ import { auth, db } from '../firebaseConfig';
 import { MUSIC_GENRE_OPTIONS } from './BuildProfileScreen';
 import { colors, fonts, radii } from '../theme';
 import { MUSIC_DECADE_OPTIONS, extractYouTubeVideoId, thumbnailForVideoId } from '../utils/musicLibrary';
-import { genresOf } from '../utils/musicLibraryQuery';
+import { genresOf, getCurrentUserFacilityId, queryMusicLibrarySubset } from '../utils/musicLibraryQuery';
 import { searchYouTube } from '../utils/youtube';
 
 const LOAD_TIMEOUT_MS = 10000;
@@ -56,6 +48,11 @@ export default function MusicLibraryScreen({ navigation }) {
   const [library, setLibrary] = useState([]);
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [libraryError, setLibraryError] = useState('');
+  // undefined while loading, then either the caregiver's own org id or
+  // null (no org). New entries get stamped with this; entries whose
+  // facilityId is "global" or some other org are read-only here — see
+  // firestore.rules, which enforces the same boundary server-side.
+  const [facilityId, setFacilityId] = useState(undefined);
 
   const [filterGenre, setFilterGenre] = useState('');
   const [filterDecade, setFilterDecade] = useState('');
@@ -80,10 +77,10 @@ export default function MusicLibraryScreen({ navigation }) {
     setLibraryLoading(true);
     setLibraryError('');
     try {
-      const snapshot = await getDocs(collection(db, 'musicLibrary'));
-      const list = snapshot.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
+      const currentFacilityId = await getCurrentUserFacilityId();
+      setFacilityId(currentFacilityId);
+      const results = await queryMusicLibrarySubset({ facilityId: currentFacilityId });
+      const list = results.sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
       setLibrary(list);
     } catch (e) {
       console.error('[MusicLibrary] failed to load library:', e.code, e.message, e);
@@ -168,6 +165,10 @@ export default function MusicLibraryScreen({ navigation }) {
       setFormError('Please fill in a title, artist, at least one genre, and a decade.');
       return;
     }
+    if (formMode === 'add' && !facilityId) {
+      setFormError('You need to join an organization before adding to the library.');
+      return;
+    }
     setFormSaving(true);
     setFormError('');
     try {
@@ -180,6 +181,9 @@ export default function MusicLibraryScreen({ navigation }) {
           thumbnailUrl: formThumbnailUrl || thumbnailForVideoId(formVideoId),
           genres: formGenres,
           decade: formDecade,
+          // Never "global" — the app can only add entries scoped to the
+          // adding caregiver's own organization (see firestore.rules).
+          facilityId,
           addedAt: serverTimestamp(),
           addedByUid: auth.currentUser?.uid ?? null,
         });
@@ -340,37 +344,58 @@ export default function MusicLibraryScreen({ navigation }) {
           <Text style={styles.note}>No videos match these filters yet.</Text>
         ) : null}
 
-        {filteredLibrary.map((entry) => (
-          <View key={entry.id} style={styles.resultCard}>
-            <Image source={{ uri: entry.thumbnailUrl || thumbnailForVideoId(entry.videoId) }} style={styles.thumbnail} />
-            <View style={styles.cardText}>
-              <Text style={styles.cardTitle} numberOfLines={1}>
-                {entry.title}
-              </Text>
-              <Text style={styles.cardSubtitle} numberOfLines={1}>
-                {entry.artist || entry.channelTitle} · {genresOf(entry).join(', ')} · {entry.decade}
-              </Text>
+        {filteredLibrary.map((entry) => {
+          // Global entries are the shared admin-curated baseline —
+          // firestore.rules already rejects edits/deletes on them, but
+          // greying the controls out here is friendlier than letting a
+          // caregiver tap Delete and get a permission error back.
+          const isGlobal = entry.facilityId === 'global';
+          return (
+            <View key={entry.id} style={styles.resultCard}>
+              <Image
+                source={{ uri: entry.thumbnailUrl || thumbnailForVideoId(entry.videoId) }}
+                style={styles.thumbnail}
+              />
+              <View style={styles.cardText}>
+                <View style={styles.titleRow}>
+                  <Text style={styles.cardTitle} numberOfLines={1}>
+                    {entry.title}
+                  </Text>
+                  {isGlobal ? (
+                    <View style={styles.sharedBadge}>
+                      <Text style={styles.sharedBadgeText}>Shared</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Text style={styles.cardSubtitle} numberOfLines={1}>
+                  {entry.artist || entry.channelTitle} · {genresOf(entry).join(', ')} · {entry.decade}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.iconButton, isGlobal && styles.iconButtonDisabled]}
+                onPress={() => openEditModal(entry)}
+                disabled={isGlobal}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Edit ${entry.title}`}
+                accessibilityState={{ disabled: isGlobal }}
+              >
+                <Ionicons name="create-outline" size={20} color={isGlobal ? colors.textMuted : colors.textPrimary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.iconButton, isGlobal && styles.iconButtonDisabled]}
+                onPress={() => handleRemove(entry)}
+                disabled={isGlobal}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${entry.title}`}
+                accessibilityState={{ disabled: isGlobal }}
+              >
+                <Ionicons name="trash-outline" size={20} color={isGlobal ? colors.textMuted : colors.destructive} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={() => openEditModal(entry)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={`Edit ${entry.title}`}
-            >
-              <Ionicons name="create-outline" size={20} color={colors.textPrimary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={() => handleRemove(entry)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={`Remove ${entry.title}`}
-            >
-              <Ionicons name="trash-outline" size={20} color={colors.destructive} />
-            </TouchableOpacity>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
 
       <Modal visible={formVisible} transparent animationType="fade" onRequestClose={() => setFormVisible(false)}>
@@ -544,10 +569,29 @@ const styles = StyleSheet.create({
     backgroundColor: colors.mistBackground,
   },
   cardText: { flex: 1 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   cardTitle: {
     fontFamily: fonts.sansBold,
     fontSize: 16,
     color: colors.textPrimary,
+    flexShrink: 1,
+  },
+  sharedBadge: {
+    backgroundColor: colors.mistBackground,
+    borderRadius: radii.circular,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  sharedBadgeText: {
+    fontFamily: fonts.sansBold,
+    fontSize: 11,
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   cardSubtitle: {
     fontFamily: fonts.sansRegular,
@@ -568,6 +612,9 @@ const styles = StyleSheet.create({
     borderRadius: radii.circular,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  iconButtonDisabled: {
+    opacity: 0.4,
   },
   modalOverlay: {
     flex: 1,

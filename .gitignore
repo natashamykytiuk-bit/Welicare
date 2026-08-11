@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# scripts/bulkLookupMusicCandidates.js output — local research artifact,
+# not meant to be committed
+/scripts/output/
