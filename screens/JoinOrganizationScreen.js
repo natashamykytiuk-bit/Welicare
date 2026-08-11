@@ -2,21 +2,7 @@ import { useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
 import BackButton from '../components/BackButton';
 import { colors, fonts, radii } from '../theme';
-import { joinOrganizationByCode } from '../utils/inviteCode';
-
-// Invite codes are always 2 letters + 4 digits (see generateInviteCode in
-// utils/inviteCode.js), e.g. "MG-4821" — this mirrors that shape as the
-// user types so they never have to type the dash themselves: it strips
-// anything that isn't alphanumeric, treats the first 2 characters as the
-// letters and the next 4 as digits (silently dropping non-digit keystrokes
-// there, since that segment can only ever be numeric), and only inserts
-// the dash once a digit has actually been entered.
-function formatOrgCode(raw) {
-  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const letters = cleaned.slice(0, 2);
-  const digits = cleaned.slice(2, 6).replace(/[^0-9]/g, '');
-  return digits ? `${letters}-${digits}` : letters;
-}
+import { formatOrgCode, joinOrganizationByCode } from '../utils/inviteCode';
 
 // Reached from JoinCreateOrganizationScreen's "Join" card. Error message
 // comes straight from joinOrganizationByCode() (e.g. "not found") since it's

@@ -25,6 +25,11 @@ export default function SettingsScreen({ navigation }) {
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('');
   const [orgName, setOrgName] = useState('');
+  // Only true for a Family Caregiver still on their auto-created personal
+  // organization (see utils/inviteCode.js's createPersonalOrganization) —
+  // gates the "Organization" row below, since joining/creating a real org
+  // only makes sense from that state.
+  const [orgIsPersonal, setOrgIsPersonal] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,7 +43,10 @@ export default function SettingsScreen({ navigation }) {
       setRole(data?.role ?? '');
       if (data?.orgId) {
         const orgSnap = await getDoc(doc(db, 'organizations', data.orgId));
-        if (!cancelled) setOrgName(orgSnap.data()?.name ?? '');
+        if (!cancelled) {
+          setOrgName(orgSnap.data()?.name ?? '');
+          setOrgIsPersonal(orgSnap.data()?.isPersonal === true);
+        }
       }
     }
     loadUser();
@@ -95,6 +103,20 @@ export default function SettingsScreen({ navigation }) {
               <Row
                 label="Organizational Settings"
                 onPress={() => navigation.navigate('OrganizationalSettings')}
+                last
+              />
+            </View>
+          </>
+        ) : null}
+
+        {orgIsPersonal ? (
+          <>
+            <Text style={styles.sectionLabel}>Organization</Text>
+            <View style={styles.card}>
+              <Row
+                label="Join or Create an Organization"
+                onPress={() => navigation.navigate('OrganizationSettings')}
+                showArrow
                 last
               />
             </View>

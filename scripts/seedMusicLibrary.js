@@ -595,6 +595,10 @@ function toFirestoreFields(entry) {
     thumbnailUrl: { stringValue: `https://img.youtube.com/vi/${entry.videoId}/mqdefault.jpg` },
     genres: { arrayValue: { values: entry.genres.map((g) => ({ stringValue: g })) } },
     decade: { stringValue: entry.decade },
+    // Every entry seeded by this script is part of the shared admin-curated
+    // baseline (see firestore.rules) — stamped here rather than on each
+    // SEED_BATCH_N entry so future batches get it automatically.
+    facilityId: { stringValue: 'global' },
     addedAt: { timestampValue: new Date().toISOString() },
     addedByUid: { nullValue: null },
   };

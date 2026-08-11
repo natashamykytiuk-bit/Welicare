@@ -18,7 +18,12 @@ import { auth, db } from '../firebaseConfig';
 import { MUSIC_GENRE_OPTIONS } from './BuildProfileScreen';
 import { colors, fonts, radii } from '../theme';
 import { MUSIC_DECADE_OPTIONS, thumbnailForVideoId } from '../utils/musicLibrary';
-import { distinctArtists, extractConsoleLink, queryMusicLibrarySubset } from '../utils/musicLibraryQuery';
+import {
+  distinctArtists,
+  extractConsoleLink,
+  getCurrentUserFacilityId,
+  queryMusicLibrarySubset,
+} from '../utils/musicLibraryQuery';
 
 function initialsOf(name) {
   return name
@@ -93,7 +98,9 @@ export default function CurateResidentMusicScreen({ navigation }) {
       setLibraryLoading(true);
       setLibraryError('');
       try {
-        const results = await queryMusicLibrarySubset({ decade: filterDecade, genres: filterGenres });
+        const facilityId = await getCurrentUserFacilityId();
+        if (cancelled) return;
+        const results = await queryMusicLibrarySubset({ decade: filterDecade, genres: filterGenres, facilityId });
         if (!cancelled) setSubset(results);
       } catch (e) {
         console.error('[CurateResidentMusic] failed to load library:', e.code, e.message, e);

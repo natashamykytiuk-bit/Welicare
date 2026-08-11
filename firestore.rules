@@ -119,20 +119,50 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && resource.data.createdBy == request.auth.uid;
     }
 
-    // Shared video library powering Music (MusicSelectionScreen) — a single
-    // global catalog, not scoped by facilityId, so it's curated once and
-    // reused by every organization. Read access still requires being part
-    // of *some* organization (same orgId-lookup shape the residents rules
-    // above use for facility-scoped access), so only signed-in staff can
-    // browse it. Writes (ManageMusicScreen / MusicLibraryScreen) are
-    // restricted to Caregiver/Administrator, mirroring the role read on
-    // ResidentModeScreen's delete check and ModeSelectionScreen's
-    // Caregiver Mode visibility.
+    // Shared video library powering Music (MusicSelectionScreen). Each
+    // entry is scoped by facilityId: either the literal string "global"
+    // (the shared admin-curated baseline — written only by
+    // scripts/seedMusicLibrary.js and
+    // scripts/migrateMusicLibraryFacilityScope.js via IAM-authenticated
+    // REST calls, which bypass these rules entirely, never through the
+    // app) or a real organization id, matching the caregiver's own
+    // users/{uid}.orgId the same way residents.facilityId does.
     match /musicLibrary/{entryId} {
-      allow read: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId != null;
-      allow write: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'];
+      // Split into get/list rather than one combined `read`, same reason
+      // the residents rules above are split: Firestore can't validate a
+      // list/query request against a rule that ORs a plain field-match
+      // branch ("global") with a get()-based branch (the org match) — it
+      // rejects the whole query with permission-denied even when the
+      // branch that would actually apply doesn't use get() at all. Each
+      // branch below is instead its own `allow list`, and the app queries
+      // facilityId with two separate `==` requests (see
+      // queryMusicLibrarySubset) rather than a single `in`, so each query
+      // only ever needs to satisfy one of these two rules on its own.
+      allow get: if request.auth != null && (
+        resource.data.facilityId == 'global' ||
+        (resource.data.facilityId != null &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId)
+      );
+
+      allow list: if request.auth != null && resource.data.facilityId == 'global';
+
+      allow list: if request.auth != null && resource.data.facilityId != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId;
+
+      // Writes are Caregiver/Administrator only, and further scoped so the
+      // app itself can never create/edit/remove a "global" entry — those
+      // are curated out-of-band by the scripts above, not through
+      // ManageMusicScreen/MusicLibraryScreen (which greys out those
+      // controls for global entries to match).
+      allow create: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
+        request.resource.data.facilityId != 'global' &&
+        request.resource.data.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId;
+
+      allow update, delete: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
+        resource.data.facilityId != 'global' &&
+        resource.data.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId;
     }
   }
 }

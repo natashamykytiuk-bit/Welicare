@@ -46,6 +46,7 @@ import MusicMovieRecsScreen from './screens/MusicMovieRecsScreen';
 import MusicPlayerScreen from './screens/MusicPlayerScreen';
 import MusicSelectionScreen from './screens/MusicSelectionScreen';
 import OrganizationalSettingsScreen from './screens/OrganizationalSettingsScreen';
+import OrganizationSettingsScreen from './screens/OrganizationSettingsScreen';
 import OverallStatsScreen from './screens/OverallStatsScreen';
 import PhotoAlbumScreen from './screens/PhotoAlbumScreen';
 import PINEntryScreen from './screens/PINEntryScreen';
@@ -174,6 +175,10 @@ export default function App() {
               options={({ route }) => ({ animation: route.params?.animation ?? 'default' })}
             />
             <Stack.Screen name="Settings" component={SettingsScreen} />
+            {/* Reached from Settings' "Organization" row — only shown
+                while the signed-in user's org is a personal one (see
+                createPersonalOrganization / OrganizationSettingsScreen). */}
+            <Stack.Screen name="OrganizationSettings" component={OrganizationSettingsScreen} />
             {/* "Change Username" on SettingsScreen. */}
             <Stack.Screen name="ChangeUsername" component={ChangeUsernameScreen} />
             {/* Reusable PIN check — every mode entry (and Resident Mode's

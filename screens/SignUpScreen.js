@@ -17,6 +17,7 @@ import BackButton from '../components/BackButton';
 import PasswordField from '../components/PasswordField';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import { createPersonalOrganization } from '../utils/inviteCode';
 import { useIsTablet } from '../utils/responsive';
 import { normalizeUsername } from '../utils/username';
 import { getPasswordRules, isPasswordValid, isValidUsername } from '../utils/validation';
@@ -181,6 +182,21 @@ export default function SignUpScreen({ navigation }) {
         await deleteUser(credential.user);
         setError('This username was just taken — please choose another and try again.');
         return;
+      }
+
+      // Family Caregivers aren't part of a care facility, but still need
+      // an orgId for org-scoped features (e.g. Music) to work the same
+      // way for them as everyone else — see createPersonalOrganization.
+      // This is what lets them skip JoinCreateOrganizationScreen entirely
+      // (App.js's needsOrg check already treats a set orgId as "done").
+      // Best-effort: a failure here shouldn't block account creation —
+      // they'd just fall back to the existing skip-this-step flow.
+      if (role === 'Family Caregiver') {
+        try {
+          await createPersonalOrganization();
+        } catch (orgError) {
+          console.error('Personal organization creation failed:', orgError);
+        }
       }
 
       await sendEmailVerification(credential.user);

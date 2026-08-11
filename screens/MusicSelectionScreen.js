@@ -12,6 +12,7 @@ import {
   distinctArtists,
   extractConsoleLink,
   genresOf,
+  getCurrentUserFacilityId,
   queryMusicLibraryByVideoIds,
   queryMusicLibrarySubset,
 } from '../utils/musicLibraryQuery';
@@ -55,13 +56,16 @@ export default function MusicSelectionScreen({ navigation, route }) {
       setLoading(true);
       setError('');
       try {
-        const residentData = residentId ? (await getDoc(doc(db, 'residents', residentId))).data() : null;
+        const [facilityId, residentData] = await Promise.all([
+          getCurrentUserFacilityId(),
+          residentId ? getDoc(doc(db, 'residents', residentId)).then((s) => s.data()) : Promise.resolve(null),
+        ]);
 
         if (viewMode === 'Favourites') {
           const favouriteIds = residentData?.favouriteMusicVideoIds ?? [];
           if (cancelled) return;
           setHasFavourites(favouriteIds.length > 0);
-          const favourites = await queryMusicLibraryByVideoIds(favouriteIds);
+          const favourites = await queryMusicLibraryByVideoIds(favouriteIds, facilityId);
           if (cancelled) return;
           // Genre/decade are applied client-side here (favourites lists
           // are small) rather than folded into the videoId 'in' query,
@@ -75,7 +79,7 @@ export default function MusicSelectionScreen({ navigation, route }) {
           setSubset(filtered);
         } else {
           setHasFavourites(true);
-          const results = await queryMusicLibrarySubset({ decade: filterDecade, genres: filterGenres });
+          const results = await queryMusicLibrarySubset({ decade: filterDecade, genres: filterGenres, facilityId });
           if (cancelled) return;
           const selectedIds = residentData?.selectedMusicVideoIds;
           setSubset(
