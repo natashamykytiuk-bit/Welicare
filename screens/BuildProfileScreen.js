@@ -18,7 +18,7 @@ import { hasAnyLifeStoryData } from '../utils/lifeStory';
 
 const EMPTY_LIFE_STORY = {
   preferredName: '',
-  age: '',
+  age: null,
   grewUpIn: '',
   otherPlacesLived: '',
   relationshipStatus: null,
@@ -42,6 +42,7 @@ const EMPTY_LIFE_STORY = {
   specialPlace: '',
 };
 
+const AGE_RANGE_OPTIONS = ['Under 60', '60-70', '70-80', '80-90', '90-100', '100+'];
 const RELATIONSHIP_OPTIONS = ['Married', 'Widowed', 'Divorced', 'Single', 'Prefer not to say'];
 const YES_NO = ['Yes', 'No'];
 const HOBBY_OPTIONS = [
@@ -133,7 +134,7 @@ export default function BuildProfileScreen({ navigation, route }) {
       if (cancelled) return;
       const lifeStory = snapshot.data()?.lifeStory;
       if (hasAnyLifeStoryData(lifeStory)) {
-        setStory({ ...EMPTY_LIFE_STORY, ...lifeStory, age: lifeStory.age != null ? String(lifeStory.age) : '' });
+        setStory({ ...EMPTY_LIFE_STORY, ...lifeStory });
         setIsEdit(true);
       }
       setLoading(false);
@@ -152,10 +153,7 @@ export default function BuildProfileScreen({ navigation, route }) {
     setSaving(true);
     const toSave = {};
     for (const [key, value] of Object.entries(story)) {
-      if (key === 'age') {
-        const n = parseInt(value, 10);
-        toSave.age = Number.isFinite(n) ? n : null;
-      } else if (Array.isArray(value)) {
+      if (Array.isArray(value)) {
         toSave[key] = value.length > 0 ? value : [];
       } else {
         toSave[key] = value === '' ? null : value;
@@ -199,13 +197,8 @@ export default function BuildProfileScreen({ navigation, route }) {
             onChangeText={(v) => set('preferredName', v)}
             placeholder="What do you like to be called?"
           />
-          <TextField
-            label="Age"
-            value={story.age}
-            onChangeText={(v) => set('age', v.replace(/[^0-9]/g, ''))}
-            placeholder="Your age"
-            numeric
-          />
+          <Text style={styles.fieldLabel}>Age range</Text>
+          <ChipRow options={AGE_RANGE_OPTIONS} value={story.age} onChange={(v) => set('age', v)} />
           <TextField
             label="Where did you grow up?"
             value={story.grewUpIn}
