@@ -43,3 +43,6 @@ yarn-error.*
 # scripts/bulkLookupMusicCandidates.js output — local research artifact,
 # not meant to be committed
 /scripts/output/
+
+# Claude Code local settings
+.claude/settings.local.json
