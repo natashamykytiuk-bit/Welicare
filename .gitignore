@@ -46,3 +46,4 @@ yarn-error.*
 
 # Claude Code local settings
 .claude/
+CLAUDE.md
