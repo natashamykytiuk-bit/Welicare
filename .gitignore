@@ -44,6 +44,7 @@ yarn-error.*
 # not meant to be committed
 /scripts/output/
 
-# Claude Code local settings
+# Local-only agent instructions, not for GitHub
 .claude/
 CLAUDE.md
+AGENTS.md
