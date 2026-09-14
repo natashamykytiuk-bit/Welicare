@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
 import { createUserWithEmailAndPassword, deleteUser, sendEmailVerification } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
@@ -14,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import BackButton from '../components/BackButton';
+import Dropdown from '../components/Dropdown';
 import PasswordField from '../components/PasswordField';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
@@ -297,19 +297,14 @@ export default function SignUpScreen({ navigation }) {
       />
 
       <Text style={styles.label}>Country</Text>
-      <View style={styles.pickerWrapper}>
-        <Picker
-          selectedValue={country}
-          onValueChange={setCountry}
-          style={styles.picker}
-          accessibilityLabel="Select your country"
-        >
-          <Picker.Item label="Select your country…" value="" color={colors.textMuted} />
-          {COUNTRIES.map((c) => (
-            <Picker.Item key={c} label={c} value={c} color={colors.textPrimary} />
-          ))}
-        </Picker>
-      </View>
+      <Dropdown
+        label="Country"
+        value={country}
+        onValueChange={setCountry}
+        options={COUNTRIES}
+        placeholder="Select your country…"
+        accessibilityLabel="Select your country"
+      />
 
       <Text style={styles.label}>I am a...</Text>
       <View style={styles.roleGrid}>
@@ -457,17 +452,6 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     marginLeft: 2,
   },
-  pickerWrapper: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.sm,
-    marginBottom: 20,
-    overflow: 'hidden',
-    minHeight: 56,
-    justifyContent: 'center',
-  },
-  picker: { color: colors.textPrimary },
   roleGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

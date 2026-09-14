@@ -1,7 +1,7 @@
-import { Picker } from '@react-native-picker/picker';
 import { useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
 import BackButton from '../components/BackButton';
+import Dropdown from '../components/Dropdown';
 import { colors, fonts, radii } from '../theme';
 import { createOrganization } from '../utils/inviteCode';
 
@@ -87,24 +87,24 @@ export default function CreateOrganizationScreen({ navigation }) {
         />
 
         <Text style={styles.label}>Organization type</Text>
-        <View style={styles.pickerWrapper}>
-          <Picker selectedValue={type} onValueChange={setType} style={styles.picker} accessibilityLabel="Organization type">
-            <Picker.Item label="Select type…" value="" color={colors.textMuted} />
-            {ORG_TYPES.map((t) => (
-              <Picker.Item key={t} label={t} value={t} color={colors.textPrimary} />
-            ))}
-          </Picker>
-        </View>
+        <Dropdown
+          label="Organization type"
+          value={type}
+          onValueChange={setType}
+          options={ORG_TYPES}
+          placeholder="Select type…"
+          accessibilityLabel="Organization type"
+        />
 
         <Text style={styles.label}>Province/Territory</Text>
-        <View style={styles.pickerWrapper}>
-          <Picker selectedValue={province} onValueChange={setProvince} style={styles.picker} accessibilityLabel="Province or territory">
-            <Picker.Item label="Select province/territory…" value="" color={colors.textMuted} />
-            {PROVINCES.map((p) => (
-              <Picker.Item key={p} label={p} value={p} color={colors.textPrimary} />
-            ))}
-          </Picker>
-        </View>
+        <Dropdown
+          label="Province/Territory"
+          value={province}
+          onValueChange={setProvince}
+          options={PROVINCES}
+          placeholder="Select province/territory…"
+          accessibilityLabel="Province or territory"
+        />
 
         <Text style={styles.label}>City</Text>
         <TextInput
@@ -174,17 +174,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     minHeight: 56,
   },
-  pickerWrapper: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.sm,
-    marginBottom: 20,
-    overflow: 'hidden',
-    minHeight: 56,
-    justifyContent: 'center',
-  },
-  picker: { color: colors.textPrimary },
   button: {
     backgroundColor: colors.primary,
     borderRadius: radii.sm,
