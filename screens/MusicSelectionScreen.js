@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { doc, getDoc } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import BackButton from '../components/BackButton';
@@ -42,7 +42,7 @@ export default function MusicSelectionScreen({ navigation, route }) {
 
   const [viewMode, setViewMode] = useState('All Music');
   const [subset, setSubset] = useState([]);
-  const [hasFavourites, setHasFavourites] = useState(true);
+  const [favouriteIds, setFavouriteIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -61,11 +61,12 @@ export default function MusicSelectionScreen({ navigation, route }) {
           residentId ? getDoc(doc(db, 'residents', residentId)).then((s) => s.data()) : Promise.resolve(null),
         ]);
 
+        const ids = residentData?.favouriteMusicVideoIds ?? [];
+        if (cancelled) return;
+        setFavouriteIds(ids);
+
         if (viewMode === 'Favourites') {
-          const favouriteIds = residentData?.favouriteMusicVideoIds ?? [];
-          if (cancelled) return;
-          setHasFavourites(favouriteIds.length > 0);
-          const favourites = await queryMusicLibraryByVideoIds(favouriteIds, facilityId);
+          const favourites = await queryMusicLibraryByVideoIds(ids, facilityId);
           if (cancelled) return;
           // Genre/decade are applied client-side here (favourites lists
           // are small) rather than folded into the videoId 'in' query,
@@ -78,7 +79,6 @@ export default function MusicSelectionScreen({ navigation, route }) {
           );
           setSubset(filtered);
         } else {
-          setHasFavourites(true);
           const results = await queryMusicLibrarySubset({ decade: filterDecade, genres: filterGenres, facilityId });
           if (cancelled) return;
           const selectedIds = residentData?.selectedMusicVideoIds;
@@ -114,7 +114,33 @@ export default function MusicSelectionScreen({ navigation, route }) {
     .sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
 
   const consoleLink = extractConsoleLink(error);
-  const showFavouritesEmptyState = viewMode === 'Favourites' && !hasFavourites;
+  const showFavouritesEmptyState = viewMode === 'Favourites' && favouriteIds.length === 0;
+
+  // Lets a song be hearted straight from this list, without opening the
+  // player — mirrors MusicPlayerScreen's own toggle (same field, same
+  // optimistic-update-then-revert-on-failure shape). Only offered when
+  // there's a resident to store the favourite against, same restriction
+  // as the player's heart button.
+  async function handleToggleFavourite(video) {
+    if (!residentId) return;
+    const videoId = video.videoId;
+    const isFavourite = favouriteIds.includes(videoId);
+    setFavouriteIds((prev) => (isFavourite ? prev.filter((id) => id !== videoId) : [...prev, videoId]));
+    if (viewMode === 'Favourites' && isFavourite) {
+      setSubset((prev) => prev.filter((v) => v.videoId !== videoId));
+    }
+    try {
+      await updateDoc(doc(db, 'residents', residentId), {
+        favouriteMusicVideoIds: isFavourite ? arrayRemove(videoId) : arrayUnion(videoId),
+      });
+    } catch (e) {
+      console.error('[MusicSelection] failed to update favourite:', e.code, e.message, e);
+      setFavouriteIds((prev) => (isFavourite ? [...prev, videoId] : prev.filter((id) => id !== videoId)));
+      if (viewMode === 'Favourites' && isFavourite) {
+        setSubset((prev) => [...prev, video]);
+      }
+    }
+  }
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -151,7 +177,7 @@ export default function MusicSelectionScreen({ navigation, route }) {
           </View>
         ) : null}
         {!loading && !error && showFavouritesEmptyState ? (
-          <Text style={styles.note}>No favourites yet — tap the heart while listening to a song to add one here.</Text>
+          <Text style={styles.note}>No favourites yet — tap the heart next to a song to add one here.</Text>
         ) : null}
         {!loading && !error && !showFavouritesEmptyState && videos.length === 0 ? (
           <Text style={styles.note}>No songs match these filters yet.</Text>
@@ -185,7 +211,27 @@ export default function MusicSelectionScreen({ navigation, route }) {
                     {video.artist || video.channelTitle}
                   </Text>
                 </View>
-                <Ionicons name="play-circle-outline" size={26} color={colors.primary} />
+                <View style={styles.cardActions}>
+                  {residentId ? (
+                    <TouchableOpacity
+                      onPress={() => handleToggleFavourite(video)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        favouriteIds.includes(video.videoId) ? 'Remove from favourites' : 'Add to favourites'
+                      }
+                      accessibilityState={{ selected: favouriteIds.includes(video.videoId) }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons
+                        name={favouriteIds.includes(video.videoId) ? 'heart' : 'heart-outline'}
+                        size={22}
+                        color={favouriteIds.includes(video.videoId) ? colors.destructive : colors.textMuted}
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+                  <Ionicons name="play-circle-outline" size={26} color={colors.primary} />
+                </View>
               </TouchableOpacity>
             ))
           : null}
@@ -269,5 +315,10 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansRegular,
     fontSize: 14,
     color: colors.textMuted,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
   },
 });
