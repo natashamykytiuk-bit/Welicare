@@ -4,7 +4,6 @@ import { collection, deleteDoc, doc, getDoc, getDocs, query, where } from 'fireb
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   FlatList,
   Modal,
@@ -41,6 +40,8 @@ export default function ResidentModeScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [menuFor, setMenuFor] = useState(null);
+  const [confirmTarget, setConfirmTarget] = useState(null);
+  const [removing, setRemoving] = useState(false);
   // undefined while loading, then either the role string or null. Deleting
   // is Administrator-only (see firestore.rules), so the menu item is hidden
   // for everyone else rather than shown and then failing on tap.
@@ -132,27 +133,24 @@ export default function ResidentModeScreen({ navigation }) {
     return role === 'Administrator';
   }
 
-  async function handleRemove(resident) {
-    Alert.alert(
-      'Remove resident',
-      `Are you sure you want to remove ${resident.name}? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteDoc(doc(db, 'residents', resident.id));
-              setResidents((prev) => prev.filter((r) => r.id !== resident.id));
-            } catch (e) {
-              console.error('[ResidentMode] failed to remove resident:', e.code, e.message, e);
-              Alert.alert('Could not remove resident', 'Please try again.');
-            }
-          },
-        },
-      ]
-    );
+  // A custom Modal rather than Alert.alert — Alert.alert is a no-op on web
+  // (react-native-web ships it as an empty stub), which made this
+  // confirmation, and therefore the whole remove flow, silently do nothing
+  // when the app runs in a browser.
+  async function performRemove() {
+    if (!confirmTarget) return;
+    setRemoving(true);
+    try {
+      await deleteDoc(doc(db, 'residents', confirmTarget.id));
+      setResidents((prev) => prev.filter((r) => r.id !== confirmTarget.id));
+      setConfirmTarget(null);
+    } catch (e) {
+      console.error('[ResidentMode] failed to remove resident:', e.code, e.message, e);
+      setError('Could not remove resident. Please try again.');
+      setConfirmTarget(null);
+    } finally {
+      setRemoving(false);
+    }
   }
 
   function handleEdit(resident) {
@@ -261,7 +259,7 @@ export default function ResidentModeScreen({ navigation }) {
                 onPress={() => {
                   const resident = menuFor;
                   setMenuFor(null);
-                  if (resident) handleRemove(resident);
+                  if (resident) setConfirmTarget(resident);
                 }}
               >
                 <Ionicons name="trash-outline" size={20} color={colors.destructive} />
@@ -270,6 +268,46 @@ export default function ResidentModeScreen({ navigation }) {
             ) : null}
           </View>
         </Pressable>
+      </Modal>
+
+      <Modal
+        visible={!!confirmTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => (removing ? null : setConfirmTarget(null))}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.confirmSheet}>
+            <Text style={styles.confirmTitle}>Remove resident</Text>
+            <Text style={styles.confirmBody}>
+              Are you sure you want to remove {confirmTarget?.name}? This cannot be undone.
+            </Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={() => setConfirmTarget(null)}
+                disabled={removing}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+              >
+                <Text style={styles.confirmButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmButton, styles.confirmButtonDestructive]}
+                onPress={performRemove}
+                disabled={removing}
+                accessibilityRole="button"
+                accessibilityLabel="Remove"
+              >
+                {removing ? (
+                  <ActivityIndicator color={colors.white} size="small" />
+                ) : (
+                  <Text style={[styles.confirmButtonText, styles.confirmButtonTextDestructive]}>Remove</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -392,5 +430,49 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansBold,
     fontSize: 16,
     color: colors.textPrimary,
+  },
+  confirmSheet: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.sm,
+    padding: 20,
+    width: '85%',
+    maxWidth: 360,
+  },
+  confirmTitle: {
+    fontFamily: fonts.serifBold,
+    fontSize: 20,
+    color: colors.textPrimary,
+    marginBottom: 10,
+  },
+  confirmBody: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 15,
+    color: colors.textMuted,
+    lineHeight: 21,
+    marginBottom: 20,
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  confirmButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: radii.sm,
+    minWidth: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmButtonDestructive: {
+    backgroundColor: colors.destructive,
+  },
+  confirmButtonText: {
+    fontFamily: fonts.sansBold,
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
+  confirmButtonTextDestructive: {
+    color: colors.white,
   },
 });

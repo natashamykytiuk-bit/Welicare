@@ -4,7 +4,6 @@ import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc } from '
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -72,6 +71,9 @@ export default function MusicLibraryScreen({ navigation }) {
   const [formDecade, setFormDecade] = useState('');
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState('');
+
+  const [confirmTarget, setConfirmTarget] = useState(null);
+  const [removing, setRemoving] = useState(false);
 
   const loadLibrary = useCallback(async () => {
     setLibraryLoading(true);
@@ -206,23 +208,25 @@ export default function MusicLibraryScreen({ navigation }) {
     }
   }
 
-  function handleRemove(entry) {
-    Alert.alert('Remove from library', `Remove "${entry.title}" from the music library?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteDoc(doc(db, 'musicLibrary', entry.id));
-            setLibrary((prev) => prev.filter((e) => e.id !== entry.id));
-          } catch (e) {
-            console.error('[MusicLibrary] failed to remove entry:', e.code, e.message, e);
-            Alert.alert('Could not remove this entry', 'Please try again.');
-          }
-        },
-      },
-    ]);
+  // A custom Modal rather than Alert.alert — Alert.alert is a no-op on web
+  // (react-native-web ships it as an empty stub), which made this
+  // confirmation, and therefore the whole remove flow, silently do nothing
+  // when the app runs in a browser. Same fix as ResidentModeScreen's
+  // remove-resident confirmation.
+  async function performRemove() {
+    if (!confirmTarget) return;
+    setRemoving(true);
+    try {
+      await deleteDoc(doc(db, 'musicLibrary', confirmTarget.id));
+      setLibrary((prev) => prev.filter((e) => e.id !== confirmTarget.id));
+      setConfirmTarget(null);
+    } catch (e) {
+      console.error('[MusicLibrary] failed to remove entry:', e.code, e.message, e);
+      setLibraryError('Could not remove this entry. Please try again.');
+      setConfirmTarget(null);
+    } finally {
+      setRemoving(false);
+    }
   }
 
   const filteredLibrary = library.filter(
@@ -384,7 +388,7 @@ export default function MusicLibraryScreen({ navigation }) {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.iconButton, isGlobal && styles.iconButtonDisabled]}
-                onPress={() => handleRemove(entry)}
+                onPress={() => setConfirmTarget(entry)}
                 disabled={isGlobal}
                 activeOpacity={0.7}
                 accessibilityRole="button"
@@ -471,6 +475,48 @@ export default function MusicLibraryScreen({ navigation }) {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={!!confirmTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => (removing ? null : setConfirmTarget(null))}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmSheet}>
+            <Text style={styles.confirmTitle}>Remove from library</Text>
+            <Text style={styles.confirmBody}>
+              Remove "{confirmTarget?.title}" from the music library?
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setConfirmTarget(null)}
+                disabled={removing}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmRemoveButton}
+                onPress={performRemove}
+                disabled={removing}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Remove"
+              >
+                {removing ? (
+                  <ActivityIndicator color={colors.white} />
+                ) : (
+                  <Text style={styles.modalSaveText}>Remove</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -686,5 +732,37 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansBold,
     fontSize: 16,
     color: colors.white,
+  },
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(26,46,37,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  confirmSheet: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.sm,
+    padding: 20,
+    width: '85%',
+    maxWidth: 360,
+  },
+  confirmTitle: {
+    fontFamily: fonts.serifBold,
+    fontSize: 20,
+    color: colors.textPrimary,
+    marginBottom: 10,
+  },
+  confirmBody: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 15,
+    color: colors.textMuted,
+    lineHeight: 21,
+  },
+  confirmRemoveButton: {
+    flex: 1,
+    borderRadius: radii.sm,
+    backgroundColor: colors.destructive,
+    paddingVertical: 14,
+    alignItems: 'center',
   },
 });
