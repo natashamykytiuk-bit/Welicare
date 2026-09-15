@@ -1,4 +1,4 @@
-#Welicare
+# Welicare
 
 **Personalized activity tools for dementia care teams and family caregivers, backed by AI**
 
