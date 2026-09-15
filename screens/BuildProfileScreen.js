@@ -121,6 +121,8 @@ function ChipRow({ options, value, onChange, multi }) {
 // residents answer as much or as little as they like.
 export default function BuildProfileScreen({ navigation, route }) {
   const { residentId, returnTo = 'ActivityMenu' } = route.params ?? {};
+  const [name, setName] = useState('');
+  const [nameError, setNameError] = useState('');
   const [story, setStory] = useState(EMPTY_LIFE_STORY);
   const [isEdit, setIsEdit] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -132,6 +134,12 @@ export default function BuildProfileScreen({ navigation, route }) {
     async function load() {
       const snapshot = await getDoc(doc(db, 'residents', residentId));
       if (cancelled) return;
+      // The resident's name lives on the doc itself (set at creation in
+      // AddResidentScreen), separate from lifeStory.preferredName — that's
+      // just an optional nickname the resident answers as part of the
+      // questionnaire, not the identifying name shown everywhere else
+      // (ResidentModeScreen's card, ActivityMenuScreen's greeting, etc.).
+      setName(snapshot.data()?.name ?? '');
       const lifeStory = snapshot.data()?.lifeStory;
       if (hasAnyLifeStoryData(lifeStory)) {
         setStory({ ...EMPTY_LIFE_STORY, ...lifeStory });
@@ -150,6 +158,12 @@ export default function BuildProfileScreen({ navigation, route }) {
   }
 
   async function handleSave() {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setNameError('Please enter a name.');
+      return;
+    }
+    setNameError('');
     setSaving(true);
     const toSave = {};
     for (const [key, value] of Object.entries(story)) {
@@ -159,7 +173,7 @@ export default function BuildProfileScreen({ navigation, route }) {
         toSave[key] = value === '' ? null : value;
       }
     }
-    await setDoc(doc(db, 'residents', residentId), { lifeStory: toSave }, { merge: true });
+    await setDoc(doc(db, 'residents', residentId), { name: trimmedName, lifeStory: toSave }, { merge: true });
     setSaving(false);
     setSaved(true);
     setTimeout(() => {
@@ -191,6 +205,16 @@ export default function BuildProfileScreen({ navigation, route }) {
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <SectionHeader>About You</SectionHeader>
+          <TextField
+            label="Resident's name"
+            value={name}
+            onChangeText={(v) => {
+              setName(v);
+              if (nameError) setNameError('');
+            }}
+            placeholder="Full name"
+          />
+          {nameError ? <Text style={styles.fieldError}>{nameError}</Text> : null}
           <TextField
             label="Preferred name or nickname"
             value={story.preferredName}
@@ -408,6 +432,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   field: { marginBottom: 16 },
+  fieldError: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 14,
+    color: colors.destructive,
+    marginTop: -12,
+    marginBottom: 16,
+  },
   fieldLabel: {
     fontFamily: fonts.sansBold,
     fontSize: 16,
