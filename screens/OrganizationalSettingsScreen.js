@@ -1,3 +1,5 @@
+import { Ionicons } from '@expo/vector-icons';
+import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { useEffect, useState } from 'react';
@@ -27,6 +29,9 @@ const callTransferOrgAdmin = httpsCallable(functions, 'transferOrgAdmin');
 // see its invite code, hand the organization to another member, and
 // delete the organization outright.
 //
+// Everything starts read-only: the pencil next to "Organization details"
+// asks for the password before editing, transfer and delete appear.
+//
 // Editing is allowed only for the org's own admin (createdBy/adminId) —
 // firestore.rules only lets createdBy update the org doc, so another
 // Administrator in the same facility sees the details read-only rather
@@ -48,6 +53,17 @@ export default function OrganizationalSettingsScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+
+  // Details are read-only until the admin taps the pencil and re-enters
+  // their password — so a shared, signed-in iPad can't be used to rename
+  // or delete the organization. Unlocking also reveals Transfer
+  // administrator and Delete organization, which are even more sensitive.
+  const [unlocked, setUnlocked] = useState(false);
+  const [showUnlock, setShowUnlock] = useState(false);
+  const [password, setPassword] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState('');
+  const editing = isOrgAdmin && unlocked;
 
   // Delete confirmation is inline (type the org's name) rather than an
   // Alert, because Alert buttons don't fire on web.
@@ -100,6 +116,53 @@ export default function OrganizationalSettingsScreen({ navigation }) {
       province !== (org.province ?? '') ||
       city.trim() !== (org.city ?? ''));
 
+  // Re-authenticates against Firebase Auth rather than comparing locally —
+  // the password never touches Firestore, and this is the same check
+  // DeleteAccountScreen uses.
+  async function handleUnlock() {
+    if (!password || unlocking) return;
+    setUnlockError('');
+    setUnlocking(true);
+    try {
+      const user = auth.currentUser;
+      await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+      setUnlocked(true);
+      setShowUnlock(false);
+      setPassword('');
+    } catch (e) {
+      if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+        setUnlockError('That password is incorrect.');
+      } else if (e.code === 'auth/too-many-requests') {
+        setUnlockError('Too many attempts. Please wait a few minutes and try again.');
+      } else {
+        console.error('Unlock error:', e.code, e.message, e);
+        setUnlockError('Something went wrong. Please try again.');
+      }
+    } finally {
+      setUnlocking(false);
+    }
+  }
+
+  function cancelUnlock() {
+    setShowUnlock(false);
+    setPassword('');
+    setUnlockError('');
+  }
+
+  // Leaves edit mode, throwing away unsaved changes and closing any open
+  // transfer/delete confirmation, so the next edit needs the password again.
+  function stopEditing() {
+    setUnlocked(false);
+    setName(org?.name ?? '');
+    setType(org?.type ?? '');
+    setProvince(org?.province ?? '');
+    setCity(org?.city ?? '');
+    setError('');
+    setShowDelete(false);
+    setConfirmName('');
+    setTransferTo(null);
+  }
+
   async function handleSave() {
     setError('');
     setSuccess(false);
@@ -113,6 +176,9 @@ export default function OrganizationalSettingsScreen({ navigation }) {
       await updateDoc(doc(db, 'organizations', orgId), updates);
       setOrg((prev) => ({ ...prev, ...updates }));
       setSuccess(true);
+      // Saving finishes the edit — lock again so the next change needs
+      // the password too.
+      setUnlocked(false);
     } catch (e) {
       console.error('Org update error:', e.code, e.message, e);
       setError('Something went wrong. Please try again.');
@@ -208,6 +274,70 @@ export default function OrganizationalSettingsScreen({ navigation }) {
               </Text>
             ) : null}
 
+            {/* Section header with the pencil. Details start read-only
+                even for the org's admin; the pencil asks for the password
+                first (see handleUnlock). */}
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.label, styles.sectionHeaderLabel]}>Organization details</Text>
+              {isOrgAdmin && !editing && !showUnlock ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowUnlock(true);
+                    setSuccess(false);
+                  }}
+                  style={styles.editButton}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit organization details"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="pencil" size={20} color={colors.primary} />
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {showUnlock ? (
+              <View style={styles.sectionCard}>
+                <Text style={styles.dangerText}>Enter your password to edit this organization.</Text>
+                {unlockError ? (
+                  <Text style={styles.errorBanner} accessibilityRole="alert">
+                    {unlockError}
+                  </Text>
+                ) : null}
+                <TextInput
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Password"
+                  placeholderTextColor={colors.textMuted}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoComplete="current-password"
+                  autoFocus
+                  onSubmitEditing={handleUnlock}
+                  accessibilityLabel="Password"
+                />
+                <TouchableOpacity
+                  style={[styles.button, (!password || unlocking) && styles.buttonDisabled]}
+                  onPress={handleUnlock}
+                  disabled={!password || unlocking}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Unlock editing"
+                >
+                  <Text style={styles.buttonText}>{unlocking ? 'Checking…' : 'Continue'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={cancelUnlock}
+                  disabled={unlocking}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel"
+                >
+                  <Text style={styles.cancelLink}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
             {error ? (
               <Text style={styles.errorBanner} accessibilityRole="alert">
                 {error}
@@ -217,13 +347,13 @@ export default function OrganizationalSettingsScreen({ navigation }) {
 
             <Text style={styles.label}>Organization name</Text>
             <TextInput
-              style={[styles.input, !isOrgAdmin && styles.inputReadOnly]}
+              style={[styles.input, !editing && styles.inputReadOnly]}
               value={name}
               onChangeText={(v) => {
                 setName(v);
                 setSuccess(false);
               }}
-              editable={isOrgAdmin}
+              editable={editing}
               placeholder="Organization name"
               placeholderTextColor={colors.textMuted}
               accessibilityLabel="Organization name"
@@ -232,7 +362,7 @@ export default function OrganizationalSettingsScreen({ navigation }) {
             {/* Dropdowns swapped for plain text when read-only, since
                 Dropdown has no disabled state of its own. */}
             <Text style={styles.label}>Organization type</Text>
-            {isOrgAdmin ? (
+            {editing ? (
               <Dropdown
                 label="Organization type"
                 value={type}
@@ -249,7 +379,7 @@ export default function OrganizationalSettingsScreen({ navigation }) {
             )}
 
             <Text style={styles.label}>Province/Territory</Text>
-            {isOrgAdmin ? (
+            {editing ? (
               <Dropdown
                 label="Province/Territory"
                 value={province}
@@ -267,19 +397,19 @@ export default function OrganizationalSettingsScreen({ navigation }) {
 
             <Text style={styles.label}>City</Text>
             <TextInput
-              style={[styles.input, !isOrgAdmin && styles.inputReadOnly]}
+              style={[styles.input, !editing && styles.inputReadOnly]}
               value={city}
               onChangeText={(v) => {
                 setCity(v);
                 setSuccess(false);
               }}
-              editable={isOrgAdmin}
+              editable={editing}
               placeholder="City"
               placeholderTextColor={colors.textMuted}
               accessibilityLabel="City"
             />
 
-            {isOrgAdmin ? (
+            {editing ? (
               <>
                 <TouchableOpacity
                   style={[styles.button, (!hasChanges || saving) && styles.buttonDisabled]}
@@ -290,6 +420,14 @@ export default function OrganizationalSettingsScreen({ navigation }) {
                   accessibilityLabel={saving ? 'Saving…' : 'Save changes'}
                 >
                   <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Save changes'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={stopEditing}
+                  disabled={saving}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel editing"
+                >
+                  <Text style={styles.cancelLink}>Cancel</Text>
                 </TouchableOpacity>
 
                 <Text style={[styles.label, styles.sectionGap]}>Transfer administrator</Text>
@@ -534,6 +672,22 @@ const styles = StyleSheet.create({
     fontSize: 17,
   },
   sectionGap: { marginTop: 16 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  sectionHeaderLabel: { marginBottom: 0 },
+  // 44pt min target around a small icon + label.
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 44,
+    paddingHorizontal: 8,
+  },
+  editButtonText: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.primary },
   sectionCard: {
     borderWidth: 1,
     borderColor: colors.border,
