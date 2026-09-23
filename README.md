@@ -69,3 +69,7 @@ Welicare takes this information and puts it somewhere it can actually be useful 
 | AI | Claude (`claude-sonnet-5`) via the Anthropic Messages API | Resident profiles are turned into prompts in the Cloud Function. |
 | Media | YouTube Data API + `react-native-youtube-iframe` | Staff search YouTube through a Cloud Function, and resident video playback is fully contained within the app. |
 | Fonts | Lora + Atkinson Hyperlegible | Fonts chosen specifically for visual accessibility. |
+
+## License
+
+Copyright © 2026 Natasha Mykytiuk. All rights reserved. The code is public to view for portfolio purposes, but is not licensed for use, copying, or distribution — see [LICENSE](LICENSE).
