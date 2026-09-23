@@ -6,7 +6,7 @@ Welicare is an iPad-first app for people who provide activities for individuals 
 
 I built Welicare solo, while studying Computer Engineering at UBC. This README covers the main app functions and what is still in progress.
 
-**Status:** Welicare is actively being built and is not on the app store yet. The core loop (accounts, organizations, resident profiles, music and video) works end-to-end against a live backend. The AI features and music suggestions work but still need refining, and a handful of secondary screens are still placeholders.
+**Status:** Welicare is actively being built and is not on the App Store yet. The core loop (accounts, organizations, resident profiles, music and video) works end-to-end against a live backend. The AI features and music suggestions work but still need refining, and a handful of secondary screens are still placeholders.
 
 ## Screenshots
 **Mode Selection Screen**
@@ -20,7 +20,7 @@ I built Welicare solo, while studying Computer Engineering at UBC. This README c
 
 ## Why I built this
 
-The inspiration for Welicare came from my own personal experiences working with mid-to-late-stage dementia patients. I have worked with this population for over four years, and have seen firsthand how limited resources and staffing can make it difficult to provide meaningful, individualized care. Generic programming like bingo and word games doesn't do much for a resident who spent 40 years working on a farm or who lights up at Patsy Cline. Often, the most meaningful details that would make a one-on-one session land lives in a family member's head or a binder in a filing cabinet. 
+The inspiration for Welicare came from my own personal experiences working with mid-to-late-stage dementia patients. I have worked with this population for over four years, and have seen firsthand how limited resources and staffing can make it difficult to provide meaningful, individualized care. Generic programming like bingo and word games doesn't do much for a resident who spent 40 years working on a farm or who lights up at Patsy Cline. Often, the most meaningful details that would make a one-on-one session land live in a family member's head or a binder in a filing cabinet. 
 
 Welicare takes this information and puts it somewhere it can actually be useful in the moment: on a shared iPad with the resident sitting right there. Caregiving is unique. In a world increasingly reliant on AI and automation, this job can't be handed off. We cannot take the humanity out of caregiving, but we can use tools like AI to make caregiving easier.
 
@@ -37,3 +37,35 @@ Welicare takes this information and puts it somewhere it can actually be useful 
 **Organizations:** Care facilities are stored under organizations with a short invite code. Residents belong to a facility, so any caregiver under a facility can find and manage profiles, with music libraries being scoped to facilities too. Family caregivers using Welicare at home have their own personal organizations automatically, and can later upgrade into real facilities or join existing ones without losing their information.
 
 **Accessible Design:** The app interface was designed with older adults in mind. Atkinson Hyperlegible, created specifically for low-vision users, is used for body text and the app colour palette is designed to be high-contrast. Accessibility labels are also included on UI elements for VoiceOver and TalkBack compatibility. 
+
+## How it's built
+```
+┌──────────────────────────────┐        ┌──────────────────────────────────┐
+│  Expo / React Native app     │        │  Firebase project "welicare"      │
+│  (iOS, Android, web)         │        │                                  │
+│                              │  Auth  │  Firebase Auth                   │
+│  React Navigation stack      │◄──────►│   email + password, verified     │
+│  Role-aware routing          │        │                                  │
+│  ResidentLockContext         │ Rules  │  Cloud Firestore (Montreal)      │
+│  theme.js design tokens      │◄──────►│   users · usernames · residents  │
+│                              │        │   organizations · musicLibrary   │
+│  utils/aiSuggestions.js      │ onCall │                                  │
+│  utils/youtube.js            │──────► │  Cloud Functions (Node.js)        │
+│                              │        │   generateSuggestions → Claude   │
+└──────────────────────────────┘        │   searchYouTube → YouTube Data   │
+                                        │   secrets via Secret Manager     │
+                                        └──────────────────────────────────┘
+
+```
+
+### Stack
+ 
+| Layer | Choice | Reasoning |
+|---|---|---|
+| Client | React Native 0.81 · Expo SDK 54 · React 19 | iPad, Android, and web preview are all under one codebase. |
+| Auth | Firebase Auth | Sign-up with an email + password with mandatory email verification. Sign-in can be done with a username or email. |
+| Data | Cloud Firestore, `northamerica-northeast1` | Resident data is stored on Canadian servers in compliance with the Alberta Health Information Act. |
+| Backend | Firebase Cloud Functions v2 (`onCall`) | API keys are stored server-side & functions refuse calls from people who are not signed in. |
+| AI | Claude (`claude-sonnet-5`) via the Anthropic Messages API | Resident profiles are turned into prompts in the Cloud Function. |
+| Media | YouTube Data API + `react-native-youtube-iframe` | Staff search YouTube through a Cloud Function, and resident video playback is fully contained within the app. |
+| Fonts | Lora + Atkinson Hyperlegible | Fonts chosen specifically for visual accessibility. |
