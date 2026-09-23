@@ -6,7 +6,20 @@ service cloud.firestore {
     // profile fields set at sign-up (email, username, role) and the
     // pinHash added later by PINSetupScreen.
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+
+      // Role is picked once at sign-up (SignUpScreen) and must be one of
+      // the four real roles — the same values ModeSelectionScreen and the
+      // rules below branch on.
+      allow create: if request.auth != null && request.auth.uid == userId &&
+        request.resource.data.role in ['Family Caregiver', 'Caregiver', 'Volunteer', 'Administrator'];
+
+      // Everything else on your own doc (username, orgId, pinHash, …) stays
+      // self-editable, but never `role` — otherwise anyone could make
+      // themselves an Administrator. Role changes only happen server-side
+      // via the Admin SDK (transferOrgAdmin), which bypasses these rules.
+      allow update: if request.auth != null && request.auth.uid == userId &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
     }
 
     // Public lookup collection keyed by lowercased username, used to

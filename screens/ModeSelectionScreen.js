@@ -70,6 +70,7 @@ export default function ModeSelectionScreen({ navigation }) {
   const [role, setRole] = useState(undefined);
   const [fullName, setFullName] = useState('');
   const [facilityName, setFacilityName] = useState('');
+  const [allModes, setAllModes] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,6 +80,16 @@ export default function ModeSelectionScreen({ navigation }) {
       const snap = await getDoc(doc(db, 'users', uid));
       const data = snap.data();
       if (cancelled) return;
+      // Planning/preview access: an `allModes` custom claim on the Auth
+      // token shows every mode card regardless of role. A custom claim
+      // rather than a users-doc field because users can write their own
+      // doc (see firestore.rules) but can't set claims — only the Admin SDK
+      // can (scripts/setAllModesAccess.js). It only changes which cards
+      // show; what each mode can actually read/write is still enforced
+      // by the rules and Cloud Functions against the real role.
+      const token = await auth.currentUser.getIdTokenResult();
+      if (cancelled) return;
+      setAllModes(token.claims.allModes === true);
       setRole(data?.role ?? null);
       setFullName(data?.fullName || data?.username || '');
       if (data?.orgId) {
@@ -160,7 +171,7 @@ export default function ModeSelectionScreen({ navigation }) {
             </TouchableOpacity>
 
             <View style={styles.modeGrid}>
-              {MODES.filter((mode) => mode.isVisible(role)).map((mode) => (
+              {MODES.filter((mode) => allModes || mode.isVisible(role)).map((mode) => (
                 <TouchableOpacity
                   key={mode.key}
                   style={styles.card}
