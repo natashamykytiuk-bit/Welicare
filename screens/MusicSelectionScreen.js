@@ -184,12 +184,29 @@ export default function MusicSelectionScreen({ navigation, route }) {
         ) : null}
 
         {!loading && !error
-          ? videos.map((video) => (
+          ? videos.map((video, index) => (
               <TouchableOpacity
                 key={video.id}
                 style={styles.card}
+                // Hands the player the whole visible list (in its current
+                // filter/view order) plus where to start, so it can play the
+                // songs after the tapped one as an "Up next" queue. Only
+                // the fields the player needs are passed — navigation params
+                // should stay small and serialisable. genres/decade/artist
+                // feed the player's similarity ranking (see songSimilarity);
+                // genresOf/channelTitle cover pre-migration docs.
                 onPress={() =>
                   navigation.navigate('MusicPlayer', {
+                    queue: videos
+                      .filter((v) => v.videoId)
+                      .map((v) => ({
+                        videoId: v.videoId,
+                        title: v.title,
+                        genres: genresOf(v),
+                        decade: v.decade ?? null,
+                        artist: v.artist || v.channelTitle || null,
+                      })),
+                    startIndex: videos.filter((v, i) => v.videoId && i < index).length,
                     videoId: video.videoId,
                     title: video.title,
                     residentId,
