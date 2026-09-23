@@ -5,5 +5,19 @@
   "functions": {
     "source": "functions",
     "postdeploy": "gcloud run services add-iam-policy-binding generatesuggestions --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare"
+  },
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "functions": {
+      "port": 5001
+    },
+    "ui": {
+      "enabled": false
+    }
   }
 }

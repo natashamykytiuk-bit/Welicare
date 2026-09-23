@@ -5,7 +5,9 @@ import Dropdown from '../components/Dropdown';
 import { colors, fonts, radii } from '../theme';
 import { createOrganization } from '../utils/inviteCode';
 
-const ORG_TYPES = [
+// Exported so OrganizationalSettingsScreen's edit form offers the exact
+// same choices as creation.
+export const ORG_TYPES = [
   'Long-term care home',
   'Assisted living',
   'Memory care unit',
@@ -14,7 +16,7 @@ const ORG_TYPES = [
   'Other',
 ];
 
-const PROVINCES = [
+export const PROVINCES = [
   'Alberta',
   'British Columbia',
   'Manitoba',

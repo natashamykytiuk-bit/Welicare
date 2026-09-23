@@ -92,7 +92,16 @@ export default function SettingsScreen({ navigation }) {
         </View>
 
         <View style={styles.card}>
-          <Row label="Sign Out" destructive onPress={() => signOut(auth)} last />
+          <Row label="Sign Out" destructive onPress={() => signOut(auth)} />
+          {/* Separate screen rather than an inline confirm — see
+              DeleteAccountScreen for why (password re-entry, web Alerts). */}
+          <Row
+            label="Delete Account"
+            destructive
+            onPress={() => navigation.navigate('DeleteAccount')}
+            showArrow
+            last
+          />
         </View>
 
         {role === 'Administrator' ? (
