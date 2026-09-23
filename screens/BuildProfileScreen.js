@@ -123,6 +123,8 @@ export default function BuildProfileScreen({ navigation, route }) {
   const { residentId, returnTo = 'ActivityMenu' } = route.params ?? {};
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState('');
+  // Name as loaded from Firestore, for the heading (see below).
+  const [savedName, setSavedName] = useState('');
   const [story, setStory] = useState(EMPTY_LIFE_STORY);
   const [isEdit, setIsEdit] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -140,6 +142,7 @@ export default function BuildProfileScreen({ navigation, route }) {
       // questionnaire, not the identifying name shown everywhere else
       // (ResidentModeScreen's card, ActivityMenuScreen's greeting, etc.).
       setName(snapshot.data()?.name ?? '');
+      setSavedName(snapshot.data()?.name ?? '');
       const lifeStory = snapshot.data()?.lifeStory;
       if (hasAnyLifeStoryData(lifeStory)) {
         setStory({ ...EMPTY_LIFE_STORY, ...lifeStory });
@@ -192,7 +195,15 @@ export default function BuildProfileScreen({ navigation, route }) {
         <View style={styles.headerRow}>
           <BackButton navigation={navigation} style={styles.iconNoMargin} />
         </View>
-        <Text style={styles.heading}>Tell us about yourself</Text>
+        {/* From My Residents a caregiver is filling this in on someone's
+            behalf, so "yourself" would read wrong — name the resident
+            instead. Uses the saved name, not the field being edited, so
+            the heading doesn't change with every keystroke. */}
+        <Text style={styles.heading}>
+          {returnTo === 'CaregiverResidents'
+            ? `About ${savedName || 'this resident'}`
+            : 'Tell us about yourself'}
+        </Text>
         <Text style={styles.subtitle}>
           Answer as many or as few as you like — you can always come back and add more.
         </Text>

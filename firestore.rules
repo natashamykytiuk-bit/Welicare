@@ -99,6 +99,17 @@ service cloud.firestore {
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignedCaregivers']) &&
           request.resource.data.assignedCaregivers == resource.data.assignedCaregivers.concat([request.auth.uid])
+        ) ||
+        // Profile editing from CaregiverResidentsScreen ("My Residents"):
+        // any Caregiver/Administrator in the same facility may update a
+        // resident's name and life story, even if not assigned to them —
+        // but nothing else, so ownership/facility/sharing fields can't be
+        // changed this way. Family Members and Volunteers are excluded.
+        (
+          resource.data.facilityId != null &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'lifeStory'])
         )
       );
 
