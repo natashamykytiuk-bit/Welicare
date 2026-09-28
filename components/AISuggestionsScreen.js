@@ -43,14 +43,17 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
     async function run() {
       setLoading(true);
       setError('');
-      let lifeStory = null;
-      if (residentId) {
-        const snapshot = await getDoc(doc(db, 'residents', residentId));
-        lifeStory = snapshot.data()?.lifeStory ?? null;
-      }
-      if (cancelled) return;
-      setHasProfile(hasAnyLifeStoryData(lifeStory));
+      // The resident read is inside the same try as the Cloud Function
+      // call, so a Firestore failure also lands in catch/finally and the
+      // spinner can't get stuck.
       try {
+        let lifeStory = null;
+        if (residentId) {
+          const snapshot = await getDoc(doc(db, 'residents', residentId));
+          lifeStory = snapshot.data()?.lifeStory ?? null;
+        }
+        if (cancelled) return;
+        setHasProfile(hasAnyLifeStoryData(lifeStory));
         const text = await generateSuggestions(kind, lifeStory);
         if (!cancelled) setSuggestions(text);
       } catch (e) {

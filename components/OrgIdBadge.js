@@ -21,14 +21,19 @@ export default function OrgIdBadge() {
     async function loadInviteCode() {
       const uid = auth.currentUser?.uid;
       if (!uid) return;
-      const userSnap = await getDoc(doc(db, 'users', uid));
-      const orgId = userSnap.data()?.orgId;
-      if (!orgId) {
+      // The badge is a convenience, not something a screen depends on, so
+      // any failure just hides it (setInviteCode(null)) instead of showing
+      // an error block. fetchInviteCode already swallows its own errors;
+      // this catch covers the user-doc read.
+      try {
+        const userSnap = await getDoc(doc(db, 'users', uid));
+        const orgId = userSnap.data()?.orgId;
+        const code = orgId ? await fetchInviteCode(orgId) : null;
+        if (!cancelled) setInviteCode(code);
+      } catch (e) {
+        console.error('[OrgIdBadge] failed to load invite code:', e.code, e.message, e);
         if (!cancelled) setInviteCode(null);
-        return;
       }
-      const code = await fetchInviteCode(orgId);
-      if (!cancelled) setInviteCode(code);
     }
     loadInviteCode();
     return () => {

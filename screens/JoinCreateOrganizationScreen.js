@@ -9,6 +9,7 @@ import {
   Text,
   TouchableOpacity,
 } from 'react-native';
+import LoadError from '../components/LoadError';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 
@@ -26,20 +27,31 @@ import { colors, fonts, radii } from '../theme';
 export default function JoinCreateOrganizationScreen({ navigation }) {
   // undefined while loading, then either the role string or null
   const [role, setRole] = useState(undefined);
+  // The role decides whether "Skip" is offered, so without it the screen
+  // can't safely show its options — a failed load shows LoadError instead.
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    // Guards setState after the await if the user moves on first.
     let cancelled = false;
     async function loadRole() {
       const uid = auth.currentUser?.uid;
       if (!uid) return;
-      const snap = await getDoc(doc(db, 'users', uid));
-      if (!cancelled) setRole(snap.data()?.role ?? null);
+      setLoadError(false);
+      try {
+        const snap = await getDoc(doc(db, 'users', uid));
+        if (!cancelled) setRole(snap.data()?.role ?? null);
+      } catch (e) {
+        console.error('[JoinCreateOrganization] failed to load role:', e.code, e.message, e);
+        if (!cancelled) setLoadError(true);
+      }
     }
     loadRole();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const isAdministrator = role === 'Administrator';
 
@@ -70,7 +82,9 @@ export default function JoinCreateOrganizationScreen({ navigation }) {
             : 'Connect to your care facility to start using Welicare.'}
         </Text>
 
-        {role === undefined ? (
+        {loadError ? (
+          <LoadError onRetry={() => setReloadKey((k) => k + 1)} />
+        ) : role === undefined ? (
           <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
         ) : (
           <>

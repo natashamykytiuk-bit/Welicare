@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import LoadError from '../components/LoadError';
 import OrgIdBadge from '../components/OrgIdBadge';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
@@ -71,37 +72,57 @@ export default function ModeSelectionScreen({ navigation }) {
   const [fullName, setFullName] = useState('');
   const [facilityName, setFacilityName] = useState('');
   const [allModes, setAllModes] = useState(false);
+  // true when the user doc couldn't be loaded — without it we don't know
+  // the role, so the mode cards can't be shown. reloadKey re-runs the load
+  // effect when "Try again" is tapped.
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    // Guards every setState after an await, in case the user navigates
+    // away (e.g. into a mode) before the load finishes.
     let cancelled = false;
     async function loadUser() {
       const uid = auth.currentUser?.uid;
       if (!uid) return;
-      const snap = await getDoc(doc(db, 'users', uid));
-      const data = snap.data();
-      if (cancelled) return;
-      // Planning/preview access: an `allModes` custom claim on the Auth
-      // token shows every mode card regardless of role. A custom claim
-      // rather than a users-doc field because users can write their own
-      // doc (see firestore.rules) but can't set claims — only the Admin SDK
-      // can (scripts/setAllModesAccess.js). It only changes which cards
-      // show; what each mode can actually read/write is still enforced
-      // by the rules and Cloud Functions against the real role.
-      const token = await auth.currentUser.getIdTokenResult();
-      if (cancelled) return;
-      setAllModes(token.claims.allModes === true);
+      setLoadError(false);
+      let data;
+      try {
+        const snap = await getDoc(doc(db, 'users', uid));
+        data = snap.data();
+        // Planning/preview access: an `allModes` custom claim on the Auth
+        // token shows every mode card regardless of role. A custom claim
+        // rather than a users-doc field because users can write their own
+        // doc (see firestore.rules) but can't set claims — only the Admin
+        // SDK can (scripts/setAllModesAccess.js). It only changes which
+        // cards show; what each mode can actually read/write is still
+        // enforced by the rules and Cloud Functions against the real role.
+        const token = await auth.currentUser.getIdTokenResult();
+        if (cancelled) return;
+        setAllModes(token.claims.allModes === true);
+      } catch (e) {
+        console.error('[ModeSelection] failed to load user:', e.code, e.message, e);
+        if (!cancelled) setLoadError(true);
+        return;
+      }
       setRole(data?.role ?? null);
       setFullName(data?.fullName || data?.username || '');
       if (data?.orgId) {
-        const orgSnap = await getDoc(doc(db, 'organizations', data.orgId));
-        if (!cancelled) setFacilityName(orgSnap.data()?.name ?? '');
+        // The facility name is only a label in the header, so a failure
+        // here is logged but doesn't block the mode cards.
+        try {
+          const orgSnap = await getDoc(doc(db, 'organizations', data.orgId));
+          if (!cancelled) setFacilityName(orgSnap.data()?.name ?? '');
+        } catch (e) {
+          console.error('[ModeSelection] failed to load organization name:', e.code, e.message, e);
+        }
       }
     }
     loadUser();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -149,7 +170,9 @@ export default function ModeSelectionScreen({ navigation }) {
 
         <Text style={styles.heading}>How are you using Welicare today?</Text>
 
-        {role === undefined ? (
+        {loadError ? (
+          <LoadError onRetry={() => setReloadKey((k) => k + 1)} />
+        ) : role === undefined ? (
           <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
         ) : (
           <>

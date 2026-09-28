@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import BackButton from '../components/BackButton';
+import LoadError from '../components/LoadError';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { hasAnyLifeStoryData } from '../utils/lifeStory';
@@ -130,11 +131,30 @@ export default function BuildProfileScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  // Load failure → LoadError with Try again (reloadKey re-runs the effect),
+  // rather than a blank screen. Save failure → a message by the Save button,
+  // with the form left as-is so nothing typed is lost.
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
+    // Guards setState after the await if the user backs out first.
     let cancelled = false;
     async function load() {
-      const snapshot = await getDoc(doc(db, 'residents', residentId));
+      setLoadError(false);
+      setLoading(true);
+      let snapshot;
+      try {
+        snapshot = await getDoc(doc(db, 'residents', residentId));
+      } catch (e) {
+        console.error('[BuildProfile] failed to load resident:', e.code, e.message, e);
+        if (!cancelled) {
+          setLoadError(true);
+          setLoading(false);
+        }
+        return;
+      }
       if (cancelled) return;
       // The resident's name lives on the doc itself (set at creation in
       // AddResidentScreen), separate from lifeStory.preferredName — that's
@@ -154,7 +174,7 @@ export default function BuildProfileScreen({ navigation, route }) {
     return () => {
       cancelled = true;
     };
-  }, [residentId]);
+  }, [residentId, reloadKey]);
 
   function set(key, value) {
     setStory((prev) => ({ ...prev, [key]: value }));
@@ -176,8 +196,17 @@ export default function BuildProfileScreen({ navigation, route }) {
         toSave[key] = value === '' ? null : value;
       }
     }
-    await setDoc(doc(db, 'residents', residentId), { name: trimmedName, lifeStory: toSave }, { merge: true });
-    setSaving(false);
+    setSaveError('');
+    try {
+      await setDoc(doc(db, 'residents', residentId), { name: trimmedName, lifeStory: toSave }, { merge: true });
+    } catch (e) {
+      console.error('[BuildProfile] failed to save profile:', e.code, e.message, e);
+      setSaveError("We couldn't save this just now. Your answers are still here — please try again.");
+      return;
+    } finally {
+      // Always re-enable the button, even when the save failed.
+      setSaving(false);
+    }
     setSaved(true);
     setTimeout(() => {
       navigation.navigate(returnTo, { residentId });
@@ -185,6 +214,19 @@ export default function BuildProfileScreen({ navigation, route }) {
   }
 
   if (loading) return <SafeAreaView style={styles.flex} />;
+
+  if (loadError) {
+    return (
+      <SafeAreaView style={styles.flex}>
+        <View style={styles.headerRow}>
+          <BackButton navigation={navigation} style={styles.iconNoMargin} />
+        </View>
+        <View style={styles.loadErrorWrap}>
+          <LoadError onRetry={() => setReloadKey((k) => k + 1)} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -382,6 +424,14 @@ export default function BuildProfileScreen({ navigation, route }) {
           />
         </ScrollView>
 
+        {/* Right above the button, so it's seen at the moment of saving
+            (the form itself may be scrolled far down). */}
+        {saveError ? (
+          <Text style={styles.saveError} accessibilityRole="alert">
+            {saveError}
+          </Text>
+        ) : null}
+
         <TouchableOpacity
           style={[styles.saveButton, saving && styles.saveButtonDisabled]}
           onPress={handleSave}
@@ -443,6 +493,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   field: { marginBottom: 16 },
+  saveError: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 15,
+    color: colors.destructive,
+    textAlign: 'center',
+    lineHeight: 21,
+    paddingHorizontal: 24,
+    marginTop: 8,
+  },
+  loadErrorWrap: { paddingHorizontal: 24 },
   fieldError: {
     fontFamily: fonts.sansRegular,
     fontSize: 14,

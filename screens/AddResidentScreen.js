@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import BackButton from '../components/BackButton';
+import LoadError from '../components/LoadError';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { withTimeout } from '../utils/withTimeout';
@@ -36,7 +37,15 @@ export default function AddResidentScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // A failed load must NOT fall back to "no organization": the resident
+  // would then be created with facilityId null, outside the caregiver's
+  // facility. So failure shows LoadError (with Try again) instead of the
+  // form. reloadKey re-runs the effect.
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
+    // Guards setState after each await if the user backs out first.
     let cancelled = false;
     async function loadOrg() {
       const uid = auth.currentUser?.uid;
@@ -44,21 +53,30 @@ export default function AddResidentScreen({ navigation }) {
         if (!cancelled) setOrgId(null);
         return;
       }
+      setLoadError(false);
+      setOrgId(undefined);
       console.log('[AddResident] checking organization membership for', uid);
-      const userSnap = await getDoc(doc(db, 'users', uid));
-      const id = userSnap.data()?.orgId ?? null;
-      if (cancelled) return;
-      setOrgId(id);
-      if (id) {
-        const orgSnap = await getDoc(doc(db, 'organizations', id));
-        if (!cancelled) setOrgName(orgSnap.data()?.name || 'your organization');
+      try {
+        const userSnap = await getDoc(doc(db, 'users', uid));
+        const id = userSnap.data()?.orgId ?? null;
+        let nameForOrg = '';
+        if (id) {
+          const orgSnap = await getDoc(doc(db, 'organizations', id));
+          nameForOrg = orgSnap.data()?.name || 'your organization';
+        }
+        if (cancelled) return;
+        setOrgName(nameForOrg);
+        setOrgId(id);
+      } catch (e) {
+        console.error('[AddResident] failed to load organization:', e.code, e.message, e);
+        if (!cancelled) setLoadError(true);
       }
     }
     loadOrg();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   async function handleCreate() {
     const trimmed = name.trim();
@@ -110,7 +128,9 @@ export default function AddResidentScreen({ navigation }) {
       <View style={styles.content}>
         <BackButton navigation={navigation} />
 
-        {orgId === undefined ? (
+        {loadError ? (
+          <LoadError onRetry={() => setReloadKey((k) => k + 1)} />
+        ) : orgId === undefined ? (
           <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
         ) : showChooser ? (
           <>
