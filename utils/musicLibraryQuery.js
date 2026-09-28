@@ -31,10 +31,12 @@ export async function getCurrentUserFacilityId() {
 // instead of one combined `read`. Two single-value equality queries each
 // validate cleanly against their corresponding split rule.
 //
-// If Firestore doesn't have a composite index for a combination requested,
-// this throws with e.code === 'failed-precondition' and e.message
-// containing a one-click console link to create it — that error is left to
-// propagate unchanged so callers can surface it as-is.
+// The composite indexes these queries need (facilityId + genres, and
+// facilityId + decade + genres) are versioned in firestore.indexes.json and
+// deployed with `firebase deploy --only firestore:indexes`. If one is ever
+// missing, this throws failed-precondition; callers log the details (the
+// message includes a console link to create it) and show people a plain
+// "try again" message instead.
 export async function queryMusicLibrarySubset({ decade, genres, facilityId } = {}) {
   const extraConstraints = [];
   if (decade) extraConstraints.push(where('decade', '==', decade));
@@ -98,17 +100,6 @@ export async function queryMusicLibraryByVideoIds(videoIds, facilityId) {
     )
   );
   return snapshots.flatMap((snapshot) => snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
-}
-
-// Pulls a bare https:// URL out of a Firestore "missing index" error
-// message, e.g. "...You can create it here: https://console.firebase...".
-// Firestore always appends the console link verbatim, so this is just
-// making it tappable rather than parsing anything structured. Shared by
-// MusicSelectionScreen and CurateResidentMusicScreen, both of which run
-// queryMusicLibrarySubset and need to surface this the same way.
-export function extractConsoleLink(message) {
-  const match = typeof message === 'string' ? message.match(/https?:\/\/\S+/) : null;
-  return match ? match[0] : null;
 }
 
 // Looks up whether a YouTube video is already in the library this caregiver

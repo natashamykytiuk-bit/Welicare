@@ -119,6 +119,21 @@ service cloud.firestore {
         optList(d, 'genres', 20);
     }
 
+    // New library entries have a fixed id, {facilityId}_{videoId}, so the
+    // same video can't be added to an organization twice even by two people
+    // at once (see utils/libraryAdd.js). Older entries keep random ids.
+    function isFixedLibraryId(entryId, d) {
+      return entryId == d.facilityId + '_' + d.videoId;
+    }
+
+    // Reading a library entry that doesn't exist yet — the add transaction's
+    // "is it already there?" check. Only for ids in your own organization's
+    // namespace, so nobody can probe another organization's library.
+    function missingOwnLibraryEntry(entryId) {
+      return resource == null && me().orgId is string &&
+        entryId.matches(me().orgId + '_[A-Za-z0-9_-]+');
+    }
+
     // A signed-in user can only read/write their own profile doc
     // (users/{their own uid}) — never anyone else's. This covers the
     // profile fields set at sign-up (email, username, role) and the
@@ -432,6 +447,7 @@ service cloud.firestore {
     // tagged by genre and decade only.
     match /movieLibrary/{entryId} {
       allow get: if verified() && (
+        missingOwnLibraryEntry(entryId) ||
         resource.data.facilityId == 'global' ||
         (resource.data.facilityId != null && me().orgId == resource.data.facilityId)
       );
@@ -449,6 +465,7 @@ service cloud.firestore {
         request.resource.data.facilityId == me().orgId &&
         orgAcceptingNewData(request.resource.data.facilityId) &&
         request.resource.data.keys().hasOnly(['videoId', 'title', 'channelTitle', 'thumbnailUrl', 'genres', 'decade', 'facilityId', 'addedAt', 'addedByUid']) &&
+        isFixedLibraryId(entryId, request.resource.data) &&
         validLibraryEntry(request.resource.data);
 
       allow update: if verified() &&
@@ -499,6 +516,7 @@ service cloud.firestore {
       // queryMusicLibrarySubset) rather than a single `in`, so each query
       // only ever needs to satisfy one of these two rules on its own.
       allow get: if verified() && (
+        missingOwnLibraryEntry(entryId) ||
         resource.data.facilityId == 'global' ||
         (resource.data.facilityId != null &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId)
@@ -520,6 +538,7 @@ service cloud.firestore {
         request.resource.data.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId &&
         orgAcceptingNewData(request.resource.data.facilityId) &&
         request.resource.data.keys().hasOnly(['videoId', 'title', 'channelTitle', 'artist', 'thumbnailUrl', 'genres', 'decade', 'facilityId', 'addedAt', 'addedByUid']) &&
+        isFixedLibraryId(entryId, request.resource.data) &&
         validLibraryEntry(request.resource.data);
 
       // Update checks the entry as it is now AND as it will be: facilityId

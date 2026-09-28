@@ -312,13 +312,13 @@ describe('music library add (MusicLibraryScreen)', () => {
   });
 
   it('first save to a new id is allowed', async () => {
-    await assertSucceeds(setDoc(doc(as('caregiverA'), 'musicLibrary', 'm1'), entry('Crazy')));
+    await assertSucceeds(setDoc(doc(as('caregiverA'), 'musicLibrary', 'orgA_abc123'), entry('Crazy')));
   });
 
   it('a repeat save to the same id overwrites it (no duplicate)', async () => {
     const db = as('caregiverA');
-    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'm2'), entry('Crazy')));
-    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'm2'), entry('Crazy')));
+    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'orgA_abc123'), entry('Crazy')));
+    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'orgA_abc123'), entry('Crazy')));
     await env.withSecurityRulesDisabled(async (ctx) => {
       const snap = await getDocs(
         query(collection(ctx.firestore(), 'musicLibrary'), where('videoId', '==', 'abc123'))
@@ -349,24 +349,24 @@ describe('music library add (MusicLibraryScreen)', () => {
   // another org) by editing it; only the form's editable fields may change.
   it('editing may change title/artist/genres/decade', async () => {
     const db = as('caregiverA');
-    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'e1'), entry('Crazy')));
+    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'orgA_abc123'), entry('Crazy')));
     await assertSucceeds(
-      updateDoc(doc(db, 'musicLibrary', 'e1'), { title: 'Crazy (Live)', decade: '1950s' })
+      updateDoc(doc(db, 'musicLibrary', 'orgA_abc123'), { title: 'Crazy (Live)', decade: '1950s' })
     );
   });
 
   it('cannot move an entry into the global library or another org', async () => {
     const db = as('caregiverA');
-    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'e2'), entry('Crazy')));
-    await assertFails(updateDoc(doc(db, 'musicLibrary', 'e2'), { facilityId: 'global' }));
-    await assertFails(updateDoc(doc(db, 'musicLibrary', 'e2'), { facilityId: 'orgB' }));
+    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'orgA_abc123'), entry('Crazy')));
+    await assertFails(updateDoc(doc(db, 'musicLibrary', 'orgA_abc123'), { facilityId: 'global' }));
+    await assertFails(updateDoc(doc(db, 'musicLibrary', 'orgA_abc123'), { facilityId: 'orgB' }));
   });
 
   it('cannot turn an entry into a different video or add unknown fields', async () => {
     const db = as('caregiverA');
-    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'e3'), entry('Crazy')));
-    await assertFails(updateDoc(doc(db, 'musicLibrary', 'e3'), { videoId: 'other' }));
-    await assertFails(updateDoc(doc(db, 'musicLibrary', 'e3'), { featured: true }));
+    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'orgA_abc123'), entry('Crazy')));
+    await assertFails(updateDoc(doc(db, 'musicLibrary', 'orgA_abc123'), { videoId: 'other' }));
+    await assertFails(updateDoc(doc(db, 'musicLibrary', 'orgA_abc123'), { featured: true }));
   });
 
   it('volunteers still cannot add to the library', async () => {
@@ -599,11 +599,11 @@ describe('movie library (its own collection and rules)', () => {
     facilityId: 'orgA',
     ...overrides,
   });
-  const ref = (uid, id = 'mv1') => doc(as(uid), 'movieLibrary', id);
+  const ref = (uid, id = 'orgA_casablanca1') => doc(as(uid), 'movieLibrary', id);
 
   it('caregivers and admins can add movies to their own organization', async () => {
     await assertSucceeds(setDoc(ref('caregiverA'), movie()));
-    await assertSucceeds(setDoc(ref('adminA', 'mv2'), movie({ videoId: 'raininginX1' })));
+    await assertSucceeds(setDoc(ref('adminA', 'orgA_raininginX1'), movie({ videoId: 'raininginX1' })));
   });
 
   it('volunteers and family members cannot add movies', async () => {
@@ -903,16 +903,36 @@ describe('field validation (security fix)', () => {
 
   it('refuses malformed music library entries', async () => {
     const db = as('caregiverA');
-    await assertFails(setDoc(doc(db, 'musicLibrary', 'bad1'), song({ title: 7 })));
+    await assertFails(setDoc(doc(db, 'musicLibrary', 'orgA_abc123'), song({ title: 7 })));
     await assertFails(setDoc(doc(db, 'musicLibrary', 'bad2'), song({ videoId: '../x?y' })));
-    await assertFails(setDoc(doc(db, 'musicLibrary', 'bad3'), song({ genres: 'Country' })));
-    await assertFails(setDoc(doc(db, 'musicLibrary', 'bad4'), song({ extra: true })));
+    await assertFails(setDoc(doc(db, 'musicLibrary', 'orgA_abc123'), song({ genres: 'Country' })));
+    await assertFails(setDoc(doc(db, 'musicLibrary', 'orgA_abc123'), song({ extra: true })));
   });
 
   it('refuses malformed movie library entries and edits', async () => {
     const db = as('caregiverA');
-    await assertFails(setDoc(doc(db, 'movieLibrary', 'bad1'), song({ title: '' })));
-    await assertSucceeds(setDoc(doc(db, 'movieLibrary', 'ok1'), song({})));
-    await assertFails(updateDoc(doc(db, 'movieLibrary', 'ok1'), { decade: 1960 }));
+    await assertFails(setDoc(doc(db, 'movieLibrary', 'orgA_abc123'), song({ title: '' })));
+    await assertSucceeds(setDoc(doc(db, 'movieLibrary', 'orgA_abc123'), song({})));
+    await assertFails(updateDoc(doc(db, 'movieLibrary', 'orgA_abc123'), { decade: 1960 }));
+  });
+});
+
+// Security review #6: new library entries use the fixed id
+// {facilityId}_{videoId}, so the same video can't be added twice.
+describe('library entries have one fixed id per video (security fix)', () => {
+  const song = { videoId: 'abc123', title: 'Crazy', genres: [], decade: '1960s', facilityId: 'orgA' };
+
+  it('refuses a new entry under any other id', async () => {
+    const db = as('caregiverA');
+    await assertFails(setDoc(doc(db, 'musicLibrary', 'randomId'), song));
+    await assertFails(setDoc(doc(db, 'movieLibrary', 'randomId'), song));
+    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'orgA_abc123'), song));
+  });
+
+  // The add transaction reads the fixed id first, to see if it's taken.
+  it('lets members check whether an entry exists in their own library only', async () => {
+    await assertSucceeds(getDoc(doc(as('caregiverA'), 'musicLibrary', 'orgA_abc123')));
+    await assertSucceeds(getDoc(doc(as('caregiverA'), 'movieLibrary', 'orgA_abc123')));
+    await assertFails(getDoc(doc(as('caregiverB'), 'musicLibrary', 'orgA_abc123')));
   });
 });

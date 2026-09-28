@@ -1,0 +1,22 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "musicLibrary",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "facilityId", "order": "ASCENDING" },
+        { "fieldPath": "genres", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "musicLibrary",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "facilityId", "order": "ASCENDING" },
+        { "fieldPath": "decade", "order": "ASCENDING" },
+        { "fieldPath": "genres", "arrayConfig": "CONTAINS" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

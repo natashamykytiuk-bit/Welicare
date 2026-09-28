@@ -15,7 +15,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import MusicLibraryScreen from '../screens/MusicLibraryScreen';
 import { findLibraryEntryByVideoId, queryMusicLibrarySubset } from '../utils/musicLibraryQuery';
 import { searchYouTube } from '../utils/youtube';
-import { firestore } from './mocks/firebase';
+import { docSnap, firestore } from './mocks/firebase';
 
 jest.mock('../utils/youtube', () => ({ searchYouTube: jest.fn() }));
 jest.mock('../utils/musicLibraryQuery', () => ({
@@ -92,14 +92,36 @@ describe('MusicLibraryScreen duplicate check', () => {
     await fireEvent.press(screen.getAllByLabelText('Country').at(-1));
     await fireEvent.press(screen.getAllByLabelText('1950s').at(-1));
     findLibraryEntryByVideoId.mockResolvedValueOnce(null);
+    firestore.getDoc.mockResolvedValueOnce(docSnap(undefined)); // fixed id is free
     firestore.setDoc.mockResolvedValueOnce(undefined);
 
     await fireEvent.press(screen.getByLabelText('Save'));
 
     expect(firestore.setDoc).toHaveBeenCalledTimes(1);
+    // Written under the fixed {facilityId}_{videoId} id (utils/libraryAdd.js).
+    expect(firestore.setDoc.mock.calls[0][0].path).toBe('musicLibrary/orgA_vid-walkin');
     expect(firestore.setDoc.mock.calls[0][1]).toMatchObject({
       videoId: 'vid-walkin',
       facilityId: 'orgA',
     });
+  });
+
+  // Two people adding the same song at once: the query found nothing, but
+  // by the time the transaction reads the fixed id, a colleague's add has
+  // landed — so it reports a duplicate instead of writing a second copy.
+  it('reports a duplicate when a colleague added it moments earlier', async () => {
+    await renderAndSearch();
+    await fireEvent.press(screen.getByLabelText("Add Walkin' After Midnight to library"));
+    await fireEvent.press(screen.getAllByLabelText('Country').at(-1));
+    await fireEvent.press(screen.getAllByLabelText('1950s').at(-1));
+    findLibraryEntryByVideoId.mockResolvedValueOnce(null);
+    firestore.getDoc.mockResolvedValueOnce(
+      docSnap({ title: "Walkin' After Midnight", addedByUid: 'colleague' }, 'orgA_vid-walkin')
+    );
+
+    await fireEvent.press(screen.getByLabelText('Save'));
+
+    expect(await screen.findByText(/already in your library/)).toBeTruthy();
+    expect(firestore.setDoc).not.toHaveBeenCalled();
   });
 });

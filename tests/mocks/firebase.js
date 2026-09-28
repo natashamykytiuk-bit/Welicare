@@ -67,7 +67,20 @@ const firestore = {
   arrayRemove: jest.fn((...v) => ({ arrayRemove: v })),
   deleteField: jest.fn(() => ({ deleteField: true })),
   serverTimestamp: jest.fn(() => ({ serverTimestamp: true })),
+  runTransaction: jest.fn(),
 };
+
+// runTransaction(db, fn) runs fn once with a transaction whose get / set /
+// update go through the getDoc / setDoc / updateDoc mocks above — so tests
+// set up reads and check writes the same way as for non-transaction code.
+function runTransactionImpl(_db, fn) {
+  return fn({
+    get: (ref) => firestore.getDoc(ref),
+    set: (ref, data) => firestore.setDoc(ref, data),
+    update: (ref, data) => firestore.updateDoc(ref, data),
+  });
+}
+firestore.runTransaction.mockImplementation(runTransactionImpl);
 
 // The signed-in user every test starts with. Tests can change fields or set
 // auth.currentUser = null to simulate being signed out.
@@ -125,6 +138,7 @@ function resetFirebaseMocks() {
   firestore.query.mockImplementation((ref) => ref);
   firestore.where.mockImplementation(() => ({}));
   firestore.writeBatch.mockImplementation(() => newBatch());
+  firestore.runTransaction.mockImplementation(runTransactionImpl);
   batches.length = 0;
   authModule.getAuth.mockImplementation(() => auth);
   authModule.onAuthStateChanged.mockImplementation(() => () => {});

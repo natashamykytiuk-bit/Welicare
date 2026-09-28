@@ -1,5 +1,5 @@
 import { doc, getDoc } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -92,6 +92,22 @@ export const MUSIC_GENRE_OPTIONS = [
   'Opera',
   'Other',
 ];
+
+// The questionnaire's own fields — the only keys ever saved
+// (firestore.rules' validLifeStory refuses any other).
+const LIFE_STORY_FIELDS = Object.keys(EMPTY_LIFE_STORY);
+
+// The form's answers in the shape they're saved in: only the questionnaire's
+// fields (a story saved by an older app version could carry others), and
+// blank text stored as null.
+function toSavedShape(story) {
+  const saved = {};
+  for (const key of LIFE_STORY_FIELDS) {
+    const value = story[key];
+    saved[key] = Array.isArray(value) ? value : value === '' || value === undefined ? null : value;
+  }
+  return saved;
+}
 
 function SectionHeader({ children }) {
   return <Text style={styles.sectionHeader}>{children}</Text>;
@@ -198,6 +214,8 @@ export default function BuildProfileScreen({ navigation, route }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [saveError, setSaveError] = useState('');
   const [lifeStoryDenied, setLifeStoryDenied] = useState(false);
+  // The name and answers as loaded (see load below).
+  const originalRef = useRef({ name: '', lifeStory: toSavedShape(EMPTY_LIFE_STORY) });
 
   useEffect(() => {
     // Guards setState after the await if the user backs out first.
@@ -229,6 +247,12 @@ export default function BuildProfileScreen({ navigation, route }) {
       // (ResidentModeScreen's card, ActivityMenuScreen's greeting, etc.).
       setName(snapshot.data()?.name ?? '');
       setSavedName(snapshot.data()?.name ?? '');
+      // What the form started from, so saving can tell which answers this
+      // person actually changed.
+      originalRef.current = {
+        name: snapshot.data()?.name ?? '',
+        lifeStory: toSavedShape({ ...EMPTY_LIFE_STORY, ...lifeStory }),
+      };
       // Not allowed to see this life story (e.g. a volunteer whose
       // organization hasn't allowed it) — show a note instead of an empty
       // form that would look like the story doesn't exist.
@@ -261,23 +285,17 @@ export default function BuildProfileScreen({ navigation, route }) {
     }
     setNameError('');
     setSaving(true);
-    const toSave = {};
-    // Only the questionnaire's own fields: firestore.rules (validLifeStory)
-    // refuse any other key, and a story saved by an older app version could
-    // still carry one it loaded back into `story`.
-    for (const key of Object.keys(EMPTY_LIFE_STORY)) {
-      const value = story[key];
-      if (Array.isArray(value)) {
-        toSave[key] = value.length > 0 ? value : [];
-      } else {
-        toSave[key] = value === '' ? null : value;
-      }
-    }
     setSaveError('');
     try {
-      // Name and life story saved together in one batch (see
-      // saveResidentProfile).
-      await saveResidentProfile(residentId, { name: trimmedName, lifeStory: toSave });
+      // Name and life story saved together; only what changed since the
+      // form loaded is written, so a colleague's simultaneous edits to
+      // other questions survive (see saveResidentProfile).
+      await saveResidentProfile(residentId, {
+        name: trimmedName,
+        lifeStory: toSavedShape(story),
+        original: originalRef.current,
+        fields: LIFE_STORY_FIELDS,
+      });
     } catch (e) {
       console.error('[BuildProfile] failed to save profile:', e.code, e.message, e);
       setSaveError(

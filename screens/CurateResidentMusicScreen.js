@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
-  Linking,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -17,10 +16,10 @@ import ChipSelector from '../components/ChipSelector';
 import { auth, db } from '../firebaseConfig';
 import { MUSIC_GENRE_OPTIONS } from './BuildProfileScreen';
 import { colors, fonts, radii } from '../theme';
+import { saveApprovedIds } from '../utils/approvedVideos';
 import { MUSIC_DECADE_OPTIONS, thumbnailForVideoId, isMusicCurated } from '../utils/musicLibrary';
 import {
   distinctArtists,
-  extractConsoleLink,
   getCurrentUserFacilityId,
   queryMusicLibrarySubset,
 } from '../utils/musicLibraryQuery';
@@ -118,9 +117,11 @@ export default function CurateResidentMusicScreen({ navigation }) {
       } catch (e) {
         console.error('[CurateResidentMusic] failed to load library:', e.code, e.message, e);
         if (!cancelled) {
+          // Plain message for staff too — a Firebase console link is no use
+          // to them. A missing index is logged above (with its link) for us.
           setLibraryError(
             e.code === 'failed-precondition'
-              ? e.message
+              ? 'These filters aren’t available right now. Try different filters, or try again later.'
               : 'Could not load the music library. Please try again.'
           );
           setSubset([]);
@@ -196,10 +197,16 @@ export default function CurateResidentMusicScreen({ navigation }) {
     setSaving(true);
     setSaveError('');
     try {
-      const ids = Array.from(selectedIds);
-      await updateDoc(doc(db, 'residents', selectedResident.id), {
-        selectedMusicVideoIds: ids,
-      });
+      // Only this person's ticks/unticks are applied to the list as saved
+      // now, so a colleague curating at the same time isn't overwritten
+      // (see utils/approvedVideos.js). The screen then shows the merged list.
+      const ids = await saveApprovedIds(
+        selectedResident.id,
+        'selectedMusicVideoIds',
+        selectedResident.selectedMusicVideoIds,
+        Array.from(selectedIds)
+      );
+      setSelectedIds(new Set(ids));
       // Now curated: the resident sees exactly these songs (see
       // filterToApprovedMusic) — none at all if the list is empty.
       setSelectedResident((prev) => ({ ...prev, selectedMusicVideoIds: ids }));
@@ -263,7 +270,6 @@ export default function CurateResidentMusicScreen({ navigation }) {
   )
     .slice()
     .sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
-  const consoleLink = extractConsoleLink(libraryError);
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -337,14 +343,6 @@ export default function CurateResidentMusicScreen({ navigation }) {
         {libraryError ? (
           <View style={styles.errorBox}>
             <Text style={styles.error}>{libraryError}</Text>
-            {consoleLink ? (
-              <TouchableOpacity
-                onPress={() => Linking.openURL(consoleLink)}
-                accessibilityRole="link"
-              >
-                <Text style={styles.errorLink}>{consoleLink}</Text>
-              </TouchableOpacity>
-            ) : null}
           </View>
         ) : null}
         {libraryLoading ? (

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
-  Linking,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -24,7 +23,6 @@ import {
 } from '../utils/musicLibrary';
 import {
   distinctArtists,
-  extractConsoleLink,
   genresOf,
   getCurrentUserFacilityId,
   queryMusicLibraryByVideoIds,
@@ -112,12 +110,12 @@ export default function MusicSelectionScreen({ navigation, route }) {
       } catch (e) {
         console.error('[MusicSelection] failed to load music library:', e.code, e.message, e);
         if (!cancelled) {
-          // A missing composite index throws failed-precondition with a
-          // one-click console link baked into the message — surfaced
-          // as-is (see extractConsoleLink) instead of a generic message.
+          // Residents see a plain message, never Firebase details. A missing
+          // index (failed-precondition) is a setup problem for us to fix —
+          // the console.error above records its details and console link.
           setError(
             e.code === 'failed-precondition'
-              ? e.message
+              ? 'This music choice isn’t available right now. Try a different filter, or ask a staff member.'
               : 'Something went wrong loading music. Please try again.'
           );
           setSubset([]);
@@ -139,7 +137,6 @@ export default function MusicSelectionScreen({ navigation, route }) {
     .slice()
     .sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
 
-  const consoleLink = extractConsoleLink(error);
   const showFavouritesEmptyState = viewMode === 'Favourites' && favouriteIds.length === 0;
 
   // Lets a song be hearted straight from this list, without opening the
@@ -214,14 +211,6 @@ export default function MusicSelectionScreen({ navigation, route }) {
         {error ? (
           <View style={styles.errorBox}>
             <Text style={styles.error}>{error}</Text>
-            {consoleLink ? (
-              <TouchableOpacity
-                onPress={() => Linking.openURL(consoleLink)}
-                accessibilityRole="link"
-              >
-                <Text style={styles.errorLink}>{consoleLink}</Text>
-              </TouchableOpacity>
-            ) : null}
           </View>
         ) : null}
         {!loading && !error && showFavouritesEmptyState ? (
@@ -344,13 +333,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansRegular,
     fontSize: 15,
     color: colors.destructive,
-  },
-  errorLink: {
-    fontFamily: fonts.sansBold,
-    fontSize: 14,
-    color: colors.primary,
-    textDecorationLine: 'underline',
-    marginTop: 6,
   },
   note: {
     fontFamily: fonts.sansBold,

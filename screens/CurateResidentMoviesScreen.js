@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
-  Linking,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -16,6 +15,7 @@ import BackButton from '../components/BackButton';
 import ChipSelector from '../components/ChipSelector';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import { saveApprovedIds } from '../utils/approvedVideos';
 import {
   MOVIE_DECADE_OPTIONS,
   MOVIE_GENRE_OPTIONS,
@@ -24,7 +24,7 @@ import {
   sortMovies,
 } from '../utils/movieLibrary';
 import { thumbnailForVideoId } from '../utils/musicLibrary';
-import { extractConsoleLink, getCurrentUserFacilityId } from '../utils/musicLibraryQuery';
+import { getCurrentUserFacilityId } from '../utils/musicLibraryQuery';
 import { loadLifeStory } from '../utils/residentLifeStory';
 
 function initialsOf(name) {
@@ -115,11 +115,9 @@ export default function CurateResidentMoviesScreen({ navigation }) {
       } catch (e) {
         console.error('[CurateResidentMovies] failed to load library:', e.code, e.message, e);
         if (!cancelled) {
-          setLibraryError(
-            e.code === 'failed-precondition'
-              ? e.message
-              : 'Could not load the movie library. Please try again.'
-          );
+          // Plain message for staff — details (and any console link) are in
+          // the log above.
+          setLibraryError('Could not load the movie library. Please try again.');
           setSubset([]);
         }
       } finally {
@@ -197,10 +195,16 @@ export default function CurateResidentMoviesScreen({ navigation }) {
     setSaving(true);
     setSaveError('');
     try {
-      const ids = Array.from(selectedIds);
-      await updateDoc(doc(db, 'residents', selectedResident.id), {
-        selectedMovieVideoIds: ids,
-      });
+      // Only this person's ticks/unticks are applied to the list as saved
+      // now, so a colleague curating at the same time isn't overwritten
+      // (see utils/approvedVideos.js). The screen then shows the merged list.
+      const ids = await saveApprovedIds(
+        selectedResident.id,
+        'selectedMovieVideoIds',
+        selectedResident.selectedMovieVideoIds,
+        Array.from(selectedIds)
+      );
+      setSelectedIds(new Set(ids));
       // Now curated: the resident sees exactly these movies (see
       // filterToApprovedMovies) — none at all if the list is empty.
       setSelectedResident((prev) => ({ ...prev, selectedMovieVideoIds: ids }));
@@ -266,7 +270,6 @@ export default function CurateResidentMoviesScreen({ navigation }) {
         (!filterDecade || v.decade === filterDecade)
     )
   );
-  const consoleLink = extractConsoleLink(libraryError);
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -325,14 +328,6 @@ export default function CurateResidentMoviesScreen({ navigation }) {
         {libraryError ? (
           <View style={styles.errorBox}>
             <Text style={styles.error}>{libraryError}</Text>
-            {consoleLink ? (
-              <TouchableOpacity
-                onPress={() => Linking.openURL(consoleLink)}
-                accessibilityRole="link"
-              >
-                <Text style={styles.errorLink}>{consoleLink}</Text>
-              </TouchableOpacity>
-            ) : null}
           </View>
         ) : null}
         {libraryLoading ? (

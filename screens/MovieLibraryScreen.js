@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { collection, deleteDoc, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -32,6 +32,7 @@ import {
 import { extractYouTubeVideoId, thumbnailForVideoId } from '../utils/musicLibrary';
 import { getCurrentUserFacilityId } from '../utils/musicLibraryQuery';
 import { searchYouTube } from '../utils/youtube';
+import { addLibraryEntryOnce, libraryEntryId } from '../utils/libraryAdd';
 
 // Caregiver-facing screen for curating the facility's movieLibrary — the
 // movie counterpart of MusicLibraryScreen, as its own independent system:
@@ -75,14 +76,12 @@ export default function MovieLibraryScreen({ navigation }) {
   const [formGenres, setFormGenres] = useState([]);
   const [formDecade, setFormDecade] = useState('');
   const [formSaving, setFormSaving] = useState(false);
-  // The new entry's document reference, generated when the Add form opens
-  // (doc() with no id picks one locally — nothing is written yet). Every
-  // save from that form writes to this same id with setDoc, so if a save
+  // Whether the open Add form has already sent a save. A new entry's id is
+  // fixed ({facilityId}_{videoId}, see utils/libraryAdd.js), so if a save
   // actually landed but reported an error (e.g. the connection dropped
-  // before the reply) and the caregiver taps Save again, it overwrites the
-  // same entry instead of adding the movie twice. The rules let a caregiver
-  // update entries in their own organization, so that overwrite is allowed.
-  const addRef = useRef(null);
+  // before the reply) and the caregiver taps Save again, the retry finds
+  // their own entry and treats it as saved rather than as a duplicate.
+  const attemptedAddRef = useRef(false);
 
   // True if this video is already in the library shown on screen (global or
   // this organization's entries). Search results and the pasted-link preview
@@ -148,8 +147,8 @@ export default function MovieLibraryScreen({ navigation }) {
   }
 
   function openAddModal(video) {
-    // A fresh id per Add form — reused for every retry from this form only.
-    addRef.current = doc(collection(db, 'movieLibrary'));
+    // A fresh Add form hasn't saved anything yet.
+    attemptedAddRef.current = false;
     setFormMode('add');
     setFormEditingId(null);
     setFormVideoId(video.videoId);
@@ -189,18 +188,24 @@ export default function MovieLibraryScreen({ navigation }) {
     setFormError('');
     try {
       if (formMode === 'add') {
-        // Someone else may have added this movie since the list loaded. Our
-        // own earlier attempt from this same form (same id) doesn't count —
-        // that's a retry, which setDoc safely overwrites.
-        const existing = await findMovieEntryByVideoId(formVideoId, facilityId);
-        if (existing && existing.id !== addRef.current.id) {
+        // Someone else may have added this movie since the list loaded. This
+        // query catches older entries (random ids) and global ones; the
+        // fixed-id entry is checked atomically by addLibraryEntryOnce below.
+        const entryId = libraryEntryId(facilityId, formVideoId);
+        const showDuplicate = async (existing) => {
           setFormError(
             `“${existing.title || 'This movie'}” is already in your library, so it wasn’t added again.`
           );
           await loadLibrary();
+        };
+        const existing = await findMovieEntryByVideoId(formVideoId, facilityId);
+        if (existing && existing.id !== entryId) {
+          await showDuplicate(existing);
           return;
         }
-        await setDoc(addRef.current, {
+        const isRetry = attemptedAddRef.current;
+        attemptedAddRef.current = true;
+        const result = await addLibraryEntryOnce('movieLibrary', {
           videoId: formVideoId,
           title,
           channelTitle: formChannelTitle.trim(),
@@ -212,7 +217,11 @@ export default function MovieLibraryScreen({ navigation }) {
           facilityId,
           addedAt: serverTimestamp(),
           addedByUid: auth.currentUser?.uid ?? null,
-        });
+        }, { isRetry });
+        if (!result.added) {
+          await showDuplicate(result.existing);
+          return;
+        }
       } else {
         await updateDoc(doc(db, 'movieLibrary', formEditingId), {
           title,
