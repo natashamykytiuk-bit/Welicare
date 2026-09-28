@@ -172,7 +172,10 @@ export default function AddResidentScreen({ navigation }) {
           facilityId: orgId ?? null,
           assignedCaregivers: [uid],
           createdAt: serverTimestamp(),
-          lifeStory: null,
+          // The life story itself is saved later, into its own private doc
+          // (see utils/residentLifeStory.js); this just marks it as not
+          // started for the "complete their profile" prompts.
+          hasLifeStory: false,
           // Which backend Music search hits for this resident. Only
           // 'youtube' exists today; keeping it as a named field (rather than
           // assuming YouTube everywhere) means Spotify/Apple Music can be

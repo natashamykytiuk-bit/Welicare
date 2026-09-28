@@ -42,7 +42,10 @@ describe('AISuggestionsScreen', () => {
   });
 
   it('shows the suggestions when everything succeeds', async () => {
-    firestore.getDoc.mockResolvedValueOnce(docSnap({ lifeStory: { career: 'Farmer' } }));
+    // Two reads: the resident, then its private life story doc.
+    firestore.getDoc
+      .mockResolvedValueOnce(docSnap({ name: 'Ann', hasLifeStory: true }))
+      .mockResolvedValueOnce(docSnap({ career: 'Farmer' }));
     callable('generateSuggestions').mockResolvedValueOnce({ data: { text: '1. Visit a farm' } });
 
     await render(<AISuggestionsScreen {...props} />);
@@ -53,6 +56,22 @@ describe('AISuggestionsScreen', () => {
     expect(callable('generateSuggestions')).toHaveBeenCalledWith({
       kind: 'activityIdeas',
       lifeStory: { career: 'Farmer' },
+    });
+  });
+
+  it('gives general suggestions when the life story is off-limits (e.g. a volunteer)', async () => {
+    firestore.getDoc
+      .mockResolvedValueOnce(docSnap({ name: 'Ann', hasLifeStory: true }))
+      .mockRejectedValueOnce(Object.assign(new Error('denied'), { code: 'permission-denied' }));
+    callable('generateSuggestions').mockResolvedValueOnce({ data: { text: '1. Sing-along' } });
+
+    await render(<AISuggestionsScreen {...props} />);
+
+    expect(await screen.findByText('1. Sing-along')).toBeTruthy();
+    // No personal details are sent to the AI for someone who can't see them.
+    expect(callable('generateSuggestions')).toHaveBeenCalledWith({
+      kind: 'activityIdeas',
+      lifeStory: null,
     });
   });
 });

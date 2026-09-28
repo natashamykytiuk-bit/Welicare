@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -16,6 +16,7 @@ import LoadError from '../components/LoadError';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { hasAnyLifeStoryData } from '../utils/lifeStory';
+import { loadLifeStory, saveResidentProfile } from '../utils/residentLifeStory';
 
 const EMPTY_LIFE_STORY = {
   preferredName: '',
@@ -167,6 +168,7 @@ export default function BuildProfileScreen({ navigation, route }) {
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [saveError, setSaveError] = useState('');
+  const [lifeStoryDenied, setLifeStoryDenied] = useState(false);
 
   useEffect(() => {
     // Guards setState after the await if the user backs out first.
@@ -175,8 +177,13 @@ export default function BuildProfileScreen({ navigation, route }) {
       setLoadError(false);
       setLoading(true);
       let snapshot;
+      let lifeStory;
+      let denied;
       try {
         snapshot = await getDoc(doc(db, 'residents', residentId));
+        // The life story is a separate, more restricted doc (see
+        // utils/residentLifeStory.js).
+        ({ lifeStory, denied } = await loadLifeStory(residentId, snapshot.data()));
       } catch (e) {
         console.error('[BuildProfile] failed to load resident:', e.code, e.message, e);
         if (!cancelled) {
@@ -193,7 +200,14 @@ export default function BuildProfileScreen({ navigation, route }) {
       // (ResidentModeScreen's card, ActivityMenuScreen's greeting, etc.).
       setName(snapshot.data()?.name ?? '');
       setSavedName(snapshot.data()?.name ?? '');
-      const lifeStory = snapshot.data()?.lifeStory;
+      // Not allowed to see this life story (e.g. a volunteer whose
+      // organization hasn't allowed it) — show a note instead of an empty
+      // form that would look like the story doesn't exist.
+      if (denied) {
+        setLifeStoryDenied(true);
+        setLoading(false);
+        return;
+      }
       if (hasAnyLifeStoryData(lifeStory)) {
         setStory({ ...EMPTY_LIFE_STORY, ...lifeStory });
         setIsEdit(true);
@@ -228,11 +242,9 @@ export default function BuildProfileScreen({ navigation, route }) {
     }
     setSaveError('');
     try {
-      await setDoc(
-        doc(db, 'residents', residentId),
-        { name: trimmedName, lifeStory: toSave },
-        { merge: true }
-      );
+      // Name and life story saved together in one batch (see
+      // saveResidentProfile).
+      await saveResidentProfile(residentId, { name: trimmedName, lifeStory: toSave });
     } catch (e) {
       console.error('[BuildProfile] failed to save profile:', e.code, e.message, e);
       setSaveError(
@@ -250,6 +262,22 @@ export default function BuildProfileScreen({ navigation, route }) {
   }
 
   if (loading) return <SafeAreaView style={styles.flex} />;
+
+  if (lifeStoryDenied) {
+    return (
+      <SafeAreaView style={styles.flex}>
+        <View style={styles.headerRow}>
+          <BackButton navigation={navigation} style={styles.iconNoMargin} />
+        </View>
+        <View style={styles.loadErrorWrap}>
+          <LoadError
+            message="Life stories are only visible to the care team. Please ask a caregiver or administrator if you need this information."
+            onRetry={() => setReloadKey((k) => k + 1)}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (loadError) {
     return (

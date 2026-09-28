@@ -15,6 +15,7 @@ import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { generateSuggestions } from '../utils/aiSuggestions';
 import { hasAnyLifeStoryData } from '../utils/lifeStory';
+import { loadLifeStory } from '../utils/residentLifeStory';
 import BackButton from './BackButton';
 
 // Shared shell for the three AI-generated suggestion screens (Activity
@@ -55,10 +56,13 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
       // call, so a Firestore failure also lands in catch/finally and the
       // spinner can't get stuck.
       try {
+        // Someone who can't see life stories (e.g. a volunteer) just gets
+        // general suggestions — loadLifeStory reports that as denied, not
+        // as an error.
         let lifeStory = null;
         if (residentId) {
           const snapshot = await getDoc(doc(db, 'residents', residentId));
-          lifeStory = snapshot.data()?.lifeStory ?? null;
+          ({ lifeStory } = await loadLifeStory(residentId, snapshot.data()));
         }
         if (cancelled) return;
         setHasProfile(hasAnyLifeStoryData(lifeStory));

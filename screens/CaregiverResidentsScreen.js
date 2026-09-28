@@ -14,7 +14,7 @@ import {
 import BackButton from '../components/BackButton';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
-import { hasAnyLifeStoryData } from '../utils/lifeStory';
+import { residentHasLifeStory } from '../utils/residentLifeStory';
 import { withTimeout } from '../utils/withTimeout';
 
 const LOAD_TIMEOUT_MS = 10000;
@@ -130,7 +130,7 @@ export default function CaregiverResidentsScreen({ navigation }) {
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.list}
             renderItem={({ item }) => {
-              const profileStarted = hasAnyLifeStoryData(item.lifeStory);
+              const profileStarted = residentHasLifeStory(item);
               return (
                 <TouchableOpacity
                   style={styles.row}

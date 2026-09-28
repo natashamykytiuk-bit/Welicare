@@ -24,6 +24,7 @@ import {
   getCurrentUserFacilityId,
   queryMusicLibrarySubset,
 } from '../utils/musicLibraryQuery';
+import { loadLifeStory } from '../utils/residentLifeStory';
 
 function initialsOf(name) {
   return name
@@ -51,6 +52,10 @@ export default function CurateResidentMusicScreen({ navigation }) {
   const [libraryError, setLibraryError] = useState('');
 
   const [selectedResident, setSelectedResident] = useState(null);
+  // The selected resident's life story, used only for the "favourite
+  // musicians / genres" hint. Loaded separately because it lives in its own
+  // private doc; if it can't be read, the hint just doesn't show.
+  const [selectedLifeStory, setSelectedLifeStory] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [filterArtist, setFilterArtist] = useState('');
   const [filterGenres, setFilterGenres] = useState([]);
@@ -132,6 +137,12 @@ export default function CurateResidentMusicScreen({ navigation }) {
 
   function handleSelectResident(resident) {
     setSelectedResident(resident);
+    setSelectedLifeStory(null);
+    loadLifeStory(resident.id, resident)
+      .then(({ lifeStory }) => setSelectedLifeStory(lifeStory))
+      .catch((e) =>
+        console.error('[CurateResidentMusic] could not load life story hint:', e.code, e.message, e)
+      );
     setSelectedIds(new Set(resident.selectedMusicVideoIds ?? []));
     setFilterArtist('');
     setFilterGenres([]);
@@ -215,7 +226,7 @@ export default function CurateResidentMusicScreen({ navigation }) {
     );
   }
 
-  const lifeStory = selectedResident.lifeStory;
+  const lifeStory = selectedLifeStory;
   const hasHint =
     lifeStory && (lifeStory.favouriteMusicians || (lifeStory.musicGenres ?? []).length > 0);
   const availableArtists = distinctArtists(subset);

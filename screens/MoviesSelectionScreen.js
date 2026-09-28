@@ -16,6 +16,7 @@ import BackButton from '../components/BackButton';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { buildMovieQueries } from '../utils/movieQueries';
+import { loadLifeStory } from '../utils/residentLifeStory';
 import { searchMovies } from '../utils/youtube';
 
 // Browse screen shown before MoviesPlayerScreen. Mirrors
@@ -64,7 +65,8 @@ export default function MoviesSelectionScreen({ navigation, route }) {
       if (residentId) {
         try {
           const snapshot = await getDoc(doc(db, 'residents', residentId));
-          lifeStory = snapshot.data()?.lifeStory ?? null;
+          // Denied (e.g. a volunteer) also means general suggestions.
+          ({ lifeStory } = await loadLifeStory(residentId, snapshot.data()));
         } catch (e) {
           console.error(
             '[MoviesSelection] failed to load resident; using general suggestions:',

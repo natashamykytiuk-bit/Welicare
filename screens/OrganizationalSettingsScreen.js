@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -28,8 +29,9 @@ const callTransferOrgAdmin = httpsCallable(functions, 'transferOrgAdmin');
 
 // Reached from Settings' "Organizational Settings" row (Administrators
 // only). A starter version: edit the organization's name/type/location,
-// see its invite code, hand the organization to another member, and
-// delete the organization outright.
+// see its invite code, choose what volunteers may see (Manage Volunteer
+// Permissions), hand the organization to another member, and delete the
+// organization outright.
 //
 // Everything starts read-only: the pencil next to "Organization details"
 // asks for the password before editing, transfer and delete appear.
@@ -89,6 +91,8 @@ export default function OrganizationalSettingsScreen({ navigation }) {
   const [transferTo, setTransferTo] = useState(null);
   const [transferring, setTransferring] = useState(false);
   const [transferError, setTransferError] = useState('');
+  const [permissionSaving, setPermissionSaving] = useState(false);
+  const [permissionError, setPermissionError] = useState('');
 
   // Load failure → LoadError with Try again (reloadKey re-runs the load)
   // instead of a spinner that never stops.
@@ -260,6 +264,36 @@ export default function OrganizationalSettingsScreen({ navigation }) {
     stopEditing();
     setUnlockError('For your security, please enter your password again and retry.');
     setShowUnlock(true);
+  }
+
+  // Manage Volunteer Permissions. Stored on the org doc as
+  // volunteerPermissions.canViewLifeStories; firestore.rules read it when a
+  // volunteer asks for a resident's life story, so this switch is what
+  // actually grants or removes access (not just what the app shows). Off
+  // unless an administrator turns it on. Saves immediately, flipping the
+  // switch first and reverting it if the save fails.
+  const volunteersCanViewLifeStories = org?.volunteerPermissions?.canViewLifeStories === true;
+  async function handleToggleVolunteerLifeStories(value) {
+    setPermissionError('');
+    setPermissionSaving(true);
+    const previous = org?.volunteerPermissions;
+    setOrg((prev) => ({ ...prev, volunteerPermissions: { canViewLifeStories: value } }));
+    try {
+      await updateDoc(doc(db, 'organizations', orgId), {
+        volunteerPermissions: { canViewLifeStories: value },
+      });
+    } catch (e) {
+      console.error(
+        '[OrganizationalSettings] failed to save volunteer permissions:',
+        e.code,
+        e.message,
+        e
+      );
+      setOrg((prev) => ({ ...prev, volunteerPermissions: previous }));
+      setPermissionError("We couldn't save that change. Please try again.");
+    } finally {
+      setPermissionSaving(false);
+    }
   }
 
   async function handleTransfer() {
@@ -532,6 +566,32 @@ export default function OrganizationalSettingsScreen({ navigation }) {
                   <Text style={styles.cancelLink}>Cancel</Text>
                 </TouchableOpacity>
 
+                <Text style={[styles.label, styles.sectionGap]}>Manage volunteer permissions</Text>
+                <View style={styles.sectionCard}>
+                  <View style={styles.switchRow}>
+                    <View style={styles.switchText}>
+                      <Text style={styles.memberName}>Volunteers can view life stories</Text>
+                      <Text style={styles.switchHelp}>
+                        {volunteersCanViewLifeStories
+                          ? 'Volunteers see residents’ life stories (family, career, memories) as well as names and activities.'
+                          : 'Volunteers see residents’ names and activities only. Life stories stay with the care team.'}
+                      </Text>
+                    </View>
+                    <Switch
+                      value={volunteersCanViewLifeStories}
+                      onValueChange={handleToggleVolunteerLifeStories}
+                      disabled={permissionSaving}
+                      trackColor={{ true: colors.primary, false: colors.border }}
+                      accessibilityLabel="Volunteers can view life stories"
+                    />
+                  </View>
+                  {permissionError ? (
+                    <Text style={styles.errorBanner} accessibilityRole="alert">
+                      {permissionError}
+                    </Text>
+                  ) : null}
+                </View>
+
                 <Text style={[styles.label, styles.sectionGap]}>Transfer administrator</Text>
                 <View style={styles.sectionCard}>
                   <Text style={styles.dangerText}>
@@ -777,6 +837,14 @@ const styles = StyleSheet.create({
     fontSize: 17,
   },
   sectionGap: { marginTop: 16 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  switchText: { flex: 1, gap: 4 },
+  switchHelp: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 15,
+    color: colors.textMuted,
+    lineHeight: 21,
+  },
   codeActions: { marginTop: -8, marginBottom: 20, gap: 8 },
   codeNote: {
     fontFamily: fonts.sansRegular,

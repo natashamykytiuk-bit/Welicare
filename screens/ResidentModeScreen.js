@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { collection, deleteDoc, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, writeBatch } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,6 +18,7 @@ import BackButton from '../components/BackButton';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { withTimeout } from '../utils/withTimeout';
+import { lifeStoryRef } from '../utils/residentLifeStory';
 
 const LOAD_TIMEOUT_MS = 10000;
 
@@ -153,7 +154,14 @@ export default function ResidentModeScreen({ navigation }) {
     if (!confirmTarget) return;
     setRemoving(true);
     try {
-      await deleteDoc(doc(db, 'residents', confirmTarget.id));
+      // The resident and its private life story go together in one batch,
+      // so deleting never leaves a life story behind (see
+      // utils/residentLifeStory.js). The rules check both against the
+      // resident as it is before the batch.
+      const batch = writeBatch(db);
+      batch.delete(lifeStoryRef(confirmTarget.id));
+      batch.delete(doc(db, 'residents', confirmTarget.id));
+      await batch.commit();
       setResidents((prev) => prev.filter((r) => r.id !== confirmTarget.id));
       setConfirmTarget(null);
     } catch (e) {

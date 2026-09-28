@@ -34,6 +34,7 @@ const {
   updateDoc,
   where,
   writeBatch,
+  deleteField,
 } = require('firebase/firestore');
 
 let env;
@@ -126,7 +127,8 @@ describe('own facility', () => {
     await assertSucceeds(
       updateDoc(doc(as('adminA'), 'residents', 'residentA'), {
         name: 'Annie',
-        lifeStory: { career: 'Farmer' },
+        preferredName: 'Annie',
+        hasLifeStory: true,
       })
     );
   });
@@ -160,7 +162,7 @@ describe('idempotent resident creation (AddResidentScreen)', () => {
     createdBy: 'caregiverA',
     facilityId: 'orgA',
     assignedCaregivers: ['caregiverA'],
-    lifeStory: null,
+    hasLifeStory: false,
     musicProvider: 'youtube',
     createdAt,
   });
@@ -356,7 +358,7 @@ describe('resident creation schema (security fix)', () => {
   const create = (data) => setDoc(doc(as('caregiverA'), 'residents', 'schema1'), data);
 
   it('the normal AddResident shape is allowed', async () => {
-    await assertSucceeds(create({ ...base, lifeStory: null, musicProvider: 'youtube' }));
+    await assertSucceeds(create({ ...base, hasLifeStory: false, musicProvider: 'youtube' }));
   });
 
   it('cannot forge who created it', async () => {
@@ -370,6 +372,131 @@ describe('resident creation schema (security fix)', () => {
 
   it('cannot add fields the app never writes', async () => {
     await assertFails(create({ ...base, isAdminApproved: true }));
+  });
+});
+
+describe('life stories and Manage Volunteer Permissions', () => {
+  // The life story lives in residents/{id}/private/lifeStory so it can have
+  // stricter rules than the resident's name and activity info. Volunteers
+  // only see it when their organization's switch
+  // (volunteerPermissions.canViewLifeStories) is on; they never edit it.
+  const lifeStoryDoc = (db, id = 'residentA') => doc(db, 'residents', id, 'private', 'lifeStory');
+
+  async function setVolunteerSwitch(on) {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'organizations', 'orgA'), {
+        name: 'Maple',
+        isPersonal: false,
+        createdBy: 'adminA',
+        adminId: 'adminA',
+        ...(on === undefined ? {} : { volunteerPermissions: { canViewLifeStories: on } }),
+      });
+    });
+  }
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(lifeStoryDoc(ctx.firestore()), {
+        career: 'Farmer',
+        happiestMemory: 'Wedding day',
+      });
+    });
+  });
+
+  it('by default a volunteer sees the resident but not the life story', async () => {
+    await setVolunteerSwitch(undefined); // never set → off
+    await assertSucceeds(getDoc(doc(as('volunteerA'), 'residents', 'residentA')));
+    await assertFails(getDoc(lifeStoryDoc(as('volunteerA'))));
+  });
+
+  it('a volunteer still cannot see it when the switch is off', async () => {
+    await setVolunteerSwitch(false);
+    await assertFails(getDoc(lifeStoryDoc(as('volunteerA'))));
+  });
+
+  it('a volunteer can see it once the organization allows it', async () => {
+    await setVolunteerSwitch(true);
+    await assertSucceeds(getDoc(lifeStoryDoc(as('volunteerA'))));
+  });
+
+  it('a volunteer can never edit a life story, even when allowed to see it', async () => {
+    await setVolunteerSwitch(true);
+    await assertFails(setDoc(lifeStoryDoc(as('volunteerA')), { career: 'Changed' }));
+  });
+
+  it('caregivers and admins in the facility can read and edit it', async () => {
+    await assertSucceeds(getDoc(lifeStoryDoc(as('caregiverA'))));
+    await assertSucceeds(setDoc(lifeStoryDoc(as('adminA')), { career: 'Teacher' }));
+  });
+
+  it("another facility's staff and signed-out users cannot read it", async () => {
+    await assertFails(getDoc(lifeStoryDoc(as('caregiverB'))));
+    await assertFails(getDoc(lifeStoryDoc(as(null))));
+  });
+
+  it('the old lifeStory field can no longer be written onto the resident', async () => {
+    await assertFails(
+      updateDoc(doc(as('caregiverA'), 'residents', 'residentA'), { lifeStory: { career: 'x' } })
+    );
+  });
+
+  it('residents not migrated yet can still be updated (e.g. favourites)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'residents', 'residentA'), {
+        lifeStory: { career: 'Old place' },
+      });
+    });
+    await assertSucceeds(
+      updateDoc(doc(as('caregiverA'), 'residents', 'residentA'), { favouriteMusicVideoIds: ['v'] })
+    );
+  });
+
+  it('saving moves the life story: private doc + resident flags + old field removed, in one batch', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'residents', 'residentA'), {
+        lifeStory: { career: 'Old place' },
+      });
+    });
+    const db = as('caregiverA');
+    const batch = writeBatch(db);
+    batch.set(lifeStoryDoc(db), { career: 'Farmer', preferredName: 'Annie' });
+    batch.update(doc(db, 'residents', 'residentA'), {
+      name: 'Ann',
+      preferredName: 'Annie',
+      hasLifeStory: true,
+      lifeStory: deleteField(),
+    });
+    await assertSucceeds(batch.commit());
+  });
+
+  it('only the organization owner can flip the switch, and only to true/false', async () => {
+    await setVolunteerSwitch(false);
+    const org = (uid) => doc(as(uid), 'organizations', 'orgA');
+    await assertSucceeds(
+      updateDoc(org('adminA'), { volunteerPermissions: { canViewLifeStories: true } })
+    );
+    await assertFails(
+      updateDoc(org('caregiverA'), { volunteerPermissions: { canViewLifeStories: false } })
+    );
+    await assertFails(
+      updateDoc(org('volunteerA'), { volunteerPermissions: { canViewLifeStories: true } })
+    );
+    await assertFails(
+      updateDoc(org('adminA'), { volunteerPermissions: { canViewLifeStories: 'yes' } })
+    );
+    await assertFails(
+      updateDoc(org('adminA'), {
+        volunteerPermissions: { canViewLifeStories: true, canEdit: true },
+      })
+    );
+  });
+
+  it('deleting a resident with its life story works for the facility admin', async () => {
+    const db = as('adminA');
+    const batch = writeBatch(db);
+    batch.delete(lifeStoryDoc(db));
+    batch.delete(doc(db, 'residents', 'residentA'));
+    await assertSucceeds(batch.commit());
   });
 });
 
@@ -438,8 +565,8 @@ describe('role restrictions the rules enforce today', () => {
   // fields. Flagged for a decision — not changed here.
   it('FLAG: an assigned Family Caregiver CAN edit profile fields (rules are not read-only for Family)', async () => {
     await assertSucceeds(
-      updateDoc(doc(as('familyA'), 'residents', 'residentFamily'), {
-        lifeStory: { career: 'Teacher' },
+      setDoc(doc(as('familyA'), 'residents', 'residentFamily', 'private', 'lifeStory'), {
+        career: 'Teacher',
       })
     );
   });

@@ -69,7 +69,13 @@
  *   to (an organizations/{orgId} id), or null if created outside one.
  * @property {string[]} assignedCaregivers uids who have this resident on
  *   their own list.
- * @property {LifeStory | null} lifeStory
+ * @property {string | null} [preferredName] Copied from the life story on
+ *   save, so everyone who runs sessions (incl. volunteers) can use it.
+ * @property {boolean} [hasLifeStory] Whether a life story has been filled
+ *   in — the life story itself is in residents/{id}/private/lifeStory
+ *   (see utils/residentLifeStory.js).
+ * @property {LifeStory | null} [lifeStory] Old location, only on residents
+ *   not yet migrated by scripts/migrateLifeStories.js.
  * @property {string[]} [selectedMusicVideoIds] Curated music, if any.
  * @property {string[]} [favouriteMusicVideoIds] Songs hearted in the player.
  * @property {'youtube'} [musicProvider]
@@ -88,6 +94,8 @@
  *   single-person org.
  * @property {string} createdBy Owner uid — the admin who can edit it.
  * @property {string} adminId Mirrors createdBy.
+ * @property {{ canViewLifeStories?: boolean }} [volunteerPermissions]
+ *   Organizational Settings → Manage Volunteer Permissions. Off by default.
  */
 
 /**

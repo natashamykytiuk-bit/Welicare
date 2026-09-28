@@ -309,6 +309,10 @@ exports.deleteAccount = onCall(async (request) => {
     const assignedList = Array.isArray(data.assignedCaregivers) ? data.assignedCaregivers : [];
     const others = assignedList.filter((id) => id !== uid);
     if (inPersonalOrg.has(snap.id) || (!data.facilityId && others.length === 0)) {
+      // The life story lives in its own private doc under the resident
+      // (see utils/residentLifeStory.js); deleting a doc doesn't delete its
+      // subcollections, so remove it explicitly.
+      writer.delete(snap.ref.collection('private').doc('lifeStory'));
       writer.delete(snap.ref);
     } else if (assignedList.includes(uid)) {
       writer.update(snap.ref, { assignedCaregivers: FieldValue.arrayRemove(uid) });
@@ -445,7 +449,12 @@ exports.deleteOrganization = onCall(async (request) => {
   ]);
 
   const writer = db.bulkWriter();
-  for (const snap of residents.docs) writer.delete(snap.ref);
+  for (const snap of residents.docs) {
+    // Each resident's private life story too (subcollections aren't
+    // removed automatically with their parent doc).
+    writer.delete(snap.ref.collection('private').doc('lifeStory'));
+    writer.delete(snap.ref);
+  }
   for (const snap of music.docs) writer.delete(snap.ref);
   for (const snap of members.docs) writer.update(snap.ref, { orgId: FieldValue.delete() });
   // Its invite codes go too, so an old code can't point at a deleted org

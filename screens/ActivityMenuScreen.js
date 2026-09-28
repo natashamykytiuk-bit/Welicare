@@ -6,7 +6,7 @@ import BackButton from '../components/BackButton';
 import { useResidentLock } from '../contexts/ResidentLockContext';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
-import { hasAnyLifeStoryData } from '../utils/lifeStory';
+import { residentHasLifeStory } from '../utils/residentLifeStory';
 
 function initialsOf(name) {
   return name
@@ -151,8 +151,14 @@ export default function ActivityMenuScreen({ navigation, route }) {
   }
 
   const preferredName =
-    resident?.lifeStory?.preferredName || resident?.name?.split(' ')[0] || residentName;
-  const showBanner = !!residentId && !bannerDismissed && !hasAnyLifeStoryData(resident?.lifeStory);
+    // preferredName is copied onto the resident doc on save so everyone who
+    // runs sessions (including volunteers) can use it; lifeStory is the
+    // pre-migration fallback.
+    resident?.preferredName ||
+    resident?.lifeStory?.preferredName ||
+    resident?.name?.split(' ')[0] ||
+    residentName;
+  const showBanner = !!residentId && !bannerDismissed && !residentHasLifeStory(resident);
   const avatarName = resident?.name || residentName;
   // A real resident is picked (not Guest Mode) whenever residentId is set —
   // greet them by name. In Guest Mode there's no resident to name, and we

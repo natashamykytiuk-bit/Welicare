@@ -1,6 +1,32 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // --- Helpers ---------------------------------------------------------
+
+    // The signed-in user's own users/{uid} doc (role, orgId, …).
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // True if the signed-in user is linked to this resident directly — its
+    // creator, or on its assignedCaregivers list — or belongs to the same
+    // facility. `r` is the resident doc's data.
+    function linkedToResident(r) {
+      return r.caregiverId == request.auth.uid ||
+        r.createdBy == request.auth.uid ||
+        (r.assignedCaregivers is list && request.auth.uid in r.assignedCaregivers) ||
+        (r.facilityId != null && me().orgId == r.facilityId);
+    }
+
+    // The per-organization "Manage Volunteer Permissions" switch (stored on
+    // the org doc as volunteerPermissions.canViewLifeStories). Off unless an
+    // administrator turned it on.
+    function volunteersMayViewLifeStories(facilityId) {
+      return facilityId != null &&
+        get(/databases/$(database)/documents/organizations/$(facilityId)).data
+          .get('volunteerPermissions', {}).get('canViewLifeStories', false) == true;
+    }
+
     // A signed-in user can only read/write their own profile doc
     // (users/{their own uid}) — never anyone else's. This covers the
     // profile fields set at sign-up (email, username, role) and the
@@ -124,7 +150,7 @@ service cloud.firestore {
       // nobody can pre-assign other people (which would grant them access
       // through the assignment rules) or forge who created it.
       allow create: if request.auth != null &&
-        request.resource.data.keys().hasOnly(['name', 'caregiverId', 'createdBy', 'facilityId', 'assignedCaregivers', 'createdAt', 'lifeStory', 'musicProvider']) &&
+        request.resource.data.keys().hasOnly(['name', 'caregiverId', 'createdBy', 'facilityId', 'assignedCaregivers', 'createdAt', 'hasLifeStory', 'musicProvider']) &&
         request.resource.data.caregiverId == request.auth.uid &&
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.assignedCaregivers == [request.auth.uid] &&
@@ -146,7 +172,14 @@ service cloud.firestore {
             resource.data.createdBy == request.auth.uid ||
             (resource.data.assignedCaregivers is list && request.auth.uid in resource.data.assignedCaregivers)
           ) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds'])
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'preferredName', 'hasLifeStory', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds']) &&
+          // The life story itself now lives in private/lifeStory; the old
+          // field may only be removed (by a save), never written. Leaving it
+          // untouched is fine — residents not migrated yet still have it.
+          (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['lifeStory']) ||
+            request.resource.data.get('lifeStory', null) == null
+          )
         ) ||
         // Self-assignment: a caregiver in the same organization who isn't
         // assigned yet may add themselves to assignedCaregivers and change
@@ -167,7 +200,14 @@ service cloud.firestore {
           resource.data.facilityId != null &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds'])
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'preferredName', 'hasLifeStory', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds']) &&
+          // The life story itself now lives in private/lifeStory; the old
+          // field may only be removed (by a save), never written. Leaving it
+          // untouched is fine — residents not migrated yet still have it.
+          (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['lifeStory']) ||
+            request.resource.data.get('lifeStory', null) == null
+          )
         )
       );
 
@@ -181,6 +221,37 @@ service cloud.firestore {
         resource.data.facilityId != null &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Administrator' &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId;
+
+      // The resident's life story — kept in its own doc so it can have
+      // stricter rules than the resident's name and activity info (Firestore
+      // rules can't hide individual fields). See utils/residentLifeStory.js.
+      match /private/{docId} {
+        // Readable by anyone linked to the resident, except volunteers — they
+        // only see it when their organization turned on "Volunteers can view
+        // life stories" in Organizational Settings.
+        allow get: if request.auth != null &&
+          linkedToResident(get(/databases/$(database)/documents/residents/$(residentId)).data) &&
+          (me().role != 'Volunteer' ||
+            volunteersMayViewLifeStories(get(/databases/$(database)/documents/residents/$(residentId)).data.facilityId));
+
+        // Writing (BuildProfile's save) follows the same people who may edit
+        // the resident's profile, but never volunteers.
+        allow create, update: if request.auth != null && me().role != 'Volunteer' && (
+          get(/databases/$(database)/documents/residents/$(residentId)).data.caregiverId == request.auth.uid ||
+          get(/databases/$(database)/documents/residents/$(residentId)).data.createdBy == request.auth.uid ||
+          request.auth.uid in get(/databases/$(database)/documents/residents/$(residentId)).data.get('assignedCaregivers', []) ||
+          (
+            get(/databases/$(database)/documents/residents/$(residentId)).data.facilityId != null &&
+            me().orgId == get(/databases/$(database)/documents/residents/$(residentId)).data.facilityId &&
+            me().role in ['Caregiver', 'Administrator']
+          )
+        );
+
+        // Deleted together with the resident, by the same people.
+        allow delete: if request.auth != null &&
+          me().role == 'Administrator' &&
+          me().orgId == get(/databases/$(database)/documents/residents/$(residentId)).data.facilityId;
+      }
     }
 
     // Any signed-in user can fetch a single organization by id (to display
@@ -212,7 +283,15 @@ service cloud.firestore {
       // flipping a real facility to "personal" would make deleteAccount
       // wipe all of its residents.
       allow update: if request.auth != null && resource.data.createdBy == request.auth.uid &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'type', 'province', 'city']);
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'type', 'province', 'city', 'volunteerPermissions']) &&
+        // Manage Volunteer Permissions: currently one yes/no switch.
+        (
+          !('volunteerPermissions' in request.resource.data) ||
+          (
+            request.resource.data.volunteerPermissions.keys().hasOnly(['canViewLifeStories']) &&
+            request.resource.data.volunteerPermissions.get('canViewLifeStories', false) is bool
+          )
+        );
 
       // No client deletes: deleteOrganization (Cloud Function) removes the
       // org together with its residents, library and invite codes.
