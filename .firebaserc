@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "welicare"
+    "default": "welicare",
+    "demo": "demo-welicare"
   }
 }

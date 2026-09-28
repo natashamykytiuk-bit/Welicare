@@ -34,10 +34,13 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit -p jsconfig.json",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-welicare \"jest -c tests/rules/jest.config.js\"",
+    "emulators": "firebase emulators:start --project demo-welicare"
   },
   "private": true,
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@testing-library/react-native": "^14.0.1",
     "@types/react": "~19.1.10",
     "eslint": "^9.39.5",

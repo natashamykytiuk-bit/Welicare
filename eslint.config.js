@@ -55,6 +55,7 @@ module.exports = defineConfig([
         afterAll: 'readonly',
         require: 'readonly',
         module: 'writable',
+        __dirname: 'readonly',
       },
     },
   },
