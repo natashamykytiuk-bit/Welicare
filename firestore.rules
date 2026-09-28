@@ -54,6 +54,71 @@ service cloud.firestore {
           .get('volunteerPermissions', {}).get('canViewLifeStories', false) == true;
     }
 
+    // --- Field validation (security review #5) ----------------------------
+    // The app always writes these shapes, but a direct caller could write
+    // anything the other checks allow, and screens assume the types below.
+    // Rules can't loop over list items, so lists are only size-capped.
+
+    // Field `k` of map `d` is missing, null, or a string of at most `max`
+    // characters.
+    function optText(d, k, max) {
+      return !(k in d) || d[k] == null || (d[k] is string && d[k].size() <= max);
+    }
+    // Field `k` is missing, null, or a boolean.
+    function optBool(d, k) {
+      return !(k in d) || d[k] == null || d[k] is bool;
+    }
+    // Field `k` is missing, or a list of at most `max` items.
+    function optList(d, k, max) {
+      return !(k in d) || (d[k] is list && d[k].size() <= max);
+    }
+
+    // A resident doc's editable fields (AddResidentScreen, BuildProfile,
+    // the music/movie curation and favourites screens).
+    function validResidentFields(d) {
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 200 &&
+        optText(d, 'preferredName', 200) &&
+        optBool(d, 'hasLifeStory') &&
+        optList(d, 'selectedMusicVideoIds', 500) &&
+        optList(d, 'favouriteMusicVideoIds', 500) &&
+        optList(d, 'selectedMovieVideoIds', 500) &&
+        optList(d, 'favouriteMovieVideoIds', 500);
+    }
+
+    // residents/{id}/private/lifeStory — exactly the LifeStory fields
+    // BuildProfileScreen saves (types/models.js), each with its type.
+    function validLifeStory(d) {
+      return d.keys().hasOnly(['preferredName', 'age', 'grewUpIn', 'otherPlacesLived',
+          'relationshipStatus', 'hasChildren', 'childrenDetails', 'hasGrandchildren',
+          'grandchildrenDetails', 'importantPeople', 'career', 'careerLove', 'hobbies',
+          'hobbiesOtherDetail', 'creativeHobbies', 'creativeHobbiesOtherDetail', 'musicGenres',
+          'musicGenresOtherDetail', 'favouriteMusicians', 'favouriteMovies', 'favouriteFoods',
+          'happiestMemory', 'specialPlace']) &&
+        optText(d, 'preferredName', 200) && optText(d, 'age', 50) &&
+        optText(d, 'grewUpIn', 2000) && optText(d, 'otherPlacesLived', 2000) &&
+        optText(d, 'relationshipStatus', 200) && optBool(d, 'hasChildren') &&
+        optText(d, 'childrenDetails', 2000) && optBool(d, 'hasGrandchildren') &&
+        optText(d, 'grandchildrenDetails', 2000) && optText(d, 'importantPeople', 2000) &&
+        optText(d, 'career', 2000) && optText(d, 'careerLove', 2000) &&
+        optList(d, 'hobbies', 30) && optText(d, 'hobbiesOtherDetail', 2000) &&
+        optList(d, 'creativeHobbies', 30) && optText(d, 'creativeHobbiesOtherDetail', 2000) &&
+        optList(d, 'musicGenres', 30) && optText(d, 'musicGenresOtherDetail', 2000) &&
+        optText(d, 'favouriteMusicians', 2000) && optText(d, 'favouriteMovies', 2000) &&
+        optText(d, 'favouriteFoods', 2000) && optText(d, 'happiestMemory', 2000) &&
+        optText(d, 'specialPlace', 2000);
+    }
+
+    // A musicLibrary / movieLibrary entry (MusicLibraryScreen,
+    // MovieLibraryScreen). videoId is a YouTube id, since the player builds
+    // URLs from it.
+    function validLibraryEntry(d) {
+      return d.videoId is string && d.videoId.matches('^[A-Za-z0-9_-]{6,20}$') &&
+        d.title is string && d.title.size() > 0 && d.title.size() <= 300 &&
+        optText(d, 'channelTitle', 300) && optText(d, 'artist', 300) &&
+        optText(d, 'thumbnailUrl', 1000) && optText(d, 'decade', 20) &&
+        optList(d, 'genres', 20);
+    }
+
     // A signed-in user can only read/write their own profile doc
     // (users/{their own uid}) — never anyone else's. This covers the
     // profile fields set at sign-up (email, username, role) and the
@@ -190,6 +255,7 @@ service cloud.firestore {
       // through the assignment rules) or forge who created it.
       allow create: if verified() &&
         request.resource.data.keys().hasOnly(['name', 'caregiverId', 'createdBy', 'facilityId', 'assignedCaregivers', 'createdAt', 'hasLifeStory', 'musicProvider']) &&
+        validResidentFields(request.resource.data) &&
         request.resource.data.caregiverId == request.auth.uid &&
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.assignedCaregivers == [request.auth.uid] &&
@@ -201,7 +267,8 @@ service cloud.firestore {
           )
         );
 
-      allow update: if verified() && (
+      // Every update must leave the resident's fields well-typed.
+      allow update: if verified() && validResidentFields(request.resource.data) && (
         // The creator or an already-assigned caregiver may edit the
         // resident's profile fields only (name, life story, music picks and
         // favourites — everything BuildProfile, CurateResidentMusic and the
@@ -282,7 +349,8 @@ service cloud.firestore {
 
         // Writing (BuildProfile's save) follows the same people who may edit
         // the resident's profile, but never volunteers.
-        allow create, update: if verified() && me().role != 'Volunteer' && (
+        allow create, update: if verified() && me().role != 'Volunteer' &&
+          validLifeStory(request.resource.data) && (
           get(/databases/$(database)/documents/residents/$(residentId)).data.caregiverId == request.auth.uid ||
           get(/databases/$(database)/documents/residents/$(residentId)).data.createdBy == request.auth.uid ||
           request.auth.uid in get(/databases/$(database)/documents/residents/$(residentId)).data.get('assignedCaregivers', []) ||
@@ -380,7 +448,8 @@ service cloud.firestore {
         request.resource.data.facilityId != 'global' &&
         request.resource.data.facilityId == me().orgId &&
         orgAcceptingNewData(request.resource.data.facilityId) &&
-        request.resource.data.keys().hasOnly(['videoId', 'title', 'channelTitle', 'thumbnailUrl', 'genres', 'decade', 'facilityId', 'addedAt', 'addedByUid']);
+        request.resource.data.keys().hasOnly(['videoId', 'title', 'channelTitle', 'thumbnailUrl', 'genres', 'decade', 'facilityId', 'addedAt', 'addedByUid']) &&
+        validLibraryEntry(request.resource.data);
 
       allow update: if verified() &&
         me().role in ['Caregiver', 'Administrator'] &&
@@ -389,6 +458,7 @@ service cloud.firestore {
         request.resource.data.facilityId == resource.data.facilityId &&
         request.resource.data.videoId == resource.data.videoId &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'channelTitle', 'genres', 'decade', 'thumbnailUrl', 'addedAt', 'addedByUid']) &&
+        validLibraryEntry(request.resource.data) &&
         (request.resource.data.get('addedByUid', null) == resource.data.get('addedByUid', null) ||
           request.resource.data.addedByUid == request.auth.uid);
 
@@ -448,7 +518,9 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
         request.resource.data.facilityId != 'global' &&
         request.resource.data.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId &&
-        orgAcceptingNewData(request.resource.data.facilityId);
+        orgAcceptingNewData(request.resource.data.facilityId) &&
+        request.resource.data.keys().hasOnly(['videoId', 'title', 'channelTitle', 'artist', 'thumbnailUrl', 'genres', 'decade', 'facilityId', 'addedAt', 'addedByUid']) &&
+        validLibraryEntry(request.resource.data);
 
       // Update checks the entry as it is now AND as it will be: facilityId
       // and videoId can never change (so an entry can't be moved into
@@ -462,6 +534,7 @@ service cloud.firestore {
         request.resource.data.facilityId == resource.data.facilityId &&
         request.resource.data.videoId == resource.data.videoId &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'channelTitle', 'artist', 'genres', 'decade', 'thumbnailUrl', 'addedAt', 'addedByUid']) &&
+        validLibraryEntry(request.resource.data) &&
         (request.resource.data.get('addedByUid', null) == resource.data.get('addedByUid', null) ||
           request.resource.data.addedByUid == request.auth.uid);
 

@@ -590,10 +590,10 @@ describe('usernames hold no email and match your profile (security fix)', () => 
 
 describe('movie library (its own collection and rules)', () => {
   const movie = (overrides = {}) => ({
-    videoId: 'casa',
+    videoId: 'casablanca1',
     title: 'Casablanca',
     channelTitle: 'Classic Movies',
-    thumbnailUrl: 'https://img.youtube.com/vi/casa/mqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/casablanca1/mqdefault.jpg',
     genres: ['Drama'],
     decade: '1940s',
     facilityId: 'orgA',
@@ -603,7 +603,7 @@ describe('movie library (its own collection and rules)', () => {
 
   it('caregivers and admins can add movies to their own organization', async () => {
     await assertSucceeds(setDoc(ref('caregiverA'), movie()));
-    await assertSucceeds(setDoc(ref('adminA', 'mv2'), movie({ videoId: 'rain' })));
+    await assertSucceeds(setDoc(ref('adminA', 'mv2'), movie({ videoId: 'raininginX1' })));
   });
 
   it('volunteers and family members cannot add movies', async () => {
@@ -635,8 +635,8 @@ describe('movie library (its own collection and rules)', () => {
   it('a resident’s movie approvals and favourites can be saved', async () => {
     await assertSucceeds(
       updateDoc(doc(as('caregiverA'), 'residents', 'residentA'), {
-        selectedMovieVideoIds: ['casa'],
-        favouriteMovieVideoIds: ['casa'],
+        selectedMovieVideoIds: ['casablanca1'],
+        favouriteMovieVideoIds: ['casablanca1'],
       })
     );
   });
@@ -845,5 +845,74 @@ describe('family members see only linked residents (security fix)', () => {
 
   it('Caregivers and Administrators can add themselves to a resident', async () => {
     await assertSucceeds(selfAssign('adminA'));
+  });
+});
+
+// Security review #5: the rules check field types and sizes, so a direct
+// caller can't store data the screens don't expect.
+describe('field validation (security fix)', () => {
+  const lifeStoryDoc = (uid) => doc(as(uid), 'residents', 'residentA', 'private', 'lifeStory');
+
+  it('refuses a resident name that is not a non-empty string', async () => {
+    const db = as('caregiverA');
+    await assertFails(updateDoc(doc(db, 'residents', 'residentA'), { name: 42 }));
+    await assertFails(updateDoc(doc(db, 'residents', 'residentA'), { name: '' }));
+    await assertFails(updateDoc(doc(db, 'residents', 'residentA'), { name: 'x'.repeat(201) }));
+    await assertSucceeds(updateDoc(doc(db, 'residents', 'residentA'), { name: 'Annie' }));
+  });
+
+  it('refuses wrongly typed resident profile fields', async () => {
+    const db = as('caregiverA');
+    await assertFails(updateDoc(doc(db, 'residents', 'residentA'), { hasLifeStory: 'yes' }));
+    await assertFails(
+      updateDoc(doc(db, 'residents', 'residentA'), { selectedMusicVideoIds: 'abc' })
+    );
+    await assertSucceeds(
+      updateDoc(doc(db, 'residents', 'residentA'), { selectedMusicVideoIds: ['abc123'] })
+    );
+  });
+
+  it('accepts a life story shaped like BuildProfileScreen saves it', async () => {
+    await assertSucceeds(
+      setDoc(lifeStoryDoc('caregiverA'), {
+        preferredName: 'Annie',
+        age: '80-90',
+        hasChildren: true,
+        childrenDetails: 'Two',
+        hobbies: ['Reading'],
+        career: null,
+      })
+    );
+  });
+
+  it('refuses life stories with unknown keys or wrong types', async () => {
+    await assertFails(setDoc(lifeStoryDoc('caregiverA'), { hobbies: 42 }));
+    await assertFails(setDoc(lifeStoryDoc('caregiverA'), { hasChildren: 'yes' }));
+    await assertFails(setDoc(lifeStoryDoc('caregiverA'), { career: 'x'.repeat(2001) }));
+    await assertFails(setDoc(lifeStoryDoc('caregiverA'), { somethingElse: 'x' }));
+  });
+
+  const song = (overrides) => ({
+    videoId: 'abc123',
+    title: 'Crazy',
+    genres: ['Country'],
+    decade: '1960s',
+    facilityId: 'orgA',
+    ...overrides,
+  });
+
+  it('refuses malformed music library entries', async () => {
+    const db = as('caregiverA');
+    await assertFails(setDoc(doc(db, 'musicLibrary', 'bad1'), song({ title: 7 })));
+    await assertFails(setDoc(doc(db, 'musicLibrary', 'bad2'), song({ videoId: '../x?y' })));
+    await assertFails(setDoc(doc(db, 'musicLibrary', 'bad3'), song({ genres: 'Country' })));
+    await assertFails(setDoc(doc(db, 'musicLibrary', 'bad4'), song({ extra: true })));
+  });
+
+  it('refuses malformed movie library entries and edits', async () => {
+    const db = as('caregiverA');
+    await assertFails(setDoc(doc(db, 'movieLibrary', 'bad1'), song({ title: '' })));
+    await assertSucceeds(setDoc(doc(db, 'movieLibrary', 'ok1'), song({})));
+    await assertFails(updateDoc(doc(db, 'movieLibrary', 'ok1'), { decade: 1960 }));
   });
 });

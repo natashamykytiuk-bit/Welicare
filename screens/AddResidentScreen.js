@@ -297,6 +297,8 @@ export default function AddResidentScreen({ navigation }) {
               onChangeText={setName}
               placeholder="Resident's full name"
               placeholderTextColor={colors.textMuted}
+              // Same cap as firestore.rules (validResidentFields).
+              maxLength={200}
               autoFocus
             />
 

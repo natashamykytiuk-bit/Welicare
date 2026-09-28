@@ -97,7 +97,27 @@ function SectionHeader({ children }) {
   return <Text style={styles.sectionHeader}>{children}</Text>;
 }
 
-function TextField({ label, value, onChangeText, placeholder, multiline, numeric }) {
+// Longest answer firestore.rules accept for a life-story text field
+// (validLifeStory). Names and nicknames are capped at NAME_MAX_LENGTH.
+const ANSWER_MAX_LENGTH = 2000;
+const NAME_MAX_LENGTH = 200;
+
+// A labelled text box with a character counter. maxLength matches the
+// server-side limit so the keyboard simply stops at it, rather than the
+// save failing afterwards. The counter only appears once something is
+// typed, to keep the (resident-facing) form uncluttered, and turns red at
+// the limit so it's clear why typing stopped.
+function TextField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  multiline,
+  numeric,
+  maxLength = ANSWER_MAX_LENGTH,
+}) {
+  const length = value?.length ?? 0;
+  const atLimit = length >= maxLength;
   return (
     <View style={styles.field}>
       {label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
@@ -110,7 +130,16 @@ function TextField({ label, value, onChangeText, placeholder, multiline, numeric
         multiline={multiline}
         keyboardType={numeric ? 'numeric' : 'default'}
         textAlignVertical={multiline ? 'top' : 'center'}
+        maxLength={maxLength}
       />
+      {length > 0 ? (
+        <Text
+          style={[styles.counter, atLimit && styles.counterAtLimit]}
+          accessibilityLabel={`${length} of ${maxLength} characters used`}
+        >
+          {length} / {maxLength}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -233,7 +262,11 @@ export default function BuildProfileScreen({ navigation, route }) {
     setNameError('');
     setSaving(true);
     const toSave = {};
-    for (const [key, value] of Object.entries(story)) {
+    // Only the questionnaire's own fields: firestore.rules (validLifeStory)
+    // refuse any other key, and a story saved by an older app version could
+    // still carry one it loaded back into `story`.
+    for (const key of Object.keys(EMPTY_LIFE_STORY)) {
+      const value = story[key];
       if (Array.isArray(value)) {
         toSave[key] = value.length > 0 ? value : [];
       } else {
@@ -330,6 +363,7 @@ export default function BuildProfileScreen({ navigation, route }) {
               if (nameError) setNameError('');
             }}
             placeholder="Full name"
+            maxLength={NAME_MAX_LENGTH}
           />
           {nameError ? <Text style={styles.fieldError}>{nameError}</Text> : null}
           <TextField
@@ -337,6 +371,7 @@ export default function BuildProfileScreen({ navigation, route }) {
             value={story.preferredName}
             onChangeText={(v) => set('preferredName', v)}
             placeholder="What do you like to be called?"
+            maxLength={NAME_MAX_LENGTH}
           />
           <Text style={styles.fieldLabel}>Age range</Text>
           <ChipRow options={AGE_RANGE_OPTIONS} value={story.age} onChange={(v) => set('age', v)} />
@@ -588,6 +623,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   fieldLabelSpaced: { marginTop: 8 },
+  counter: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'right',
+    marginTop: 4,
+  },
+  counterAtLimit: { color: colors.destructive },
   input: {
     backgroundColor: colors.surface,
     borderWidth: 1,

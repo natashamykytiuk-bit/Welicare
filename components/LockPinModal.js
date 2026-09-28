@@ -5,6 +5,7 @@ import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { hashPin, isValidPin } from '../utils/pin';
+import { withTimeout } from '../utils/withTimeout';
 import LoadError from './LoadError';
 import NumberPad from './NumberPad';
 import PinDots from './PinDots';
@@ -15,6 +16,10 @@ import PinDots from './PinDots';
 // modal instead of a navigated screen, since locking/unlocking/"let me
 // through" checks all need to happen in place on whatever activity screen
 // triggered them rather than navigating anywhere.
+// How long to wait for the PIN before offering Try again, so a bad
+// connection can't leave the lock modal waiting indefinitely.
+const PIN_LOAD_TIMEOUT_MS = 10000;
+
 export default function LockPinModal({ visible, onSuccess, onCancel }) {
   const [digits, setDigits] = useState('');
   // undefined while loading, null if the user has no PIN set up yet
@@ -35,11 +40,14 @@ export default function LockPinModal({ visible, onSuccess, onCancel }) {
     async function load() {
       const uid = auth.currentUser?.uid;
       setLoadError(false);
+      setStoredHash(undefined);
       // A failed read must not leave storedHash null — then even the right
       // PIN would be rejected as "Incorrect PIN" and the caregiver could be
       // stuck in locked Resident Mode. Show LoadError with Try again instead.
       try {
-        const snap = uid ? await getDoc(doc(db, 'users', uid)) : null;
+        const snap = uid
+          ? await withTimeout(getDoc(doc(db, 'users', uid)), PIN_LOAD_TIMEOUT_MS)
+          : null;
         if (!cancelled) setStoredHash(snap?.data()?.pinHash ?? null);
       } catch (e) {
         console.error('[LockPinModal] failed to load PIN:', e.code, e.message, e);
@@ -53,7 +61,9 @@ export default function LockPinModal({ visible, onSuccess, onCancel }) {
   }, [visible, reloadKey]);
 
   async function handleDigit(d) {
-    if (checking || digits.length >= 4) return;
+    // Ignore taps until the saved PIN has loaded — otherwise a correct PIN
+    // typed quickly would be judged against nothing and called incorrect.
+    if (checking || digits.length >= 4 || storedHash === undefined) return;
     const next = digits + d;
     setDigits(next);
     if (next.length !== 4) return;
@@ -65,9 +75,16 @@ export default function LockPinModal({ visible, onSuccess, onCancel }) {
     }
 
     setChecking(true);
-    const enteredHash = await hashPin(next);
+    let enteredHash = null;
+    try {
+      enteredHash = await hashPin(next);
+    } catch (e) {
+      // Hashing is local, but if it ever fails, let them try again rather
+      // than leaving the pad disabled.
+      console.error('[LockPinModal] could not check PIN:', e);
+    }
     setChecking(false);
-    if (enteredHash === storedHash) {
+    if (enteredHash && enteredHash === storedHash) {
       onSuccess();
     } else {
       setError('Incorrect PIN');
@@ -109,7 +126,11 @@ export default function LockPinModal({ visible, onSuccess, onCancel }) {
             {loadError ? (
               <LoadError onRetry={() => setReloadKey((k) => k + 1)} />
             ) : (
-              <NumberPad onDigit={handleDigit} onBackspace={handleBackspace} disabled={checking} />
+              <NumberPad
+                onDigit={handleDigit}
+                onBackspace={handleBackspace}
+                disabled={checking || storedHash === undefined}
+              />
             )}
           </View>
         </View>

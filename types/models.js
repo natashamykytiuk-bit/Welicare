@@ -89,7 +89,6 @@
  * @property {string | null} [type]
  * @property {string | null} [province]
  * @property {string | null} [city]
- * @property {string | null} [email]
  * @property {boolean} [isPersonal] true for a Family Caregiver's auto-created
  *   single-person org.
  * @property {string} createdBy Owner uid — the admin who can edit it.

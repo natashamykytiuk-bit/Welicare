@@ -14,6 +14,7 @@ import { auth, db } from './firebaseConfig';
 import LoadError from './components/LoadError';
 import { ResidentLockProvider } from './contexts/ResidentLockContext';
 import { nextOnboardingRoute } from './utils/onboarding';
+import { withTimeout } from './utils/withTimeout';
 
 import ActivityIdeasScreen from './screens/ActivityIdeasScreen';
 import ActivityMenuScreen from './screens/ActivityMenuScreen';
@@ -70,6 +71,9 @@ import WordGamesScreen from './screens/WordGamesScreen';
 
 const Stack = createNativeStackNavigator();
 
+// How long startup waits for the user's own doc before offering Try again.
+const STARTUP_TIMEOUT_MS = 15000;
+
 export default function App() {
   // undefined = still resolving, null = signed out, object = signed in
   const [user, setUser] = useState(undefined);
@@ -79,12 +83,16 @@ export default function App() {
   // one-shot "just signed up" flag, so the routing decision survives app
   // restarts and sign-out/sign-in cycles.
   const [onboardingStatus, setOnboardingStatus] = useState(undefined);
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     AtkinsonHyperlegible_400Regular,
     AtkinsonHyperlegible_700Bold,
     Lora_400Regular,
     Lora_700Bold,
   });
+  // If the fonts fail to load, carry on with the system font rather than
+  // spinning forever — fontsLoaded alone never turns true after an error.
+  if (fontError) console.error('[App] fonts failed to load; using system fonts:', fontError);
+  const fontsReady = fontsLoaded || !!fontError;
 
   // Firebase notifies us here whenever the signed-in/out state changes —
   // this is what actually flips the app between the two screen sets below.
@@ -116,7 +124,9 @@ export default function App() {
     async function loadOnboardingStatus() {
       setOnboardingError(false);
       try {
-        const snap = await getDoc(doc(db, 'users', user.uid));
+        // Bounded so a stalled connection ends in LoadError (Try again)
+        // instead of an endless startup spinner.
+        const snap = await withTimeout(getDoc(doc(db, 'users', user.uid)), STARTUP_TIMEOUT_MS);
         if (cancelled) return;
         setOnboardingStatus({ route: nextOnboardingRoute(snap.data()) });
       } catch (e) {
@@ -130,7 +140,7 @@ export default function App() {
     };
   }, [user, onboardingReloadKey]);
 
-  if (user && onboardingError && fontsLoaded) {
+  if (user && onboardingError && fontsReady) {
     return (
       <View style={styles.loadError}>
         <LoadError onRetry={() => setOnboardingReloadKey((k) => k + 1)} />
@@ -138,7 +148,7 @@ export default function App() {
     );
   }
 
-  if (user === undefined || !fontsLoaded || (user && !onboardingStatus)) {
+  if (user === undefined || !fontsReady || (user && !onboardingStatus)) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color="#2D9B8A" />
