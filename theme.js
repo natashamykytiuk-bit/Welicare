@@ -21,12 +21,14 @@ export const colors = {
   white: '#FFFFFF',
   activities: {
     music: { icon: '#1E5C47', bg: '#DDE8E2' },
-    trivia: { icon: '#C17F5A', bg: '#F0E0D0' },
+    // trivia and moviesVideos use the darkened secondary terracotta: the
+    // old #C17F5A was 2.5:1 on this tile, below the 3:1 icons need; now 4.7:1.
+    trivia: { icon: '#8D5435', bg: '#F0E0D0' },
     meditation: { icon: '#7A6FA5', bg: '#EAE7F2' },
     conversation: { icon: '#2D7D8F', bg: '#DAF0F4' },
     photoAlbum: { icon: '#8A6040', bg: '#F0E8DF' },
     games: { icon: '#5A7A3A', bg: '#E4EDD9' },
-    moviesVideos: { icon: '#C17F5A', bg: '#F0E0D0' },
+    moviesVideos: { icon: '#8D5435', bg: '#F0E0D0' },
   },
 };
 
