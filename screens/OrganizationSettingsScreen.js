@@ -14,6 +14,7 @@ import BackButton from '../components/BackButton';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import {
+  fetchInviteCode,
   formatOrgCode,
   joinOrganizationByCode,
   upgradePersonalOrganization,
@@ -52,7 +53,9 @@ export default function OrganizationSettingsScreen({ navigation }) {
       const data = orgSnap.data();
       setOrgIsPersonal(data?.isPersonal === true);
       setOrgName(data?.name ?? '');
-      setOrgInviteCode(data?.inviteCode ?? '');
+      // The code isn't on the org doc — it's in the members-only
+      // private/invite doc (see fetchInviteCode).
+      setOrgInviteCode((await fetchInviteCode(orgId)) ?? '');
     }
     setLoading(false);
   }

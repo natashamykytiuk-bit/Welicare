@@ -3,14 +3,15 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import { fetchInviteCode } from '../utils/inviteCode';
 
 // Shown at the top of every Administrator Mode screen, and on
 // ModeSelectionScreen, so anyone connected to an organization can quickly
 // reference/share the code new members use to join it. Self-contained (does
 // its own Firestore reads) so it can be dropped into any screen without
-// prop-drilling orgId down. The code lives on the organization doc (not the
-// user doc), so this is a two-step lookup — same shape as
-// ModeSelectionScreen's own facility-name fetch. Renders nothing while
+// prop-drilling orgId down. The code lives in the org's members-only
+// private/invite doc (see fetchInviteCode), so this is a two-step lookup:
+// the user's orgId first, then that org's code. Renders nothing while
 // loading or if the signed-in user hasn't connected to an organization.
 export default function OrgIdBadge() {
   const [inviteCode, setInviteCode] = useState(undefined); // undefined = loading, null = none
@@ -26,8 +27,8 @@ export default function OrgIdBadge() {
         if (!cancelled) setInviteCode(null);
         return;
       }
-      const orgSnap = await getDoc(doc(db, 'organizations', orgId));
-      if (!cancelled) setInviteCode(orgSnap.data()?.inviteCode ?? null);
+      const code = await fetchInviteCode(orgId);
+      if (!cancelled) setInviteCode(code);
     }
     loadInviteCode();
     return () => {

@@ -18,6 +18,7 @@ import BackButton from '../components/BackButton';
 import Dropdown from '../components/Dropdown';
 import { auth, db, functions } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import { fetchInviteCode, regenerateInviteCode } from '../utils/inviteCode';
 import { ORG_TYPES, PROVINCES } from './CreateOrganizationScreen';
 
 const callDeleteOrganization = httpsCallable(functions, 'deleteOrganization');
@@ -72,6 +73,13 @@ export default function OrganizationalSettingsScreen({ navigation }) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
+  // Invite code, plus "Replace with a new code" — which revokes the old
+  // code server-side (regenerateInviteCode) so it stops working for new
+  // people, e.g. after it was shared too widely.
+  const [inviteCode, setInviteCode] = useState(null);
+  const [regenerating, setRegenerating] = useState(false);
+  const [codeNote, setCodeNote] = useState('');
+
   // Transfer administrator: members are fetched only when the section is
   // opened (via listOrgMembers, since the rules don't let the app read other
   // users' docs), then one is picked and confirmed inline.
@@ -97,6 +105,10 @@ export default function OrganizationalSettingsScreen({ navigation }) {
       const data = orgSnap.data() ?? null;
       setOrgId(id);
       setOrg(data);
+      // Not on the org doc — see fetchInviteCode.
+      fetchInviteCode(id).then((code) => {
+        if (!cancelled) setInviteCode(code);
+      });
       setIsOrgAdmin(!!data && (data.createdBy === uid || data.adminId === uid));
       setName(data?.name ?? '');
       setType(data?.type ?? '');
@@ -187,6 +199,20 @@ export default function OrganizationalSettingsScreen({ navigation }) {
     }
   }
 
+  async function handleRegenerateCode() {
+    setCodeNote('');
+    setRegenerating(true);
+    try {
+      setInviteCode(await regenerateInviteCode(orgId));
+      setCodeNote('New code created. The old code no longer works; people who already joined are unaffected.');
+    } catch (e) {
+      console.error('Regenerate code error:', e.code, e.message, e);
+      setCodeNote("Couldn't create a new code. Please try again.");
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
   async function loadMembers() {
     setTransferError('');
     setMembersLoading(true);
@@ -259,12 +285,29 @@ export default function OrganizationalSettingsScreen({ navigation }) {
           <Text style={styles.body}>You are not part of an organization yet.</Text>
         ) : (
           <>
-            {org.inviteCode ? (
+            {inviteCode ? (
               <>
                 <Text style={styles.label}>Invite code</Text>
                 <Text style={styles.currentValue} selectable>
-                  {org.inviteCode}
+                  {inviteCode}
                 </Text>
+                {/* Revoking is behind the same password unlock as the
+                    other admin actions below. */}
+                {editing ? (
+                  <View style={styles.codeActions}>
+                    {codeNote ? <Text style={styles.codeNote}>{codeNote}</Text> : null}
+                    <TouchableOpacity
+                      onPress={handleRegenerateCode}
+                      disabled={regenerating}
+                      accessibilityRole="button"
+                      accessibilityLabel="Replace invite code with a new one"
+                    >
+                      <Text style={styles.sectionLink}>
+                        {regenerating ? 'Creating new code…' : 'Replace with a new code'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
               </>
             ) : null}
 
@@ -672,6 +715,8 @@ const styles = StyleSheet.create({
     fontSize: 17,
   },
   sectionGap: { marginTop: 16 },
+  codeActions: { marginTop: -8, marginBottom: 20, gap: 8 },
+  codeNote: { fontFamily: fonts.sansRegular, fontSize: 15, color: colors.textMuted, lineHeight: 21 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
