@@ -36,7 +36,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:rules": "firebase emulators:exec --only firestore --project demo-welicare \"jest -c tests/rules/jest.config.js\"",
-    "emulators": "firebase emulators:start --project demo-welicare"
+    "emulators": "firebase emulators:start --project demo-welicare",
+    "test:functions": "firebase emulators:exec --only auth,firestore,functions --project demo-welicare \"jest -c tests/functions/jest.config.js\""
   },
   "private": true,
   "devDependencies": {
@@ -59,7 +60,8 @@
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/functions/",
-      "/tests/rules/"
+      "/tests/rules/",
+      "/tests/functions/"
     ]
   }
 }

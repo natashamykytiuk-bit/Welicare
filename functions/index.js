@@ -458,53 +458,74 @@ function randomInviteCode() {
   return `${letters}-${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
-// Claims a fresh code for `orgId` and makes it the org's current one,
-// revoking whatever code it had before. create() fails if the code doc
-// already exists, which is what guarantees uniqueness without a query.
-async function issueInviteCode(db, orgId, uid) {
-  const { FieldValue } = require('firebase-admin/firestore');
-  const privateRef = db.doc(`organizations/${orgId}/private/invite`);
-  const previous = (await privateRef.get()).data()?.code;
-  for (let attempt = 0; attempt < 10; attempt += 1) {
+// Each flow below runs as ONE Firestore transaction: all reads happen first,
+// then every write is committed together — or, if anything throws, none of
+// them are. So a failure can never leave an organization with nobody linked
+// to it, or an invite code reserved for an org that was never created.
+// Firestore also retries the whole transaction automatically if another
+// request changes something it read (e.g. two orgs drawing the same code at
+// the same moment), which is what makes the code check race-free.
+
+// How many random codes to try before giving up. Every one is checked
+// inside the transaction; if all collide we throw rather than ever use an
+// unchecked code.
+const MAX_CODE_ATTEMPTS = 5;
+
+// Transaction step (reads only): draws random codes until one isn't taken.
+// Must run before the transaction's writes — Firestore requires all reads
+// in a transaction to come first.
+async function pickFreeInviteCode(tx, db) {
+  for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt += 1) {
     const code = randomInviteCode();
-    try {
-      await db.doc(`inviteCodes/${code}`).create({
-        orgId,
-        createdBy: uid,
-        createdAt: FieldValue.serverTimestamp(),
-        revoked: false,
-        uses: 0,
-      });
-    } catch (e) {
-      if (e.code === 6) continue; // ALREADY_EXISTS — draw another code
-      throw e;
-    }
-    await privateRef.set({ code, updatedAt: FieldValue.serverTimestamp() });
-    if (previous && previous !== code) {
-      await db.doc(`inviteCodes/${previous}`).set({ revoked: true }, { merge: true });
-    }
-    return code;
+    const snap = await tx.get(db.doc(`inviteCodes/${code}`));
+    if (!snap.exists) return code;
   }
   throw new HttpsError(
     'resource-exhausted',
-    'Could not generate an invite code. Please try again.'
+    "We couldn't create an invite code just now. Please try again."
   );
 }
 
-// Throws if the caller is already in a real (non-personal) organization —
-// shared by joining and creating, so nobody hops between facilities.
-async function requireNoRealOrg(db, uid, message) {
-  const orgId = (await db.doc(`users/${uid}`).get()).data()?.orgId;
-  if (!orgId) return;
-  const org = await db.doc(`organizations/${orgId}`).get();
-  if (org.exists && org.data().isPersonal !== true) {
-    throw new HttpsError('failed-precondition', message);
+// Transaction step (writes only): reserves `code` for `orgId`, makes it the
+// org's current code, and revokes the previous one if there was one.
+function writeInviteCode(tx, db, { orgId, code, uid, previous }) {
+  const { FieldValue } = require('firebase-admin/firestore');
+  // create() (not set) — fails the whole transaction if the code somehow
+  // exists after all, instead of silently overwriting another org's code.
+  tx.create(db.doc(`inviteCodes/${code}`), {
+    orgId,
+    createdBy: uid,
+    createdAt: FieldValue.serverTimestamp(),
+    revoked: false,
+    uses: 0,
+  });
+  tx.set(db.doc(`organizations/${orgId}/private/invite`), {
+    code,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  if (previous && previous !== code) {
+    tx.set(db.doc(`inviteCodes/${previous}`), { revoked: true }, { merge: true });
   }
+}
+
+// Transaction step (reads only): throws if the user is already in a real
+// (non-personal) organization — shared by joining and creating, so nobody
+// hops between facilities. Returns the user's doc data.
+async function readUserRequiringNoRealOrg(tx, db, uid, message) {
+  const user = (await tx.get(db.doc(`users/${uid}`))).data() ?? {};
+  if (user.orgId) {
+    const org = await tx.get(db.doc(`organizations/${user.orgId}`));
+    if (org.exists && org.data().isPersonal !== true) {
+      throw new HttpsError('failed-precondition', message);
+    }
+  }
+  return user;
 }
 
 // Creates a real (non-personal) organization owned by the caller and links
 // them to it. Server-side because the org needs an invite code minted in
 // the same step, and firestore.rules only let the app create personal orgs.
+// One transaction: org doc + invite code + private copy + user's orgId.
 exports.createOrganization = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
@@ -516,27 +537,38 @@ exports.createOrganization = onCall(async (request) => {
   }
   const db = getAdmin().firestore();
   const { FieldValue } = require('firebase-admin/firestore');
-  await requireNoRealOrg(db, uid, "You're already part of an organization.");
-
   const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
-  const orgRef = await db.collection('organizations').add({
-    name: name.trim(),
-    type: str(type),
-    province: str(province),
-    city: str(city),
-    email: request.auth.token.email ?? null,
-    isPersonal: false,
-    createdBy: uid,
-    adminId: uid,
-    createdAt: FieldValue.serverTimestamp(),
+
+  // The org id is picked up front (nothing written yet) so the transaction
+  // can reference it in every write.
+  const orgRef = db.collection('organizations').doc();
+
+  const code = await db.runTransaction(async (tx) => {
+    // Reads
+    await readUserRequiringNoRealOrg(tx, db, uid, "You're already part of an organization.");
+    const newCode = await pickFreeInviteCode(tx, db);
+    // Writes (all-or-nothing)
+    tx.create(orgRef, {
+      name: name.trim(),
+      type: str(type),
+      province: str(province),
+      city: str(city),
+      email: request.auth.token.email ?? null,
+      isPersonal: false,
+      createdBy: uid,
+      adminId: uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    writeInviteCode(tx, db, { orgId: orgRef.id, code: newCode, uid, previous: null });
+    tx.set(db.doc(`users/${uid}`), { orgId: orgRef.id }, { merge: true });
+    return newCode;
   });
-  const code = await issueInviteCode(db, orgRef.id, uid);
-  await db.doc(`users/${uid}`).set({ orgId: orgRef.id }, { merge: true });
   return { orgId: orgRef.id, inviteCode: code };
 });
 
 // Turns the caller's personal organization into a real, shareable one in
 // place (same orgId, so its residents and library entries carry over).
+// One transaction: rename + un-personal the org + its first invite code.
 exports.upgradePersonalOrganization = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
@@ -547,23 +579,30 @@ exports.upgradePersonalOrganization = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'Please enter an organization name.');
   }
   const db = getAdmin().firestore();
-  const orgId = (await db.doc(`users/${uid}`).get()).data()?.orgId;
-  const orgRef = orgId ? db.doc(`organizations/${orgId}`) : null;
-  const org = orgRef ? (await orgRef.get()).data() : null;
-  if (!org || org.createdBy !== uid) {
-    throw new HttpsError('failed-precondition', 'No organization to upgrade.');
-  }
-  if (org.isPersonal !== true) {
-    throw new HttpsError('failed-precondition', 'Your organization has already been upgraded.');
-  }
-  await orgRef.update({ name, isPersonal: false });
-  const code = await issueInviteCode(db, orgId, uid);
-  return { orgId, inviteCode: code };
+
+  return db.runTransaction(async (tx) => {
+    // Reads
+    const orgId = (await tx.get(db.doc(`users/${uid}`))).data()?.orgId;
+    const orgRef = orgId ? db.doc(`organizations/${orgId}`) : null;
+    const org = orgRef ? (await tx.get(orgRef)).data() : null;
+    if (!org || org.createdBy !== uid) {
+      throw new HttpsError('failed-precondition', 'No organization to upgrade.');
+    }
+    if (org.isPersonal !== true) {
+      throw new HttpsError('failed-precondition', 'Your organization has already been upgraded.');
+    }
+    const code = await pickFreeInviteCode(tx, db);
+    // Writes
+    tx.update(orgRef, { name, isPersonal: false });
+    writeInviteCode(tx, db, { orgId, code, uid, previous: null });
+    return { orgId, inviteCode: code };
+  });
 });
 
 // Revokes the organization's current invite code and issues a new one —
 // e.g. if the old code was shared too widely. Anyone who already joined
 // stays joined; the old code just stops working for new people.
+// One transaction: new code + private copy + old code revoked.
 exports.regenerateInviteCode = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
@@ -574,7 +613,12 @@ exports.regenerateInviteCode = onCall(async (request) => {
   if (org.isPersonal === true) {
     throw new HttpsError('failed-precondition', 'Personal organizations do not have invite codes.');
   }
-  const code = await issueInviteCode(db, orgId, request.auth.uid);
+  const code = await db.runTransaction(async (tx) => {
+    const previous = (await tx.get(db.doc(`organizations/${orgId}/private/invite`))).data()?.code;
+    const newCode = await pickFreeInviteCode(tx, db);
+    writeInviteCode(tx, db, { orgId, code: newCode, uid: request.auth.uid, previous });
+    return newCode;
+  });
   return { inviteCode: code };
 });
 
@@ -599,7 +643,8 @@ exports.joinOrganization = onCall(async (request) => {
   const db = getAdmin().firestore();
   const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 
-  // Rate limit, counted in a transaction so parallel calls can't slip past.
+  // Rate limit — its own transaction, deliberately committed even when the
+  // join below fails, since failed attempts are exactly what it counts.
   // rateLimits/* has no client access (see firestore.rules).
   const limitRef = db.doc(`rateLimits/join_${uid}`);
   await db.runTransaction(async (tx) => {
@@ -616,12 +661,6 @@ exports.joinOrganization = onCall(async (request) => {
     tx.set(limitRef, { windowStart: inWindow ? data.windowStart : now, count: count + 1 });
   });
 
-  await requireNoRealOrg(
-    db,
-    uid,
-    "You're already part of an organization. Contact an administrator if you need to switch."
-  );
-
   // One message for every "this code doesn't work" case, so the response
   // doesn't reveal whether a code exists but was revoked or expired.
   const notFound = new HttpsError(
@@ -629,15 +668,32 @@ exports.joinOrganization = onCall(async (request) => {
     'No organization found with that code. Please check it and try again.'
   );
   const codeRef = db.doc(`inviteCodes/${code}`);
-  const invite = (await codeRef.get()).data();
-  if (!invite || invite.revoked === true) throw notFound;
-  if (invite.expiresAt && invite.expiresAt.toMillis() < Timestamp.now().toMillis()) throw notFound;
-  if (typeof invite.maxUses === 'number' && (invite.uses ?? 0) >= invite.maxUses) throw notFound;
-  if (!(await db.doc(`organizations/${invite.orgId}`).get()).exists) throw notFound;
 
-  await db.doc(`users/${uid}`).set({ orgId: invite.orgId }, { merge: true });
-  await codeRef.update({ uses: FieldValue.increment(1) });
+  // The join itself — one transaction: link the user + count the code's use.
+  const orgId = await db.runTransaction(async (tx) => {
+    // Reads
+    await readUserRequiringNoRealOrg(
+      tx,
+      db,
+      uid,
+      "You're already part of an organization. Contact an administrator if you need to switch."
+    );
+    const invite = (await tx.get(codeRef)).data();
+    if (!invite || invite.revoked === true) throw notFound;
+    if (invite.expiresAt && invite.expiresAt.toMillis() < Timestamp.now().toMillis()) {
+      throw notFound;
+    }
+    if (typeof invite.maxUses === 'number' && (invite.uses ?? 0) >= invite.maxUses) {
+      throw notFound;
+    }
+    if (!(await tx.get(db.doc(`organizations/${invite.orgId}`))).exists) throw notFound;
+    // Writes
+    tx.set(db.doc(`users/${uid}`), { orgId: invite.orgId }, { merge: true });
+    tx.update(codeRef, { uses: FieldValue.increment(1) });
+    return invite.orgId;
+  });
+
   // A successful join clears the counter, so honest typos don't pile up.
   await limitRef.delete();
-  return { orgId: invite.orgId };
+  return { orgId };
 });
