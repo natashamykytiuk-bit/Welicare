@@ -81,7 +81,9 @@ service cloud.firestore {
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) &&
         (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['orgId']) ||
-          !('orgId' in request.resource.data) ||
+          // (Clearing your own orgId used to be allowed, which let people
+          // leave a facility and join another while keeping access. Only
+          // the server clears it now — removeOrgMember, deleteOrganization.)
           getAfter(/databases/$(database)/documents/organizations/$(request.resource.data.orgId)).data.createdBy == request.auth.uid
         );
     }

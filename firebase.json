@@ -15,7 +15,8 @@
       "gcloud run services add-iam-policy-binding upgradepersonalorganization --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
       "gcloud run services add-iam-policy-binding regenerateinvitecode --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
       "gcloud run services add-iam-policy-binding joinorganization --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding resolvesigninemail --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare"
+      "gcloud run services add-iam-policy-binding resolvesigninemail --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding removeorgmember --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare"
     ]
   },
   "emulators": {

@@ -466,7 +466,18 @@ exports.listOrgMembers = onCall(async (request) => {
   const db = getAdmin().firestore();
   const orgId = request.data?.orgId;
   await requireOrgOwner(db, orgId, request.auth.uid);
-  const snap = await db.collection('users').where('orgId', '==', orgId).get();
+  const [snap, residents] = await Promise.all([
+    db.collection('users').where('orgId', '==', orgId).get(),
+    db.collection('residents').where('facilityId', '==', orgId).get(),
+  ]);
+  // How many of the facility's residents each member is assigned to — shown
+  // on Manage Users so an admin can review who has access to whom.
+  const assignedCount = {};
+  for (const r of residents.docs) {
+    for (const id of r.data().assignedCaregivers ?? []) {
+      assignedCount[id] = (assignedCount[id] ?? 0) + 1;
+    }
+  }
   return {
     members: snap.docs
       .filter((d) => d.id !== request.auth.uid)
@@ -474,8 +485,74 @@ exports.listOrgMembers = onCall(async (request) => {
         uid: d.id,
         name: d.data().fullName || d.data().username || 'Unnamed member',
         role: d.data().role ?? '',
-      })),
+        assignedResidents: assignedCount[d.id] ?? 0,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
   };
+});
+
+// Removes someone from the organization (Manage Users → Remove). Their
+// account stays; they just lose all access to this facility:
+// - their orgId is cleared, so every org-scoped rule stops matching them,
+//   and on their next sign-in they're asked to join or create an org;
+// - they're taken off every resident's assignedCaregivers;
+// - residents THEY created in this facility are handed to the org's
+//   administrator (createdBy/caregiverId), because the rules also grant a
+//   resident's creator access — without this, a removed member would still
+//   see those residents in their own list.
+// Owner-only, re-checked inside a transaction, and needs a recent password
+// entry (it's destructive). Every cleanup write is checked; the member's
+// orgId is cleared last, so a failed run can simply be retried.
+exports.removeOrgMember = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  requireVerified(request);
+  requireRecentLogin(request);
+  const { orgId, memberUid } = request.data ?? {};
+  const ownerUid = request.auth.uid;
+  if (typeof memberUid !== 'string' || !memberUid || memberUid === ownerUid) {
+    throw new HttpsError('invalid-argument', "You can't remove yourself this way.");
+  }
+  const db = getAdmin().firestore();
+  const { FieldValue } = require('firebase-admin/firestore');
+  const memberRef = db.doc(`users/${memberUid}`);
+
+  // Check ownership and membership together, against current data.
+  await db.runTransaction(async (tx) => {
+    await requireOrgOwnerTx(tx, db, orgId, ownerUid);
+    const member = await tx.get(memberRef);
+    if (!member.exists || member.data().orgId !== orgId) {
+      throw new HttpsError('not-found', 'That person is not a member of this organization.');
+    }
+  });
+
+  // One simple query for the facility's residents, filtered here — combining
+  // facilityId with another filter could need a composite index in
+  // production (the emulator wouldn't catch that).
+  const residents = await db.collection('residents').where('facilityId', '==', orgId).get();
+  const touched = residents.docs.filter((snap) => {
+    const r = snap.data();
+    return (
+      (r.assignedCaregivers ?? []).includes(memberUid) ||
+      r.createdBy === memberUid ||
+      r.caregiverId === memberUid
+    );
+  });
+
+  const writer = trackedBulkWriter(db, 'removeOrgMember');
+  for (const snap of touched) {
+    const data = snap.data();
+    const update = { assignedCaregivers: FieldValue.arrayRemove(memberUid) };
+    if (data.createdBy === memberUid) update.createdBy = ownerUid;
+    if (data.caregiverId === memberUid) update.caregiverId = ownerUid;
+    writer.update(snap.ref, update);
+  }
+  await writer.finish();
+
+  // Last: clear their organization link.
+  await memberRef.update({ orgId: FieldValue.delete() });
+  return { ok: true, residentsUpdated: touched.length };
 });
 
 // Hands the organization to another member: they become its owner

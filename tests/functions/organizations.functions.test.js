@@ -349,3 +349,68 @@ describe('deleting an organization safely (concurrency)', () => {
     expect((await adminDb.doc(`organizations/${orgId}`).get()).data().createdBy).toBe(owner);
   });
 });
+
+describe('removeOrgMember (Manage Users)', () => {
+  it('removes a member: org link cleared, unassigned, their residents handed to the admin', async () => {
+    const ownerUid = await newUser({ role: 'Administrator' });
+    const { orgId } = (await call('createOrganization', { name: 'Birchwood' })).data;
+    const owner = auth.currentUser;
+    const member = adminDb.collection('users').doc();
+    await member.set({ role: 'Caregiver', orgId, fullName: 'Casey' });
+    await adminDb.doc('residents/theirs').set({
+      name: 'Ann',
+      facilityId: orgId,
+      createdBy: member.id,
+      caregiverId: member.id,
+      assignedCaregivers: [member.id],
+    });
+    await adminDb.doc('residents/shared').set({
+      name: 'Bo',
+      facilityId: orgId,
+      createdBy: ownerUid,
+      caregiverId: ownerUid,
+      assignedCaregivers: [ownerUid, member.id],
+    });
+
+    const listed = (await call('listOrgMembers', { orgId })).data.members;
+    expect(listed).toEqual([
+      { uid: member.id, name: 'Casey', role: 'Caregiver', assignedResidents: 2 },
+    ]);
+
+    await auth.updateCurrentUser(owner);
+    expect(await outcome(call('removeOrgMember', { orgId, memberUid: member.id }))).toBe('ok');
+
+    expect((await member.get()).data().orgId).toBeUndefined();
+    const theirs = (await adminDb.doc('residents/theirs').get()).data();
+    expect(theirs).toMatchObject({
+      createdBy: ownerUid,
+      caregiverId: ownerUid,
+      assignedCaregivers: [],
+    });
+    expect((await adminDb.doc('residents/shared').get()).data().assignedCaregivers).toEqual([
+      ownerUid,
+    ]);
+  });
+
+  it('only the owner can remove, and not themselves or non-members', async () => {
+    await newUser({ role: 'Administrator' });
+    const { orgId } = (await call('createOrganization', { name: 'Hazel' })).data;
+    const owner = auth.currentUser;
+    const outsider = adminDb.collection('users').doc();
+    await outsider.set({ role: 'Caregiver', orgId: 'elsewhere' });
+    expect(await outcome(call('removeOrgMember', { orgId, memberUid: owner.uid }))).toBe(
+      'functions/invalid-argument'
+    );
+    expect(await outcome(call('removeOrgMember', { orgId, memberUid: outsider.id }))).toBe(
+      'functions/not-found'
+    );
+
+    // A regular member (signed in now) can't remove another member.
+    const colleague = adminDb.collection('users').doc();
+    await colleague.set({ role: 'Caregiver', orgId });
+    await newUser({ role: 'Caregiver', orgId });
+    expect(await outcome(call('removeOrgMember', { orgId, memberUid: colleague.id }))).toBe(
+      'functions/permission-denied'
+    );
+  });
+});

@@ -669,6 +669,23 @@ describe('organization being deleted (security fix)', () => {
   });
 });
 
+describe('leaving an organization (security fix)', () => {
+  // Only the server may clear someone's organization link (Manage Users →
+  // Remove, or deleting the org) — otherwise a member could leave on their
+  // own, keep access to residents they created, and join another facility.
+  it('a user cannot clear their own orgId', async () => {
+    await assertFails(
+      updateDoc(doc(as('caregiverA'), 'users', 'caregiverA'), { orgId: deleteField() })
+    );
+  });
+
+  it('other profile edits still work', async () => {
+    await assertSucceeds(
+      updateDoc(doc(as('caregiverA'), 'users', 'caregiverA'), { fullName: 'C. A.' })
+    );
+  });
+});
+
 describe('other facility', () => {
   it('cannot read a resident from another facility', async () => {
     await assertFails(getDoc(doc(as('caregiverB'), 'residents', 'residentA')));
