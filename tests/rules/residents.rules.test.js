@@ -313,8 +313,63 @@ describe('music library add (MusicLibraryScreen)', () => {
     await assertFails(byVideo('orgB'));
   });
 
+  // Security fix: an entry's facilityId and videoId can never change, so a
+  // facility entry can't be pushed into the curated "global" list (or
+  // another org) by editing it; only the form's editable fields may change.
+  it('editing may change title/artist/genres/decade', async () => {
+    const db = as('caregiverA');
+    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'e1'), entry('Crazy')));
+    await assertSucceeds(
+      updateDoc(doc(db, 'musicLibrary', 'e1'), { title: 'Crazy (Live)', decade: '1950s' })
+    );
+  });
+
+  it('cannot move an entry into the global library or another org', async () => {
+    const db = as('caregiverA');
+    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'e2'), entry('Crazy')));
+    await assertFails(updateDoc(doc(db, 'musicLibrary', 'e2'), { facilityId: 'global' }));
+    await assertFails(updateDoc(doc(db, 'musicLibrary', 'e2'), { facilityId: 'orgB' }));
+  });
+
+  it('cannot turn an entry into a different video or add unknown fields', async () => {
+    const db = as('caregiverA');
+    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'e3'), entry('Crazy')));
+    await assertFails(updateDoc(doc(db, 'musicLibrary', 'e3'), { videoId: 'other' }));
+    await assertFails(updateDoc(doc(db, 'musicLibrary', 'e3'), { featured: true }));
+  });
+
   it('volunteers still cannot add to the library', async () => {
     await assertFails(setDoc(doc(as('volunteerA'), 'musicLibrary', 'm3'), entry('Crazy')));
+  });
+});
+
+describe('resident creation schema (security fix)', () => {
+  // The whole new resident is validated: createdBy must be the creator,
+  // assignedCaregivers must be exactly [creator], and no unknown fields.
+  const base = {
+    name: 'New',
+    caregiverId: 'caregiverA',
+    createdBy: 'caregiverA',
+    facilityId: 'orgA',
+    assignedCaregivers: ['caregiverA'],
+  };
+  const create = (data) => setDoc(doc(as('caregiverA'), 'residents', 'schema1'), data);
+
+  it('the normal AddResident shape is allowed', async () => {
+    await assertSucceeds(create({ ...base, lifeStory: null, musicProvider: 'youtube' }));
+  });
+
+  it('cannot forge who created it', async () => {
+    await assertFails(create({ ...base, createdBy: 'caregiverB' }));
+  });
+
+  it('cannot pre-assign other people', async () => {
+    await assertFails(create({ ...base, assignedCaregivers: ['caregiverA', 'caregiverB'] }));
+    await assertFails(create({ ...base, assignedCaregivers: [] }));
+  });
+
+  it('cannot add fields the app never writes', async () => {
+    await assertFails(create({ ...base, isAdminApproved: true }));
   });
 });
 

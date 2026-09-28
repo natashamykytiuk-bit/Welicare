@@ -189,6 +189,31 @@ exports.searchYouTube = onCall({ secrets: [youtubeApiKey] }, async (request) => 
 
 // Lazily initialised so the existing functions (which never touch the Admin
 // SDK) don't pay for it on cold start.
+// How recently someone must have entered their password for a destructive
+// action (delete account, delete organization, transfer administrator).
+const RECENT_LOGIN_SECONDS = 5 * 60;
+
+// Refuses unless the caller actually signed in (typed their password) in
+// the last RECENT_LOGIN_SECONDS. auth_time is set by Firebase Auth inside
+// the signed ID token — it's the time of the last real sign-in or
+// re-authentication, not of the last token refresh, and the app can't
+// change it. So a device that's merely still signed in can't skip the
+// password step by calling these functions directly; the app's password
+// prompts (reauthenticateWithCredential) are what refresh it.
+// The error code "failed-precondition" + details.reason lets the app tell
+// this apart and ask for the password again.
+function requireRecentLogin(request) {
+  const authTime = request.auth?.token?.auth_time;
+  const ageSeconds = Math.floor(Date.now() / 1000) - (authTime ?? 0);
+  if (!authTime || ageSeconds > RECENT_LOGIN_SECONDS) {
+    throw new HttpsError(
+      'failed-precondition',
+      'For your security, please enter your password again and retry.',
+      { reason: 'requires-recent-login' }
+    );
+  }
+}
+
 let adminApp = null;
 function getAdmin() {
   const admin = require('firebase-admin');
@@ -232,6 +257,7 @@ exports.deleteAccount = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
   }
+  requireRecentLogin(request);
   const uid = request.auth.uid;
   const admin = getAdmin();
   const db = admin.firestore();
@@ -364,6 +390,7 @@ exports.transferOrgAdmin = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
   }
+  requireRecentLogin(request);
   const db = getAdmin().firestore();
   const { orgId, newAdminUid } = request.data ?? {};
   await requireOrgOwner(db, orgId, request.auth.uid);
@@ -402,6 +429,7 @@ exports.deleteOrganization = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
   }
+  requireRecentLogin(request);
   const orgId = request.data?.orgId;
   const admin = getAdmin();
   const db = admin.firestore();

@@ -117,10 +117,21 @@ service cloud.firestore {
       // to be the caregiverId being written.
       // It also has to land in the creator's own organization (or none) —
       // otherwise anyone could plant residents in another facility.
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.caregiverId && (
-        request.resource.data.get('facilityId', null) == null ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == request.resource.data.facilityId
-      );
+      //
+      // The whole new document is validated, not just caregiverId: only the
+      // fields AddResidentScreen writes are allowed, createdBy must also be
+      // the creator, and assignedCaregivers must be exactly [creator] — so
+      // nobody can pre-assign other people (which would grant them access
+      // through the assignment rules) or forge who created it.
+      allow create: if request.auth != null &&
+        request.resource.data.keys().hasOnly(['name', 'caregiverId', 'createdBy', 'facilityId', 'assignedCaregivers', 'createdAt', 'lifeStory', 'musicProvider']) &&
+        request.resource.data.caregiverId == request.auth.uid &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.assignedCaregivers == [request.auth.uid] &&
+        (
+          request.resource.data.get('facilityId', null) == null ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == request.resource.data.facilityId
+        );
 
       allow update: if request.auth != null && (
         // The creator or an already-assigned caregiver may edit the
@@ -266,7 +277,22 @@ service cloud.firestore {
         request.resource.data.facilityId != 'global' &&
         request.resource.data.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId;
 
-      allow update, delete: if request.auth != null &&
+      // Update checks the entry as it is now AND as it will be: facilityId
+      // and videoId can never change (so an entry can't be moved into
+      // "global" or another org, or turned into a different video), and only
+      // the fields the add/edit form writes may change. addedByUid may only
+      // stay as it is or become the caller (a retry of their own add).
+      allow update: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
+        resource.data.facilityId != 'global' &&
+        resource.data.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId &&
+        request.resource.data.facilityId == resource.data.facilityId &&
+        request.resource.data.videoId == resource.data.videoId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'channelTitle', 'artist', 'genres', 'decade', 'thumbnailUrl', 'addedAt', 'addedByUid']) &&
+        (request.resource.data.get('addedByUid', null) == resource.data.get('addedByUid', null) ||
+          request.resource.data.addedByUid == request.auth.uid);
+
+      allow delete: if request.auth != null &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
         resource.data.facilityId != 'global' &&
         resource.data.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId;

@@ -249,6 +249,19 @@ export default function OrganizationalSettingsScreen({ navigation }) {
     }
   }
 
+  // The server only allows transfer/delete within a few minutes of typing
+  // the password (see requireRecentLogin in functions/index.js). If the
+  // unlock was longer ago than that, lock again and show the password
+  // prompt, so the caregiver just re-enters it — nothing was changed.
+  function isStaleLogin(e) {
+    return e?.details?.reason === 'requires-recent-login';
+  }
+  function askForPasswordAgain() {
+    stopEditing();
+    setUnlockError('For your security, please enter your password again and retry.');
+    setShowUnlock(true);
+  }
+
   async function handleTransfer() {
     setTransferError('');
     setTransferring(true);
@@ -261,6 +274,10 @@ export default function OrganizationalSettingsScreen({ navigation }) {
       setTransferTo(null);
     } catch (e) {
       console.error('Transfer admin error:', e.code, e.message, e);
+      if (isStaleLogin(e)) {
+        askForPasswordAgain();
+        return;
+      }
       setTransferError(
         'Something went wrong and the administrator was not changed. Please try again.'
       );
@@ -279,6 +296,11 @@ export default function OrganizationalSettingsScreen({ navigation }) {
       navigation.reset({ index: 0, routes: [{ name: 'JoinCreateOrganization' }] });
     } catch (e) {
       console.error('Org delete error:', e.code, e.message, e);
+      if (isStaleLogin(e)) {
+        setDeleting(false);
+        askForPasswordAgain();
+        return;
+      }
       setDeleteError(
         'Something went wrong and the organization was not deleted. Please try again.'
       );

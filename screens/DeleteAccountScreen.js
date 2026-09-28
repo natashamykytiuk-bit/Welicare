@@ -51,6 +51,11 @@ export default function DeleteAccountScreen({ navigation }) {
       console.log('Delete account error:', e);
       if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
         setError('That password is incorrect.');
+      } else if (e.details?.reason === 'requires-recent-login') {
+        // The server wants a fresh password entry (it checks how recently
+        // the password was typed). Rare here, since we just re-authenticated
+        // above, but possible if the device clock or network lagged.
+        setError('For your security, please enter your password again and retry.');
       } else if (e.code === 'functions/failed-precondition') {
         // deleteAccount refuses when this is the organization's only
         // administrator — nothing was deleted, so point them to the fix.

@@ -186,3 +186,64 @@ describe('upgradePersonalOrganization', () => {
     expect(await count('inviteCodes')).toBe(codesBefore);
   });
 });
+
+describe('recent sign-in required for destructive actions', () => {
+  // The server refuses delete account / delete organization / transfer
+  // administrator unless the caller typed their password in the last few
+  // minutes (auth_time in the ID token). To simulate "signed in an hour
+  // ago", this builds a token by hand. The emulator accepts unsigned tokens
+  // (alg "none"); production Firebase never does.
+  const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+  function staleToken(uid) {
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      iss: `https://securetoken.google.com/${PROJECT}`,
+      aud: PROJECT,
+      sub: uid,
+      user_id: uid,
+      auth_time: now - 60 * 60, // an hour ago
+      iat: now,
+      exp: now + 3600,
+      firebase: { sign_in_provider: 'password', identities: {} },
+    };
+    return `${b64({ alg: 'none', typ: 'JWT' })}.${b64(payload)}.`;
+  }
+  async function callWithToken(name, token, data) {
+    const res = await fetch(`http://127.0.0.1:5001/${PROJECT}/us-central1/${name}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ data }),
+    });
+    return res.json();
+  }
+
+  it('refuses to delete an organization with an old sign-in, and deletes nothing', async () => {
+    const uid = await newUser({ role: 'Administrator' });
+    const { orgId } = (await call('createOrganization', { name: 'Willow' })).data;
+
+    const reply = await callWithToken('deleteOrganization', staleToken(uid), { orgId });
+
+    expect(reply.error?.status).toBe('FAILED_PRECONDITION');
+    expect(reply.error?.details?.reason).toBe('requires-recent-login');
+    expect((await adminDb.doc(`organizations/${orgId}`).get()).exists).toBe(true);
+  });
+
+  it('refuses account deletion and admin transfer with an old sign-in', async () => {
+    const uid = await newUser({ role: 'Caregiver' });
+    const del = await callWithToken('deleteAccount', staleToken(uid), {});
+    const transfer = await callWithToken('transferOrgAdmin', staleToken(uid), {
+      orgId: 'x',
+      newAdminUid: 'y',
+    });
+    expect(del.error?.details?.reason).toBe('requires-recent-login');
+    expect(transfer.error?.details?.reason).toBe('requires-recent-login');
+    expect((await adminDb.doc(`users/${uid}`).get()).exists).toBe(true);
+  });
+
+  it('allows it right after signing in', async () => {
+    await newUser({ role: 'Administrator' }); // just signed in → fresh auth_time
+    const { orgId } = (await call('createOrganization', { name: 'Aspen' })).data;
+    expect(await outcome(call('deleteOrganization', { orgId }))).toBe('ok');
+    expect((await adminDb.doc(`organizations/${orgId}`).get()).exists).toBe(false);
+  });
+});

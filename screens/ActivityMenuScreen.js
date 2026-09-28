@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { doc, getDoc } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import BackButton from '../components/BackButton';
 import { useResidentLock } from '../contexts/ResidentLockContext';
@@ -93,6 +93,50 @@ export default function ActivityMenuScreen({ navigation, route }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // While locked, block EVERY way of leaving this screen — the header back
+  // button (already hidden), the iOS swipe-back gesture, Android's hardware
+  // back button, and any navigate() that would pop it — not just the ones
+  // with a visible button. React Navigation fires 'beforeRemove' for all of
+  // them, so one listener covers every route out. The departure only goes
+  // ahead after the PIN is entered.
+  //
+  // approvedExitRef lets a navigation through when the PIN was *just*
+  // entered for it (Home, Settings, or this listener's own retry), so the
+  // caregiver isn't asked twice.
+  const approvedExitRef = useRef(false);
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (!locked || approvedExitRef.current) return;
+      e.preventDefault();
+      requestPin(() => {
+        approvedExitRef.current = true;
+        navigation.dispatch(e.data.action);
+      });
+    });
+    return unsubscribe;
+  }, [navigation, locked, requestPin]);
+
+  // An approval only covers the navigation it was given for. Screens opened
+  // on top (Settings, Complete Profile) don't remove this one, so their
+  // approval would otherwise linger — clear it whenever we're back in view.
+  useEffect(
+    () =>
+      navigation.addListener('focus', () => {
+        approvedExitRef.current = false;
+      }),
+    [navigation]
+  );
+
+  // Wraps an action that needs the PIN while locked; marks the resulting
+  // navigation as approved (see approvedExitRef).
+  function withPinIfLocked(action) {
+    if (!locked) return action();
+    requestPin(() => {
+      approvedExitRef.current = true;
+      action();
+    });
+  }
+
   function goHome() {
     // animation: 'slide_from_left' makes this read as a back transition
     // rather than a forward push — see App.js's dynamic animation option on
@@ -154,7 +198,7 @@ export default function ActivityMenuScreen({ navigation, route }) {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={() => (locked ? requestPin(openSettings) : openSettings())}
+              onPress={() => withPinIfLocked(openSettings)}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Edit resident info"
@@ -163,7 +207,7 @@ export default function ActivityMenuScreen({ navigation, route }) {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={() => (locked ? requestPin(goHome) : goHome())}
+              onPress={() => withPinIfLocked(goHome)}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Return to Mode Selection"
@@ -197,9 +241,14 @@ export default function ActivityMenuScreen({ navigation, route }) {
               <Text style={styles.bannerSubtext}>
                 Complete their profile for tailored activity ideas, conversation starters, and more.
               </Text>
+              {/* Editing the profile is a staff action, so it needs the PIN
+                  while locked — otherwise this banner was a way around the
+                  lock. */}
               <TouchableOpacity
                 onPress={() =>
-                  navigation.navigate('BuildProfile', { residentId, returnTo: 'ActivityMenu' })
+                  withPinIfLocked(() =>
+                    navigation.navigate('BuildProfile', { residentId, returnTo: 'ActivityMenu' })
+                  )
                 }
                 accessibilityRole="button"
                 accessibilityLabel="Complete Profile"
