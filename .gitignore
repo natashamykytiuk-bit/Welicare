@@ -48,3 +48,7 @@ yarn-error.*
 .claude/
 CLAUDE.md
 AGENTS.md
+
+# Local AI-assistant files (third-party skills, draft outputs) — not part of the app
+.agents/
+Claude outputs/
