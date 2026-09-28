@@ -7,6 +7,8 @@
 // Used by App.js (initial route on sign-in / app start) and PINSetupScreen
 // (the step after the PIN is saved), so the two can't drift apart.
 //
+//   no profile doc   → FinishSignUp (sign-up stopped after the Auth account
+//                      was created — see SignUpScreen's finish-setup mode)
 //   no pinHash       → PINSetup
 //   no orgId         → JoinCreateOrganization
 //   otherwise        → ModeSelection
@@ -18,10 +20,14 @@
 /**
  * @param {Partial<import('../types/models').User> | null | undefined} userData
  *   The signed-in user's users/{uid} doc (undefined if it doesn't exist yet).
- * @returns {'PINSetup' | 'JoinCreateOrganization' | 'ModeSelection'}
+ * @returns {'FinishSignUp' | 'PINSetup' | 'JoinCreateOrganization' | 'ModeSelection'}
  */
 export function nextOnboardingRoute(userData) {
-  const data = userData ?? {};
+  // No profile at all: without one there's no role, and firestore.rules
+  // won't let PIN setup create a profile without a role — so the person
+  // would be stuck. Send them to finish signing up instead.
+  if (!userData) return 'FinishSignUp';
+  const data = userData;
   if (!data.pinHash) return 'PINSetup';
   const needsOrg =
     data.role === 'Administrator' ? !data.orgId : !data.orgId && !data.orgStepSkipped;

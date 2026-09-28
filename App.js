@@ -147,6 +147,13 @@ export default function App() {
               {/* Onboarding — reached whenever the saved account state says a
                 step is still missing (see utils/onboarding.js), not only
                 right after sign-up */}
+              {/* Same component as SignUp, in "finish setting up" mode — for a
+                signed-in account whose profile was never written. */}
+              <Stack.Screen
+                name="FinishSignUp"
+                component={SignUpScreen}
+                initialParams={{ finishSetup: true }}
+              />
               <Stack.Screen name="PINSetup" component={PINSetupScreen} />
               <Stack.Screen
                 name="JoinCreateOrganization"

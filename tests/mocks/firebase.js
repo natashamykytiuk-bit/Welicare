@@ -69,6 +69,7 @@ const authModule = {
   signOut: jest.fn(async () => {}),
   signInWithEmailAndPassword: jest.fn(),
   createUserWithEmailAndPassword: jest.fn(),
+  deleteUser: jest.fn(),
   sendEmailVerification: jest.fn(),
   sendPasswordResetEmail: jest.fn(),
   reauthenticateWithCredential: jest.fn(),

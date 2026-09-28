@@ -37,7 +37,7 @@ describe('formatOrgCode', () => {
 describe('nextOnboardingRoute', () => {
   // it.each runs the same test once per row — handy for tables of cases.
   it.each([
-    ['no user doc yet', undefined, 'PINSetup'],
+    ['no user doc yet (sign-up stopped partway)', undefined, 'FinishSignUp'],
     ['no PIN', { role: 'Caregiver' }, 'PINSetup'],
     ['PIN but no org', { role: 'Caregiver', pinHash: 'h' }, 'JoinCreateOrganization'],
     [

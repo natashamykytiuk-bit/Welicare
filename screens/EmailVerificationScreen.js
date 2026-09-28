@@ -10,6 +10,8 @@ import { colors, fonts, radii } from '../theme';
 // Welcome/SignUp/SignIn until the user proves they own the email address.
 export default function EmailVerificationScreen({ route, onVerified }) {
   const email = route?.params?.email ?? 'your email address';
+  const setupIncomplete = route?.params?.setupIncomplete === true;
+  const verificationSendFailed = route?.params?.verificationSendFailed === true;
   const [checking, setChecking] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState('');
@@ -76,6 +78,25 @@ export default function EmailVerificationScreen({ route, onVerified }) {
           We've sent a verification email to <Text style={styles.emailText}>{email}</Text>. Please
           check your inbox and click the link to verify your account.
         </Text>
+
+        {/* Set by SignUpScreen when a later sign-up step failed. Neither
+            fails the sign-up: the Resend button below covers a missing
+            email, and after verifying, App.js sends someone with no
+            profile to "finish setting up". */}
+        {verificationSendFailed && !resendSent ? (
+          <Text style={styles.errorBanner} accessibilityRole="alert">
+            {
+              'We couldn’t send the verification email just now. Tap “Resend verification email” below to try again.'
+            }
+          </Text>
+        ) : null}
+        {setupIncomplete ? (
+          <Text style={styles.successBanner}>
+            {
+              'Your account is created, but a few of your details didn’t save. After you verify your email, we’ll ask for them again to finish setting up.'
+            }
+          </Text>
+        ) : null}
 
         {error ? (
           <Text style={styles.errorBanner} accessibilityRole="alert">

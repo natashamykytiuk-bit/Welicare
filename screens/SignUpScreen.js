@@ -1,6 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { createUserWithEmailAndPassword, deleteUser, sendEmailVerification } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import {
+  createUserWithEmailAndPassword,
+  deleteUser,
+  sendEmailVerification,
+  signOut,
+} from 'firebase/auth';
+import { deleteDoc, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -18,6 +23,7 @@ import PasswordField from '../components/PasswordField';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { createPersonalOrganization } from '../utils/inviteCode';
+import { nextOnboardingRoute } from '../utils/onboarding';
 import { useIsTablet } from '../utils/responsive';
 import { normalizeUsername } from '../utils/username';
 import { getPasswordRules, isPasswordValid, isValidUsername } from '../utils/validation';
@@ -107,8 +113,19 @@ function RoleCard({ role, selected, onPress }) {
   );
 }
 
-export default function SignUpScreen({ navigation }) {
+// Two modes, one form:
+// - Sign-up (the "SignUp" route, signed out): the full form.
+// - Finish setting up (the "FinishSignUp" route, signed in): shown by
+//   App.js when someone is signed in and verified but has no users/{uid}
+//   profile — i.e. an earlier sign-up stopped after creating the Auth
+//   account. Same fields minus email/password (they already have those),
+//   so they can complete the account instead of being stuck with "email
+//   already in use".
+export default function SignUpScreen({ navigation, route }) {
+  const finishSetup = route?.params?.finishSetup === true;
   const isTablet = useIsTablet();
+  // Set when sign-up hits auth/email-already-in-use, to show a sign-in link.
+  const [emailInUse, setEmailInUse] = useState(false);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -127,78 +144,152 @@ export default function SignUpScreen({ navigation }) {
   const confirmError =
     confirmPassword.length > 0 && password !== confirmPassword ? 'Passwords do not match.' : '';
 
-  async function handleSignUp() {
-    setError('');
-    if (!fullName || !email || !username || !password || !confirmPassword || !country || !role) {
-      setError('Please fill in all fields.');
-      return;
+  // Writes the parts of an account that live in Firestore: the users/{uid}
+  // profile (with the role), the username claim, and — for Family
+  // Caregivers — their personal organization. Shared by a fresh sign-up
+  // and by "finish setting up" (see finishSetup above), which is how an
+  // account whose profile never got written can be completed later.
+  // Throws { usernameTaken: true } if the username was claimed in the
+  // meantime; any other error is a plain Firestore error.
+  async function writeProfile(user, emailAddress) {
+    const usernameKey = normalizeUsername(username);
+    // setDoc without merge on a doc that doesn't exist is a *create*, and
+    // firestore.rules only allow the role to be set on create — so this can
+    // never change the role of an existing profile.
+    await setDoc(doc(db, 'users', user.uid), {
+      uid: user.uid,
+      email: emailAddress,
+      fullName,
+      username,
+      country,
+      role,
+      createdAt: serverTimestamp(),
+    });
+
+    try {
+      // Also create-only in the rules, which is what catches the race where
+      // someone else claimed the same username between the availability
+      // check and this write.
+      await setDoc(doc(db, 'usernames', usernameKey), { uid: user.uid, email: emailAddress });
+    } catch (claimError) {
+      console.log('Username claim error:', claimError);
+      // Undo the profile so the account is back in the "no profile yet"
+      // state and can be finished (or retried) with another username.
+      await deleteDoc(doc(db, 'users', user.uid)).catch((e) =>
+        console.error('[SignUp] could not undo profile after username clash:', e)
+      );
+      throw { usernameTaken: true };
+    }
+
+    // Family Caregivers aren't part of a care facility, but still need
+    // an orgId for org-scoped features (e.g. Music) to work the same
+    // way for them as everyone else — see createPersonalOrganization.
+    // This is what lets them skip JoinCreateOrganizationScreen entirely
+    // (nextOnboardingRoute treats a set orgId as "done"). Best-effort: a
+    // failure here shouldn't block the account — they'd just fall back to
+    // the join/create/skip step.
+    if (role === 'Family Caregiver') {
+      try {
+        await createPersonalOrganization();
+      } catch (orgError) {
+        console.error('Personal organization creation failed:', orgError);
+      }
+    }
+  }
+
+  function validate({ needsCredentials }) {
+    if (!fullName || !username || !country || !role) return 'Please fill in all fields.';
+    if (needsCredentials && (!email || !password || !confirmPassword)) {
+      return 'Please fill in all fields.';
     }
     if (!isValidUsername(username)) {
-      setError('Username can only contain letters, numbers, periods, and underscores.');
-      return;
+      return 'Username can only contain letters, numbers, periods, and underscores.';
     }
-    if (!isPasswordValid(password)) {
-      setError('Password does not meet the requirements below.');
-      return;
+    if (needsCredentials && !isPasswordValid(password)) {
+      return 'Password does not meet the requirements below.';
     }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+    if (needsCredentials && password !== confirmPassword) return 'Passwords do not match.';
+    return '';
+  }
+
+  async function usernameIsFree() {
+    const snap = await getDoc(doc(db, 'usernames', normalizeUsername(username)));
+    return !snap.exists();
+  }
+
+  // A brand-new sign-up. Order: Auth account → profile → verification email.
+  // Only creating the Auth account can "fail the sign-up"; once it exists,
+  // a later failure never strands the person — see the comments below.
+  async function handleSignUp() {
+    setError('');
+    setEmailInUse(false);
+    const invalid = validate({ needsCredentials: true });
+    if (invalid) {
+      setError(invalid);
       return;
     }
     setLoading(true);
     try {
-      const usernameKey = normalizeUsername(username);
-      const usernameSnap = await getDoc(doc(db, 'usernames', usernameKey));
-      if (usernameSnap.exists()) {
+      if (!(await usernameIsFree())) {
         setError('This username is already taken.');
         return;
       }
 
-      const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      await setDoc(doc(db, 'users', credential.user.uid), {
-        uid: credential.user.uid,
-        email: email.trim(),
-        fullName,
-        username,
-        country,
-        role,
-        createdAt: serverTimestamp(),
-      });
-
+      let credential;
       try {
-        // No merge: an unmerged setDoc is only permitted by firestore.rules
-        // as a `create`, which only succeeds while no document exists at
-        // this path yet — so this is also what catches the race where
-        // someone else claimed the same username in between the
-        // availability check above and this write.
-        await setDoc(doc(db, 'usernames', usernameKey), {
-          uid: credential.user.uid,
-          email: email.trim(),
-        });
-      } catch (claimError) {
-        console.log('Username claim error:', claimError);
-        await deleteUser(credential.user);
-        setError('This username was just taken — please choose another and try again.');
-        return;
-      }
-
-      // Family Caregivers aren't part of a care facility, but still need
-      // an orgId for org-scoped features (e.g. Music) to work the same
-      // way for them as everyone else — see createPersonalOrganization.
-      // This is what lets them skip JoinCreateOrganizationScreen entirely
-      // (App.js's needsOrg check already treats a set orgId as "done").
-      // Best-effort: a failure here shouldn't block account creation —
-      // they'd just fall back to the existing skip-this-step flow.
-      if (role === 'Family Caregiver') {
-        try {
-          await createPersonalOrganization();
-        } catch (orgError) {
-          console.error('Personal organization creation failed:', orgError);
+        credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      } catch (e) {
+        if (e.code === 'auth/email-already-in-use') {
+          // Usually someone whose earlier sign-up stopped partway. Signing
+          // in picks up where they left off (App.js routes an account with
+          // no profile to FinishSignUp).
+          setEmailInUse(true);
+          setError('It looks like you started signing up before — sign in to finish setting up.');
+          return;
         }
+        throw e;
       }
 
-      await sendEmailVerification(credential.user);
-      navigation.navigate('EmailVerification', { email: email.trim() });
+      let setupIncomplete = false;
+      try {
+        await writeProfile(credential.user, email.trim());
+      } catch (e) {
+        if (e?.usernameTaken) {
+          // Nothing else was saved for this account yet, so remove the Auth
+          // account too and let them simply try again with another name.
+          await deleteUser(credential.user).catch((err) =>
+            console.error('[SignUp] could not remove account after username clash:', err)
+          );
+          setError('This username was just taken — please choose another and try again.');
+          return;
+        }
+        // The Auth account exists but the profile didn't save. Don't fail
+        // the sign-up: carry on to verification, and after verifying App.js
+        // sends them to FinishSignUp to enter these details again.
+        console.error(
+          '[SignUp] profile write failed; will finish after sign-in:',
+          e.code,
+          e.message,
+          e
+        );
+        setupIncomplete = true;
+      }
+
+      // A failed verification email must not fail the sign-up either — the
+      // verification screen has a "Resend verification email" button.
+      let verificationSendFailed = false;
+      try {
+        await sendEmailVerification(credential.user);
+      } catch (e) {
+        console.error('[SignUp] verification email failed to send:', e.code, e.message, e);
+        verificationSendFailed = true;
+      }
+
+      navigation.navigate('EmailVerification', {
+        email: email.trim(),
+        setupIncomplete,
+        verificationSendFailed,
+      });
     } catch (e) {
       console.log('Sign up error:', e);
       setError(getAuthErrorMessage(e.code));
@@ -207,28 +298,95 @@ export default function SignUpScreen({ navigation }) {
     }
   }
 
+  // "Finish setting up" — for a signed-in, verified account that has no
+  // profile yet (its original sign-up stopped after the Auth account was
+  // made). Only ever creates a missing profile: if one exists by now, it
+  // moves on without touching it, so an existing role can't be changed.
+  async function handleFinishSetup() {
+    setError('');
+    const invalid = validate({ needsCredentials: false });
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    const user = auth.currentUser;
+    if (!user) return;
+    setLoading(true);
+    try {
+      const existing = await getDoc(doc(db, 'users', user.uid));
+      if (existing.exists()) {
+        navigation.reset({ index: 0, routes: [{ name: nextOnboardingRoute(existing.data()) }] });
+        return;
+      }
+      if (!(await usernameIsFree())) {
+        setError('This username is already taken.');
+        return;
+      }
+      await writeProfile(user, user.email ?? '');
+      const saved = await getDoc(doc(db, 'users', user.uid));
+      navigation.reset({ index: 0, routes: [{ name: nextOnboardingRoute(saved.data()) }] });
+    } catch (e) {
+      if (e?.usernameTaken) {
+        setError('This username was just taken — please choose another and try again.');
+      } else {
+        console.error('[SignUp] finish setup failed:', e.code, e.message, e);
+        setError(
+          "We couldn't save your details just now. Please check your connection and try again."
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const form = (
     <>
-      <BackButton navigation={navigation} />
+      {/* Finish-setup mode is the first screen after sign-in, so there's
+          nothing to go back to — it offers Sign out instead (at the end). */}
+      {!finishSetup ? (
+        <>
+          <BackButton navigation={navigation} />
 
-      <TouchableOpacity
-        style={styles.switchLinkTop}
-        onPress={() => navigation.navigate('SignIn')}
-        accessibilityRole="link"
-      >
-        <Text style={styles.switchLinkText}>
-          Already have one? <Text style={styles.switchLinkBold}>Sign in instead</Text>
-        </Text>
-      </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.switchLinkTop}
+            onPress={() => navigation.navigate('SignIn')}
+            accessibilityRole="link"
+          >
+            <Text style={styles.switchLinkText}>
+              Already have one? <Text style={styles.switchLinkBold}>Sign in instead</Text>
+            </Text>
+          </TouchableOpacity>
+        </>
+      ) : null}
 
-      <Text style={styles.stepIndicator}>STEP 1 OF 3 — CREATE ACCOUNT</Text>
-      <Text style={styles.heading}>Create Account</Text>
-      <Text style={styles.subheading}>Join Welicare today</Text>
+      <Text style={styles.stepIndicator}>
+        {finishSetup ? 'STEP 1 OF 3 — FINISH SETTING UP' : 'STEP 1 OF 3 — CREATE ACCOUNT'}
+      </Text>
+      <Text style={styles.heading}>
+        {finishSetup ? 'Finish setting up your account' : 'Create Account'}
+      </Text>
+      <Text style={styles.subheading}>
+        {finishSetup
+          ? 'Your sign-in is ready — we just need a few details to finish.'
+          : 'Join Welicare today'}
+      </Text>
 
       {error ? (
         <Text style={styles.errorBanner} accessibilityRole="alert">
           {error}
         </Text>
+      ) : null}
+      {emailInUse ? (
+        <TouchableOpacity
+          style={styles.switchLinkTop}
+          onPress={() => navigation.navigate('SignIn')}
+          accessibilityRole="link"
+          accessibilityLabel="Sign in to finish setting up"
+        >
+          <Text style={styles.switchLinkText}>
+            <Text style={styles.switchLinkBold}>Sign in to finish setting up →</Text>
+          </Text>
+        </TouchableOpacity>
       ) : null}
 
       <Text style={styles.label}>Full Name</Text>
@@ -242,18 +400,23 @@ export default function SignUpScreen({ navigation }) {
         accessibilityLabel="Full name"
       />
 
-      <Text style={styles.label}>Email Address</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="you@example.com"
-        placeholderTextColor={colors.textMuted}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        autoComplete="email"
-        value={email}
-        onChangeText={setEmail}
-        accessibilityLabel="Email address"
-      />
+      {/* Email and password already exist in finish-setup mode. */}
+      {!finishSetup ? (
+        <>
+          <Text style={styles.label}>Email Address</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="you@example.com"
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoComplete="email"
+            value={email}
+            onChangeText={setEmail}
+            accessibilityLabel="Email address"
+          />
+        </>
+      ) : null}
 
       <Text style={styles.label}>Username</Text>
       <TextInput
@@ -268,31 +431,35 @@ export default function SignUpScreen({ navigation }) {
       />
       {usernameError ? <Text style={styles.fieldError}>{usernameError}</Text> : null}
 
-      <Text style={styles.label}>Password</Text>
-      <PasswordField
-        placeholder="At least 8 characters"
-        autoComplete="password-new"
-        value={password}
-        onChangeText={setPassword}
-        accessibilityLabel="Password"
-      />
-      {password.length > 0 ? (
-        <View style={styles.rulesBox}>
-          {PASSWORD_RULE_LABELS.map(([key, label]) => (
-            <PasswordRule key={key} met={passwordRules[key]} label={label} />
-          ))}
-        </View>
-      ) : null}
+      {!finishSetup ? (
+        <>
+          <Text style={styles.label}>Password</Text>
+          <PasswordField
+            placeholder="At least 8 characters"
+            autoComplete="password-new"
+            value={password}
+            onChangeText={setPassword}
+            accessibilityLabel="Password"
+          />
+          {password.length > 0 ? (
+            <View style={styles.rulesBox}>
+              {PASSWORD_RULE_LABELS.map(([key, label]) => (
+                <PasswordRule key={key} met={passwordRules[key]} label={label} />
+              ))}
+            </View>
+          ) : null}
 
-      <Text style={styles.label}>Confirm Password</Text>
-      <PasswordField
-        placeholder="Repeat your password"
-        autoComplete="password-new"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        accessibilityLabel="Confirm password"
-        error={confirmError}
-      />
+          <Text style={styles.label}>Confirm Password</Text>
+          <PasswordField
+            placeholder="Repeat your password"
+            autoComplete="password-new"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            accessibilityLabel="Confirm password"
+            error={confirmError}
+          />
+        </>
+      ) : null}
 
       <Text style={styles.label}>Country</Text>
       <Dropdown
@@ -318,14 +485,29 @@ export default function SignUpScreen({ navigation }) {
 
       <TouchableOpacity
         style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleSignUp}
+        onPress={finishSetup ? handleFinishSetup : handleSignUp}
         disabled={loading}
         activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityLabel={loading ? 'Creating account…' : 'Continue'}
+        accessibilityLabel={loading ? 'Saving…' : 'Continue'}
       >
-        <Text style={styles.buttonText}>{loading ? 'Creating Account…' : 'Continue →'}</Text>
+        <Text style={styles.buttonText}>
+          {loading ? (finishSetup ? 'Saving…' : 'Creating Account…') : 'Continue →'}
+        </Text>
       </TouchableOpacity>
+
+      {finishSetup ? (
+        <TouchableOpacity
+          style={styles.switchLinkTop}
+          onPress={() => signOut(auth)}
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+        >
+          <Text style={styles.switchLinkText}>
+            Not you? <Text style={styles.switchLinkBold}>Sign out</Text>
+          </Text>
+        </TouchableOpacity>
+      ) : null}
     </>
   );
 
