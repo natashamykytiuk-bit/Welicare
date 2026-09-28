@@ -936,3 +936,18 @@ describe('library entries have one fixed id per video (security fix)', () => {
     await assertFails(getDoc(doc(as('caregiverB'), 'musicLibrary', 'orgA_abc123')));
   });
 });
+
+// Review item "users can grant themselves administrator" — NOT fixed yet;
+// the owner is still deciding how roles should be assigned. This documents
+// the current hole so a fix has a failing test to flip: changing `role` on
+// your own profile is refused, but deleting the whole profile and creating
+// it again with a new role is allowed. When roles become server-managed,
+// change assertSucceeds to assertFails below.
+describe('FLAG: role escalation by recreating your profile (open issue)', () => {
+  it('a Volunteer can delete their profile and recreate it as an Administrator', async () => {
+    const db = as('volunteerA');
+    await assertFails(updateDoc(doc(db, 'users', 'volunteerA'), { role: 'Administrator' }));
+    await assertSucceeds(deleteDoc(doc(db, 'users', 'volunteerA')));
+    await assertSucceeds(setDoc(doc(db, 'users', 'volunteerA'), { role: 'Administrator' }));
+  });
+});

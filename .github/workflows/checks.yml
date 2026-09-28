@@ -1,0 +1,61 @@
+# Runs every check a change must pass before it's done (the same list as the
+# project's working instructions), on every push to master and every pull
+# request. A red X on GitHub means one of these failed; the job log says
+# which.
+#
+# Everything here is local: the rules and functions suites run against the
+# Firebase emulators under the "demo-welicare" project, so CI never touches
+# the live project and needs no secrets.
+name: Checks
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  app:
+    name: Lint, types and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      # Known vulnerabilities in dependencies, reported in the log but not
+      # failing the build: the remaining high findings (postcss, image-size)
+      # are inside Expo 54's bundler (Metro), which only runs on a developer
+      # machine, and can only be fixed by upgrading Expo. Check this step's
+      # output when upgrading dependencies.
+      - run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+
+  emulators:
+    name: Security rules and Cloud Functions tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+      # The Firestore emulator is a Java program.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm ci --prefix functions
+      - run: npm install -g firebase-tools
+      - run: npm run test:rules
+      - run: npm run test:functions
+      # The Cloud Functions do ship, so a high/critical finding here fails.
+      - run: npm audit --omit=dev --audit-level=high --prefix functions
