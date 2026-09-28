@@ -17,14 +17,23 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    // Roles that may see every resident in their facility (and pick one via
+    // "Select from [Organization]" to view it). Family Caregivers are left
+    // out on purpose: a relative who joins a care home's organization must
+    // only see the residents they're linked to, not everyone living there.
+    function seesWholeFacility() {
+      return me().role in ['Caregiver', 'Administrator', 'Volunteer'];
+    }
+
     // True if the signed-in user is linked to this resident directly — its
-    // creator, or on its assignedCaregivers list — or belongs to the same
-    // facility. `r` is the resident doc's data.
+    // creator, or on its assignedCaregivers list — or is facility staff in
+    // the same facility (see seesWholeFacility). `r` is the resident doc's
+    // data.
     function linkedToResident(r) {
       return r.caregiverId == request.auth.uid ||
         r.createdBy == request.auth.uid ||
         (r.assignedCaregivers is list && request.auth.uid in r.assignedCaregivers) ||
-        (r.facilityId != null && me().orgId == r.facilityId);
+        (r.facilityId != null && me().orgId == r.facilityId && seesWholeFacility());
     }
 
     // False while an organization is being deleted (the deleteOrganization
@@ -140,7 +149,8 @@ service cloud.firestore {
         resource.data.createdBy == request.auth.uid ||
         (resource.data.assignedCaregivers is list && request.auth.uid in resource.data.assignedCaregivers) ||
         (resource.data.facilityId != null &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId)
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId &&
+          seesWholeFacility())
       );
 
       // Powers ResidentModeScreen's two queries: where('createdBy','==',uid)
@@ -162,9 +172,11 @@ service cloud.firestore {
       // Powers SelectOrganizationResidentScreen's
       // where('facilityId','==',orgId) query. Kept as its own rule (not
       // OR'd into the one above) so Firestore can validate this query shape
-      // independently of the plain field-match one.
+      // independently of the plain field-match one. Family Caregivers can't
+      // run it (seesWholeFacility) — they only list their own residents.
       allow list: if verified() && resource.data.facilityId != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId;
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId &&
+        seesWholeFacility();
 
       // A new resident must be self-attributed — the creator's own uid has
       // to be the caregiverId being written.
@@ -214,9 +226,13 @@ service cloud.firestore {
         // Self-assignment: a caregiver in the same organization who isn't
         // assigned yet may add themselves to assignedCaregivers and change
         // nothing else — this is what "Select from [Organization]" does.
+        // Only Caregivers and Administrators: being assigned grants profile
+        // editing and life-story access, which Volunteers and Family
+        // Caregivers mustn't be able to hand themselves.
         (
           resource.data.facilityId != null &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignedCaregivers']) &&
           request.resource.data.assignedCaregivers == resource.data.assignedCaregivers.concat([request.auth.uid])
         ) ||

@@ -767,3 +767,72 @@ describe('role restrictions the rules enforce today', () => {
     await assertFails(updateDoc(doc(as('caregiverB'), 'users', 'caregiverB'), { orgId: 'orgA' }));
   });
 });
+
+// Security finding #1: a relative who joined the facility must only see the
+// residents they're linked to, and only staff may use "Select from
+// [Organization]" to add themselves to a resident.
+describe('family members see only linked residents (security fix)', () => {
+  it('a Family Caregiver cannot read an unlinked resident in their facility', async () => {
+    await assertFails(getDoc(doc(as('familyA'), 'residents', 'residentA')));
+  });
+
+  it('a Family Caregiver can still read a resident they are assigned to', async () => {
+    await assertSucceeds(getDoc(doc(as('familyA'), 'residents', 'residentFamily')));
+    const q = query(
+      collection(as('familyA'), 'residents'),
+      where('assignedCaregivers', 'array-contains', 'familyA')
+    );
+    await assertSucceeds(getDocs(q));
+  });
+
+  // Joining a facility only moves the family member's orgId; residents they
+  // created under their personal organization stay there (facilityId is
+  // still the personal org) and remain theirs through createdBy.
+  it('a Family Caregiver keeps residents from their personal organization after joining', async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), 'residents', 'residentPersonal'), {
+        name: 'Mum',
+        caregiverId: 'familyA',
+        createdBy: 'familyA',
+        facilityId: 'personalFamilyA',
+        assignedCaregivers: ['familyA'],
+      })
+    );
+    const db = as('familyA');
+    await assertSucceeds(getDoc(doc(db, 'residents', 'residentPersonal')));
+    await assertSucceeds(
+      getDocs(query(collection(db, 'residents'), where('createdBy', '==', 'familyA')))
+    );
+    await assertSucceeds(
+      updateDoc(doc(db, 'residents', 'residentPersonal'), { preferredName: 'Mum' })
+    );
+  });
+
+  it('a Family Caregiver cannot list the whole facility', async () => {
+    const q = query(collection(as('familyA'), 'residents'), where('facilityId', '==', 'orgA'));
+    await assertFails(getDocs(q));
+  });
+
+  it('a Family Caregiver cannot read an unlinked resident’s life story', async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), 'residents', 'residentA', 'private', 'lifeStory'), {
+        career: 'Nurse',
+      })
+    );
+    await assertFails(getDoc(doc(as('familyA'), 'residents', 'residentA', 'private', 'lifeStory')));
+  });
+
+  const selfAssign = (uid) =>
+    updateDoc(doc(as(uid), 'residents', 'residentA'), {
+      assignedCaregivers: ['caregiverA', uid],
+    });
+
+  it('Family Caregivers and Volunteers cannot add themselves to a resident', async () => {
+    await assertFails(selfAssign('familyA'));
+    await assertFails(selfAssign('volunteerA'));
+  });
+
+  it('Caregivers and Administrators can add themselves to a resident', async () => {
+    await assertSucceeds(selfAssign('adminA'));
+  });
+});
