@@ -8,6 +8,7 @@ import {
 import { deleteDoc, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -521,7 +522,17 @@ export default function SignUpScreen({ navigation, route }) {
       <View style={[styles.splitContainer, !isTablet && styles.splitContainerPhone]}>
         {isTablet ? (
           <View style={styles.brandPanel}>
-            <Text style={styles.logo}>Welicare</Text>
+            {/* The logo is dark green, the same as this panel, so it sits on
+                a light plate to stay readable. */}
+            <View style={styles.logoPlate}>
+              <Image
+                source={require('../assets/welicare-logo.png')}
+                style={styles.logo}
+                resizeMode="contain"
+                accessibilityRole="image"
+                accessibilityLabel="Welicare"
+              />
+            </View>
             <Text style={styles.tagline}>Bringing joy to every day</Text>
           </View>
         ) : null}
@@ -548,12 +559,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 32,
   },
-  logo: {
-    fontFamily: fonts.serifBold,
-    fontSize: 20,
-    color: colors.white,
-    marginBottom: 8,
+  logoPlate: {
+    backgroundColor: colors.background,
+    borderRadius: radii.lg,
+    paddingVertical: 20,
+    paddingHorizontal: 28,
+    marginBottom: 20,
   },
+  // 773×248 image, kept at that shape.
+  logo: { width: 240, height: 77 },
   tagline: {
     fontFamily: fonts.sansRegular,
     fontSize: 16,
