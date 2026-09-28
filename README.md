@@ -70,6 +70,63 @@ Welicare takes this information and puts it somewhere it can actually be useful 
 | Media | YouTube Data API + `react-native-youtube-iframe` | Staff search YouTube through a Cloud Function, and resident video playback is fully contained within the app. |
 | Fonts | Lora + Atkinson Hyperlegible | Fonts chosen specifically for visual accessibility. |
 
+## Development
+
+### Prerequisites
+
+- **Node.js 22** (the Cloud Functions runtime is Node 22; the app works with 22+)
+- **Expo** — no global install needed, everything runs through `npx expo`
+- **Firebase CLI** — `npm install -g firebase-tools`, then `firebase login`
+- **Google Cloud CLI (`gcloud`)** — for Cloud Run permissions after deploying functions, and `gcloud auth application-default login` for the admin scripts in `scripts/`
+- **Java (JDK 11 or newer)** — required by the Firestore emulator. On Windows, install e.g. [Eclipse Temurin](https://adoptium.net/) and check with `java -version`.
+
+### Local setup (Windows)
+
+```bash
+git clone https://github.com/natashamykytiuk-bit/Welicare.git
+cd Welicare
+npm install
+cd functions && npm install && cd ..
+```
+
+Git Bash or PowerShell both work for the commands below.
+
+### Running the app
+
+```bash
+npx expo start
+```
+
+Then press `w` for web, or scan the QR code with Expo Go. The app talks to the live `welicare` Firebase project.
+
+### Checks
+
+| Command | What it does |
+|---|---|
+| `npm run lint` | ESLint (Expo's rules + React hooks rules) |
+| `npm run lint:fix` | Auto-fix what ESLint safely can |
+| `npm run format` | Format everything with Prettier |
+| `npm run typecheck` | JSDoc type checking (`tsc --noEmit`) on files marked `// @ts-check`; shared types live in `types/models.js` |
+| `npm test` | Jest tests for the app (Firebase is mocked — see `tests/mocks/firebase.js`) |
+| `npm run test:watch` | Jest in watch mode |
+| `npm run test:rules` | Firestore security-rules tests against the local emulator |
+| `npm run emulators` | Starts the Auth, Firestore and Functions emulators |
+
+The emulator scripts always use the project ID `demo-welicare`. Firebase treats `demo-` projects as local-only, so the emulators can never read or write production data.
+
+### Deploying
+
+```bash
+firebase deploy --only firestore:rules
+firebase deploy --only functions
+```
+
+After a functions deploy, `firebase.json`'s `postdeploy` step runs `gcloud run services add-iam-policy-binding … --member=allUsers --role=roles/run.invoker` for each callable function, so the app is allowed to call it (each function still rejects callers who aren't signed in). If app features that use Cloud Functions stop working after a deploy, check that step ran, and add any new function to that list.
+
+### Secrets
+
+API keys for Anthropic and YouTube are stored in **Google Cloud Secret Manager** and read by the Cloud Functions at runtime (`defineSecret` in `functions/index.js`). They are never committed to the repo or shipped in the app. The Firebase web config in `firebaseConfig.js` is not a secret — it identifies the project, and access is controlled by Firebase Auth and `firestore.rules`.
+
 ## License
 
 Copyright © 2026 Natasha Mykytiuk. All rights reserved. The code is public to view for portfolio purposes, but is not licensed for use, copying, or distribution — see [LICENSE](LICENSE).
