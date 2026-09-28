@@ -1,4 +1,4 @@
-import { deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, writeBatch } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -19,9 +19,10 @@ import { isValidUsername } from '../utils/validation';
 // Reached from Settings' "Change Username" row. Usernames are unique across
 // the whole app via the public usernames/{normalized} lookup collection
 // (see firestore.rules), so changing one means claiming the new key,
-// updating the display value on the user doc, then releasing the old key —
-// in that order, so a failure partway never leaves the account without a
-// claimed username at all.
+// updating the display value on the user doc, and releasing the old key.
+// Those three writes go in one writeBatch: Firestore applies all of them or
+// none, so a failure can never leave two names claimed, the profile showing
+// the wrong name, or the old name stuck unreleasable.
 export default function ChangeUsernameScreen({ navigation }) {
   // undefined while loading, then the current username string (or '' if
   // somehow unset)
@@ -72,30 +73,41 @@ export default function ChangeUsernameScreen({ navigation }) {
     setLoading(true);
     try {
       const uid = auth.currentUser.uid;
+      // Quick check first, purely to give a friendly message. It isn't
+      // what guarantees uniqueness — the batch below is (see catch).
       const existing = await getDoc(doc(db, 'usernames', newKey));
       if (existing.exists()) {
         setError('This username is already taken.');
         return;
       }
 
-      // Claim the new key first, then flip the display value, then
-      // release the old key — if any step throws, we stop immediately
-      // (see catch below) rather than guessing what partially landed.
-      await setDoc(doc(db, 'usernames', newKey), {
-        uid,
-        email: auth.currentUser.email,
-      });
-      await updateDoc(doc(db, 'users', uid), { username });
-      if (oldKey) {
-        await deleteDoc(doc(db, 'usernames', oldKey));
-      }
+      // All three writes are sent together and committed atomically. Each
+      // is still checked by its own rule: claiming only succeeds if the new
+      // name has no doc yet (create), the profile update may not touch the
+      // role, and only the owner can release their old name.
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'usernames', newKey), { uid, email: auth.currentUser.email });
+      batch.update(doc(db, 'users', uid), { username });
+      if (oldKey) batch.delete(doc(db, 'usernames', oldKey));
+      await batch.commit();
 
       setCurrentUsername(username);
       setUsername('');
       setSuccess(true);
     } catch (e) {
-      console.log('Change username error:', e);
-      setError('Something went wrong. Please try again.');
+      // If someone claimed the name between the check above and the
+      // commit, the claim becomes an overwrite, which the rules refuse —
+      // and the whole batch is rejected, so nothing changed. Re-check to
+      // tell that case apart from a general failure.
+      const takenNow = await getDoc(doc(db, 'usernames', newKey))
+        .then((snap) => snap.exists())
+        .catch(() => false);
+      if (takenNow) {
+        setError('This username was just taken — please choose another.');
+      } else {
+        console.error('[ChangeUsername] change failed; nothing was saved:', e.code, e.message, e);
+        setError('Something went wrong and your username was not changed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

@@ -33,6 +33,7 @@ const {
   setLogLevel,
   updateDoc,
   where,
+  writeBatch,
 } = require('firebase/firestore');
 
 let env;
@@ -176,6 +177,46 @@ describe('idempotent resident creation (AddResidentScreen)', () => {
     const db = as('caregiverA');
     await assertSucceeds(setDoc(doc(db, 'residents', 'pregen2'), newResident(1)));
     await assertFails(setDoc(doc(db, 'residents', 'pregen2'), newResident(2)));
+  });
+});
+
+describe('changing a username (ChangeUsernameScreen batch)', () => {
+  // The screen claims the new name, updates the profile and releases the old
+  // name in one writeBatch. These check the real rules allow that batch, and
+  // that a clash rejects the WHOLE batch (nothing half-applied).
+  async function seedUsername(key, uid) {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'usernames', key), { uid, email: `${uid}@example.test` });
+    });
+  }
+  function changeBatch(db, uid, newKey, oldKey) {
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'usernames', newKey), { uid, email: `${uid}@example.test` });
+    batch.update(doc(db, 'users', uid), { username: newKey });
+    batch.delete(doc(db, 'usernames', oldKey));
+    return batch.commit();
+  }
+
+  it('the batch is allowed for your own names', async () => {
+    await seedUsername('old.name', 'caregiverA');
+    await assertSucceeds(changeBatch(as('caregiverA'), 'caregiverA', 'new.name', 'old.name'));
+  });
+
+  it('a taken name rejects the whole batch — the old name stays claimed', async () => {
+    await seedUsername('old.name', 'caregiverA');
+    await seedUsername('taken', 'caregiverB');
+    await assertFails(changeBatch(as('caregiverA'), 'caregiverA', 'taken', 'old.name'));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      expect((await getDoc(doc(db, 'usernames', 'old.name'))).exists()).toBe(true);
+      expect((await getDoc(doc(db, 'usernames', 'taken'))).data().uid).toBe('caregiverB');
+      expect((await getDoc(doc(db, 'users', 'caregiverA'))).data().username).toBeUndefined();
+    });
+  });
+
+  it("you can't release someone else's name inside the batch", async () => {
+    await seedUsername('their.name', 'caregiverB');
+    await assertFails(changeBatch(as('caregiverA'), 'caregiverA', 'fresh.name', 'their.name'));
   });
 });
 

@@ -24,6 +24,23 @@ function docSnap(data, id = 'doc-id') {
   return { id, exists: () => data !== undefined, data: () => data };
 }
 
+// Every writeBatch() the code creates, in order. Each records the writes
+// queued on it (as ['set' | 'update' | 'delete', path, data]) and has a
+// jest.fn commit(), so a test can check exactly what would be written
+// together — and make commit() reject to simulate the batch failing.
+const batches = [];
+function newBatch() {
+  const batch = {
+    ops: [],
+    set: jest.fn((ref, data) => batch.ops.push(['set', ref.path, data])),
+    update: jest.fn((ref, data) => batch.ops.push(['update', ref.path, data])),
+    delete: jest.fn((ref) => batch.ops.push(['delete', ref.path])),
+    commit: jest.fn(async () => {}),
+  };
+  batches.push(batch);
+  return batch;
+}
+
 const firestore = {
   // Reference builders just return a description of the path, so tests can
   // assert on what was read/written if they want to.
@@ -45,6 +62,7 @@ const firestore = {
   updateDoc: jest.fn(),
   addDoc: jest.fn(),
   deleteDoc: jest.fn(),
+  writeBatch: jest.fn(() => newBatch()),
   arrayUnion: jest.fn((...v) => ({ arrayUnion: v })),
   arrayRemove: jest.fn((...v) => ({ arrayRemove: v })),
   deleteField: jest.fn(() => ({ deleteField: true })),
@@ -106,6 +124,8 @@ function resetFirebaseMocks() {
   firestore.collection.mockImplementation((_db, ...path) => ({ path: path.join('/') }));
   firestore.query.mockImplementation((ref) => ref);
   firestore.where.mockImplementation(() => ({}));
+  firestore.writeBatch.mockImplementation(() => newBatch());
+  batches.length = 0;
   authModule.getAuth.mockImplementation(() => auth);
   authModule.onAuthStateChanged.mockImplementation(() => () => {});
   functionsModule.httpsCallable.mockImplementation((_functions, name) => callable(name));
@@ -113,6 +133,7 @@ function resetFirebaseMocks() {
 }
 
 module.exports = {
+  batches,
   firestore,
   auth,
   authModule,
