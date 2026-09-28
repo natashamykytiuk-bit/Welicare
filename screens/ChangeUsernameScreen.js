@@ -124,9 +124,7 @@ export default function ChangeUsernameScreen({ navigation }) {
           </Text>
         ) : null}
 
-        {success ? (
-          <Text style={styles.successBanner}>Your username has been updated.</Text>
-        ) : null}
+        {success ? <Text style={styles.successBanner}>Your username has been updated.</Text> : null}
 
         <Text style={styles.label}>Current username</Text>
         {currentUsername === undefined ? (

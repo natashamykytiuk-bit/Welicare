@@ -26,7 +26,9 @@ async function main() {
   if (flag === '--revoke') delete claims.allModes;
   else claims.allModes = true;
   await admin.auth().setCustomUserClaims(user.uid, claims);
-  console.log(`${flag === '--revoke' ? 'Revoked' : 'Granted'} all-modes access for ${email} (uid ${user.uid}).`);
+  console.log(
+    `${flag === '--revoke' ? 'Revoked' : 'Granted'} all-modes access for ${email} (uid ${user.uid}).`
+  );
 }
 
 main().catch((e) => {

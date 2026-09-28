@@ -125,9 +125,7 @@ export default function SignUpScreen({ navigation }) {
       : '';
   const passwordRules = getPasswordRules(password);
   const confirmError =
-    confirmPassword.length > 0 && password !== confirmPassword
-      ? 'Passwords do not match.'
-      : '';
+    confirmPassword.length > 0 && password !== confirmPassword ? 'Passwords do not match.' : '';
 
   async function handleSignUp() {
     setError('');

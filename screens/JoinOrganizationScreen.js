@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
+import {
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+} from 'react-native';
 import BackButton from '../components/BackButton';
 import { colors, fonts, radii } from '../theme';
 import { formatOrgCode, joinOrganizationByCode } from '../utils/inviteCode';

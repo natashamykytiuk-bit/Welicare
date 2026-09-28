@@ -30,7 +30,12 @@ const FIELD_LABELS = [
 ];
 
 function isEmpty(value) {
-  return value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0);
+  return (
+    value === null ||
+    value === undefined ||
+    value === '' ||
+    (Array.isArray(value) && value.length === 0)
+  );
 }
 
 function buildFactLines(lifeStory) {
@@ -45,21 +50,27 @@ function buildFactLines(lifeStory) {
     lines.push(`- Grandchildren: ${lifeStory.grandchildrenDetails || 'Yes'}`);
   }
   if (!isEmpty(lifeStory.hobbies)) {
-    const detail = lifeStory.hobbies.includes('Other') && lifeStory.hobbiesOtherDetail
-      ? [...lifeStory.hobbies.filter((h) => h !== 'Other'), lifeStory.hobbiesOtherDetail]
-      : lifeStory.hobbies;
+    const detail =
+      lifeStory.hobbies.includes('Other') && lifeStory.hobbiesOtherDetail
+        ? [...lifeStory.hobbies.filter((h) => h !== 'Other'), lifeStory.hobbiesOtherDetail]
+        : lifeStory.hobbies;
     lines.push(`- Hobbies: ${detail.join(', ')}`);
   }
   if (!isEmpty(lifeStory.creativeHobbies)) {
-    const detail = lifeStory.creativeHobbies.includes('Other') && lifeStory.creativeHobbiesOtherDetail
-      ? [...lifeStory.creativeHobbies.filter((h) => h !== 'Other'), lifeStory.creativeHobbiesOtherDetail]
-      : lifeStory.creativeHobbies;
+    const detail =
+      lifeStory.creativeHobbies.includes('Other') && lifeStory.creativeHobbiesOtherDetail
+        ? [
+            ...lifeStory.creativeHobbies.filter((h) => h !== 'Other'),
+            lifeStory.creativeHobbiesOtherDetail,
+          ]
+        : lifeStory.creativeHobbies;
     lines.push(`- Creative hobbies: ${detail.join(', ')}`);
   }
   if (!isEmpty(lifeStory.musicGenres)) {
-    const detail = lifeStory.musicGenres.includes('Other') && lifeStory.musicGenresOtherDetail
-      ? [...lifeStory.musicGenres.filter((g) => g !== 'Other'), lifeStory.musicGenresOtherDetail]
-      : lifeStory.musicGenres;
+    const detail =
+      lifeStory.musicGenres.includes('Other') && lifeStory.musicGenresOtherDetail
+        ? [...lifeStory.musicGenres.filter((g) => g !== 'Other'), lifeStory.musicGenresOtherDetail]
+        : lifeStory.musicGenres;
     lines.push(`- Favourite music: ${detail.join(', ')}`);
   }
   return lines;
@@ -90,7 +101,10 @@ exports.generateSuggestions = onCall({ secrets: [anthropicApiKey] }, async (requ
 
   const { kind, lifeStory } = request.data ?? {};
   if (!KIND_PHRASES[kind]) {
-    throw new HttpsError('invalid-argument', 'kind must be one of activityIdeas, conversationStarters, musicMovieRecs.');
+    throw new HttpsError(
+      'invalid-argument',
+      'kind must be one of activityIdeas, conversationStarters, musicMovieRecs.'
+    );
   }
 
   const prompt = buildPrompt(kind, lifeStory);
@@ -166,7 +180,8 @@ exports.searchYouTube = onCall({ secrets: [youtubeApiKey] }, async (request) => 
       videoId: item.id.videoId,
       title: item.snippet?.title ?? '',
       channelTitle: item.snippet?.channelTitle ?? '',
-      thumbnailUrl: item.snippet?.thumbnails?.medium?.url ?? item.snippet?.thumbnails?.default?.url ?? '',
+      thumbnailUrl:
+        item.snippet?.thumbnails?.medium?.url ?? item.snippet?.thumbnails?.default?.url ?? '',
     }));
 
   return { results };
@@ -186,7 +201,11 @@ function getAdmin() {
 // branches on — not the org doc's createdBy/adminId, which is just the one
 // admin allowed to edit the org's details.
 async function otherAdmins(db, orgId, uid) {
-  const snap = await db.collection('users').where('orgId', '==', orgId).where('role', '==', 'Administrator').get();
+  const snap = await db
+    .collection('users')
+    .where('orgId', '==', orgId)
+    .where('role', '==', 'Administrator')
+    .get();
   return snap.docs.filter((d) => d.id !== uid);
 }
 
@@ -254,7 +273,8 @@ exports.deleteAccount = onCall(async (request) => {
   ]);
   const inPersonalOrg = new Set(personalResidents.docs.map((d) => d.id));
   const residents = new Map();
-  for (const snap of [...created.docs, ...assigned.docs, ...personalResidents.docs]) residents.set(snap.id, snap);
+  for (const snap of [...created.docs, ...assigned.docs, ...personalResidents.docs])
+    residents.set(snap.id, snap);
 
   // BulkWriter batches and retries on its own — no 500-op batch limit.
   const writer = db.bulkWriter();
@@ -270,7 +290,8 @@ exports.deleteAccount = onCall(async (request) => {
   }
 
   if (personalOrgId) writer.delete(db.doc(`organizations/${personalOrgId}`));
-  if (newOwner) writer.update(db.doc(`organizations/${orgId}`), { createdBy: newOwner, adminId: newOwner });
+  if (newOwner)
+    writer.update(db.doc(`organizations/${orgId}`), { createdBy: newOwner, adminId: newOwner });
 
   const usernames = await db.collection('usernames').where('uid', '==', uid).get();
   for (const snap of usernames.docs) writer.delete(snap.ref);
@@ -299,8 +320,14 @@ async function requireOrgOwner(db, orgId, uid) {
     throw new HttpsError('not-found', 'Organization not found.');
   }
   const org = orgSnap.data();
-  if (!(org.createdBy === uid || org.adminId === uid) || userSnap.data()?.role !== 'Administrator') {
-    throw new HttpsError('permission-denied', 'Only this organization\'s administrator can do this.');
+  if (
+    !(org.createdBy === uid || org.adminId === uid) ||
+    userSnap.data()?.role !== 'Administrator'
+  ) {
+    throw new HttpsError(
+      'permission-denied',
+      "Only this organization's administrator can do this."
+    );
   }
   return org;
 }
@@ -340,7 +367,10 @@ exports.transferOrgAdmin = onCall(async (request) => {
   const db = getAdmin().firestore();
   const { orgId, newAdminUid } = request.data ?? {};
   await requireOrgOwner(db, orgId, request.auth.uid);
-  const target = typeof newAdminUid === 'string' && newAdminUid ? await db.doc(`users/${newAdminUid}`).get() : null;
+  const target =
+    typeof newAdminUid === 'string' && newAdminUid
+      ? await db.doc(`users/${newAdminUid}`).get()
+      : null;
   if (!target?.exists || target.data().orgId !== orgId || newAdminUid === request.auth.uid) {
     throw new HttpsError('invalid-argument', 'That person is not a member of this organization.');
   }
@@ -402,7 +432,6 @@ exports.deleteOrganization = onCall(async (request) => {
   return { ok: true, residentsDeleted: residents.size, membersRemoved: members.size };
 });
 
-
 // ---------------------------------------------------------------------------
 // Organizations and invite codes
 //
@@ -422,7 +451,10 @@ exports.deleteOrganization = onCall(async (request) => {
 // formatOrgCode in utils/inviteCode.js expects people to type.
 const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I/O, easy to misread
 function randomInviteCode() {
-  const letters = Array.from({ length: 2 }, () => CODE_LETTERS[Math.floor(Math.random() * CODE_LETTERS.length)]).join('');
+  const letters = Array.from(
+    { length: 2 },
+    () => CODE_LETTERS[Math.floor(Math.random() * CODE_LETTERS.length)]
+  ).join('');
   return `${letters}-${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
@@ -453,7 +485,10 @@ async function issueInviteCode(db, orgId, uid) {
     }
     return code;
   }
-  throw new HttpsError('resource-exhausted', 'Could not generate an invite code. Please try again.');
+  throw new HttpsError(
+    'resource-exhausted',
+    'Could not generate an invite code. Please try again.'
+  );
 }
 
 // Throws if the caller is already in a real (non-personal) organization —
@@ -573,7 +608,10 @@ exports.joinOrganization = onCall(async (request) => {
     const inWindow = !!data && now - data.windowStart < JOIN_WINDOW_MS;
     const count = inWindow ? data.count : 0;
     if (count >= JOIN_MAX_ATTEMPTS) {
-      throw new HttpsError('resource-exhausted', 'Too many attempts. Please wait 15 minutes and try again.');
+      throw new HttpsError(
+        'resource-exhausted',
+        'Too many attempts. Please wait 15 minutes and try again.'
+      );
     }
     tx.set(limitRef, { windowStart: inWindow ? data.windowStart : now, count: count + 1 });
   });
@@ -586,7 +624,10 @@ exports.joinOrganization = onCall(async (request) => {
 
   // One message for every "this code doesn't work" case, so the response
   // doesn't reveal whether a code exists but was revoked or expired.
-  const notFound = new HttpsError('not-found', 'No organization found with that code. Please check it and try again.');
+  const notFound = new HttpsError(
+    'not-found',
+    'No organization found with that code. Please check it and try again.'
+  );
   const codeRef = db.doc(`inviteCodes/${code}`);
   const invite = (await codeRef.get()).data();
   if (!invite || invite.revoked === true) throw notFound;

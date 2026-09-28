@@ -73,9 +73,8 @@ export default function EmailVerificationScreen({ route, onVerified }) {
       <View style={styles.content}>
         <Text style={styles.heading}>Verify your email</Text>
         <Text style={styles.body}>
-          We've sent a verification email to{' '}
-          <Text style={styles.emailText}>{email}</Text>. Please check your
-          inbox and click the link to verify your account.
+          We've sent a verification email to <Text style={styles.emailText}>{email}</Text>. Please
+          check your inbox and click the link to verify your account.
         </Text>
 
         {error ? (
@@ -98,9 +97,7 @@ export default function EmailVerificationScreen({ route, onVerified }) {
           accessibilityRole="button"
           accessibilityLabel={checking ? 'Checking…' : "I've verified my email"}
         >
-          <Text style={styles.buttonText}>
-            {checking ? 'Checking…' : "I've verified my email"}
-          </Text>
+          <Text style={styles.buttonText}>{checking ? 'Checking…' : "I've verified my email"}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -122,8 +119,7 @@ export default function EmailVerificationScreen({ route, onVerified }) {
           accessibilityRole="button"
         >
           <Text style={styles.switchLinkText}>
-            Wrong email?{' '}
-            <Text style={styles.switchLinkBold}>Sign out</Text>
+            Wrong email? <Text style={styles.switchLinkBold}>Sign out</Text>
           </Text>
         </TouchableOpacity>
       </View>

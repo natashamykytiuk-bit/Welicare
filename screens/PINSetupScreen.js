@@ -104,9 +104,7 @@ export default function PINSetupScreen({ navigation, route }) {
           </Text>
         ) : null}
 
-        <Text style={styles.stageLabel}>
-          {stage === 'enter' ? 'Enter PIN' : 'Confirm PIN'}
-        </Text>
+        <Text style={styles.stageLabel}>{stage === 'enter' ? 'Enter PIN' : 'Confirm PIN'}</Text>
         <PinDots value={digits} />
 
         <NumberPad onDigit={handleDigit} onBackspace={handleBackspace} disabled={loading} />

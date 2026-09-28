@@ -34,7 +34,11 @@ export default function ChipSelector({ options, value, onChange, includeAll, mul
   }
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.row}
+    >
       {chips.map((option) => {
         const selected = isSelected(option);
         return (

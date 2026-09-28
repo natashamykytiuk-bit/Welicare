@@ -1,7 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { arrayRemove, arrayUnion, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Linking,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import BackButton from '../components/BackButton';
 import ChipSelector from '../components/ChipSelector';
 import { db } from '../firebaseConfig';
@@ -58,7 +68,9 @@ export default function MusicSelectionScreen({ navigation, route }) {
       try {
         const [facilityId, residentData] = await Promise.all([
           getCurrentUserFacilityId(),
-          residentId ? getDoc(doc(db, 'residents', residentId)).then((s) => s.data()) : Promise.resolve(null),
+          residentId
+            ? getDoc(doc(db, 'residents', residentId)).then((s) => s.data())
+            : Promise.resolve(null),
         ]);
 
         const ids = residentData?.favouriteMusicVideoIds ?? [];
@@ -79,7 +91,11 @@ export default function MusicSelectionScreen({ navigation, route }) {
           );
           setSubset(filtered);
         } else {
-          const results = await queryMusicLibrarySubset({ decade: filterDecade, genres: filterGenres, facilityId });
+          const results = await queryMusicLibrarySubset({
+            decade: filterDecade,
+            genres: filterGenres,
+            facilityId,
+          });
           if (cancelled) return;
           const selectedIds = residentData?.selectedMusicVideoIds;
           setSubset(
@@ -95,7 +111,9 @@ export default function MusicSelectionScreen({ navigation, route }) {
           // one-click console link baked into the message — surfaced
           // as-is (see extractConsoleLink) instead of a generic message.
           setError(
-            e.code === 'failed-precondition' ? e.message : 'Something went wrong loading music. Please try again.'
+            e.code === 'failed-precondition'
+              ? e.message
+              : 'Something went wrong loading music. Please try again.'
           );
           setSubset([]);
         }
@@ -110,7 +128,10 @@ export default function MusicSelectionScreen({ navigation, route }) {
   }, [residentId, filterDecade, filterGenres, viewMode]);
 
   const availableArtists = distinctArtists(subset);
-  const videos = (filterArtist ? subset.filter((v) => (v.artist || v.channelTitle) === filterArtist) : subset).slice()
+  const videos = (
+    filterArtist ? subset.filter((v) => (v.artist || v.channelTitle) === filterArtist) : subset
+  )
+    .slice()
     .sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
 
   const consoleLink = extractConsoleLink(error);
@@ -125,7 +146,9 @@ export default function MusicSelectionScreen({ navigation, route }) {
     if (!residentId) return;
     const videoId = video.videoId;
     const isFavourite = favouriteIds.includes(videoId);
-    setFavouriteIds((prev) => (isFavourite ? prev.filter((id) => id !== videoId) : [...prev, videoId]));
+    setFavouriteIds((prev) =>
+      isFavourite ? prev.filter((id) => id !== videoId) : [...prev, videoId]
+    );
     if (viewMode === 'Favourites' && isFavourite) {
       setSubset((prev) => prev.filter((v) => v.videoId !== videoId));
     }
@@ -135,7 +158,9 @@ export default function MusicSelectionScreen({ navigation, route }) {
       });
     } catch (e) {
       console.error('[MusicSelection] failed to update favourite:', e.code, e.message, e);
-      setFavouriteIds((prev) => (isFavourite ? [...prev, videoId] : prev.filter((id) => id !== videoId)));
+      setFavouriteIds((prev) =>
+        isFavourite ? [...prev, videoId] : prev.filter((id) => id !== videoId)
+      );
       if (viewMode === 'Favourites' && isFavourite) {
         setSubset((prev) => [...prev, video]);
       }
@@ -157,27 +182,47 @@ export default function MusicSelectionScreen({ navigation, route }) {
         ) : null}
 
         <Text style={styles.filterLabel}>Artist</Text>
-        <ChipSelector options={availableArtists} value={filterArtist} onChange={setFilterArtist} includeAll />
+        <ChipSelector
+          options={availableArtists}
+          value={filterArtist}
+          onChange={setFilterArtist}
+          includeAll
+        />
         <View style={styles.chipSpacer} />
         <Text style={styles.filterLabel}>Genre</Text>
-        <ChipSelector options={MUSIC_GENRE_OPTIONS} value={filterGenres} onChange={setFilterGenres} multi />
+        <ChipSelector
+          options={MUSIC_GENRE_OPTIONS}
+          value={filterGenres}
+          onChange={setFilterGenres}
+          multi
+        />
         <View style={styles.chipSpacer} />
         <Text style={styles.filterLabel}>Decade</Text>
-        <ChipSelector options={MUSIC_DECADE_OPTIONS} value={filterDecade} onChange={setFilterDecade} includeAll />
+        <ChipSelector
+          options={MUSIC_DECADE_OPTIONS}
+          value={filterDecade}
+          onChange={setFilterDecade}
+          includeAll
+        />
 
         {loading ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
         {error ? (
           <View style={styles.errorBox}>
             <Text style={styles.error}>{error}</Text>
             {consoleLink ? (
-              <TouchableOpacity onPress={() => Linking.openURL(consoleLink)} accessibilityRole="link">
+              <TouchableOpacity
+                onPress={() => Linking.openURL(consoleLink)}
+                accessibilityRole="link"
+              >
                 <Text style={styles.errorLink}>{consoleLink}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
         ) : null}
         {!loading && !error && showFavouritesEmptyState ? (
-          <Text style={styles.note}>No favourites yet — tap the heart next to a song to add one here.</Text>
+          <Text style={styles.note}>
+            No favourites yet — tap the heart next to a song to add one here.
+          </Text>
         ) : null}
         {!loading && !error && !showFavouritesEmptyState && videos.length === 0 ? (
           <Text style={styles.note}>No songs match these filters yet.</Text>
@@ -235,7 +280,9 @@ export default function MusicSelectionScreen({ navigation, route }) {
                       activeOpacity={0.7}
                       accessibilityRole="button"
                       accessibilityLabel={
-                        favouriteIds.includes(video.videoId) ? 'Remove from favourites' : 'Add to favourites'
+                        favouriteIds.includes(video.videoId)
+                          ? 'Remove from favourites'
+                          : 'Add to favourites'
                       }
                       accessibilityState={{ selected: favouriteIds.includes(video.videoId) }}
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -243,7 +290,11 @@ export default function MusicSelectionScreen({ navigation, route }) {
                       <Ionicons
                         name={favouriteIds.includes(video.videoId) ? 'heart' : 'heart-outline'}
                         size={22}
-                        color={favouriteIds.includes(video.videoId) ? colors.destructive : colors.textMuted}
+                        color={
+                          favouriteIds.includes(video.videoId)
+                            ? colors.destructive
+                            : colors.textMuted
+                        }
                       />
                     </TouchableOpacity>
                   ) : null}

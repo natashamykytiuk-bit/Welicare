@@ -35,13 +35,16 @@ const DELAY_MS = 300;
 
 const SONGS = [
   { title: "Boot Scootin' Boogie", artist: 'Brooks & Dunn' },
-  { title: 'Fishin\' in the Dark', artist: 'Nitty Gritty Dirt Band' },
+  { title: "Fishin' in the Dark", artist: 'Nitty Gritty Dirt Band' },
   { title: 'Forever and Ever, Amen', artist: 'Randy Travis' },
   { title: 'Head Over Boots', artist: 'Jon Pardi' },
   { title: 'Red Dirt Road', artist: 'Brooks & Dunn' },
   { title: 'Neon Moon', artist: 'Brooks & Dunn' },
   { title: "All My Ex's Live In Texas", artist: 'George Strait' },
-  { title: "Mammas Don't Let Your Babies Grow up to Be Cowboys", artist: 'Waylon Jennings, Willie Nelson' },
+  {
+    title: "Mammas Don't Let Your Babies Grow up to Be Cowboys",
+    artist: 'Waylon Jennings, Willie Nelson',
+  },
   { title: 'Wagon Wheel', artist: 'Darius Rucker' },
   { title: 'Copperhead Road', artist: 'Steve Earle' },
   { title: 'Friends in Low Places', artist: 'Garth Brooks' },

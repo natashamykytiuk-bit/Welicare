@@ -118,13 +118,15 @@ export default function OrganizationSettingsScreen({ navigation }) {
             <Text style={styles.joinCode} selectable>
               {orgInviteCode || '—'}
             </Text>
-            <Text style={styles.helpText}>Share this code so colleagues can join your organization.</Text>
+            <Text style={styles.helpText}>
+              Share this code so colleagues can join your organization.
+            </Text>
           </View>
         ) : (
           <>
             <Text style={styles.body}>
-              You're currently on a personal organization. Join a colleague's organization with their code, or
-              create your own to invite others.
+              You're currently on a personal organization. Join a colleague's organization with
+              their code, or create your own to invite others.
             </Text>
 
             <Text style={styles.sectionLabel}>Join an Organization</Text>
@@ -156,8 +158,8 @@ export default function OrganizationSettingsScreen({ navigation }) {
             <Text style={styles.sectionLabel}>Create an Organization</Text>
             <View style={styles.card}>
               <Text style={styles.helpText}>
-                Creating an organization gives you a join code to share with colleagues, so you can all work
-                from the same shared residents and music library.
+                Creating an organization gives you a join code to share with colleagues, so you can
+                all work from the same shared residents and music library.
               </Text>
               {createError ? <Text style={styles.error}>{createError}</Text> : null}
               <TextInput

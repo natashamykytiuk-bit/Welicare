@@ -112,9 +112,7 @@ export default function AddResidentScreen({ navigation }) {
     } catch (e) {
       console.error('[AddResident] resident creation failed:', e.code, e.message, e);
       setError(
-        e.code
-          ? 'Something went wrong creating this resident. Please try again.'
-          : e.message
+        e.code ? 'Something went wrong creating this resident. Please try again.' : e.message
       );
     } finally {
       setSaving(false);
@@ -136,8 +134,8 @@ export default function AddResidentScreen({ navigation }) {
           <>
             <Text style={styles.heading}>Add a resident</Text>
             <Text style={styles.body}>
-              Create a brand-new profile, or add a resident someone else at your
-              organization has already set up.
+              Create a brand-new profile, or add a resident someone else at your organization has
+              already set up.
             </Text>
 
             <TouchableOpacity
@@ -147,7 +145,12 @@ export default function AddResidentScreen({ navigation }) {
               accessibilityRole="button"
               accessibilityLabel="Add New Resident"
             >
-              <Ionicons name="person-add-outline" size={28} color={colors.primary} style={styles.cardIcon} />
+              <Ionicons
+                name="person-add-outline"
+                size={28}
+                color={colors.primary}
+                style={styles.cardIcon}
+              />
               <Text style={styles.cardTitle}>Add New Resident</Text>
               <Text style={styles.cardBody}>Create a brand-new resident profile.</Text>
             </TouchableOpacity>
@@ -159,9 +162,16 @@ export default function AddResidentScreen({ navigation }) {
               accessibilityRole="button"
               accessibilityLabel={`Select from ${orgName}`}
             >
-              <Ionicons name="people-outline" size={28} color={colors.primary} style={styles.cardIcon} />
+              <Ionicons
+                name="people-outline"
+                size={28}
+                color={colors.primary}
+                style={styles.cardIcon}
+              />
               <Text style={styles.cardTitle}>Select from {orgName}</Text>
-              <Text style={styles.cardBody}>Add a resident already shared by your organization.</Text>
+              <Text style={styles.cardBody}>
+                Add a resident already shared by your organization.
+              </Text>
             </TouchableOpacity>
           </>
         ) : (

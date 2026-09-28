@@ -179,7 +179,13 @@ const SEED_BATCH_2 = [
 // STARTER_TRACKS above — the videoId-based dedup in seed() skips it
 // automatically, so it's not repeated here.
 const SEED_BATCH_3 = [
-  { videoId: 'qQzdAsjWGPg', title: 'My Way', artist: 'Frank Sinatra', genres: ['Jazz', 'Pop'], decade: '1960s' },
+  {
+    videoId: 'qQzdAsjWGPg',
+    title: 'My Way',
+    artist: 'Frank Sinatra',
+    genres: ['Jazz', 'Pop'],
+    decade: '1960s',
+  },
   {
     videoId: 'YFham2Xu6nA',
     title: 'The Way You Look Tonight',
@@ -208,7 +214,13 @@ const SEED_BATCH_3 = [
     genres: ['Traditional Pop'],
     decade: '1960s',
   },
-  { videoId: 'gZYtes1RO_w', title: 'L-O-V-E', artist: 'Nat King Cole', genres: ['Jazz'], decade: '1960s' },
+  {
+    videoId: 'gZYtes1RO_w',
+    title: 'L-O-V-E',
+    artist: 'Nat King Cole',
+    genres: ['Jazz'],
+    decade: '1960s',
+  },
   {
     videoId: 't6wjCcWC2aE',
     title: 'Non, je ne regrette rien',
@@ -233,7 +245,13 @@ const SEED_BATCH_3 = [
 ];
 
 const SEED_BATCH_4 = [
-  { videoId: '3jL4S4X97sQ', title: 'Vienna', artist: 'Billy Joel', genres: ['Pop', 'Rock'], decade: '1970s' },
+  {
+    videoId: '3jL4S4X97sQ',
+    title: 'Vienna',
+    artist: 'Billy Joel',
+    genres: ['Pop', 'Rock'],
+    decade: '1970s',
+  },
   {
     videoId: 'GlPlfCy1urI',
     title: 'Your Song',
@@ -283,7 +301,13 @@ const SEED_BATCH_4 = [
     genres: ['Pop', 'R&B'],
     decade: '1960s',
   },
-  { videoId: 'CGj85pVzRJs', title: 'Let It Be', artist: 'The Beatles', genres: ['Rock'], decade: '1970s' },
+  {
+    videoId: 'CGj85pVzRJs',
+    title: 'Let It Be',
+    artist: 'The Beatles',
+    genres: ['Rock'],
+    decade: '1970s',
+  },
 ];
 
 // Note: this "La Vie en rose" (Louis Armstrong, RQ_33knoPRg) is a
@@ -291,7 +315,13 @@ const SEED_BATCH_4 = [
 // (hOc4ThXE5Ag) — different videoId, so the dedupe check treats it as a
 // distinct track rather than a duplicate.
 const SEED_BATCH_5 = [
-  { videoId: 'k-HdGnzYdFQ', title: "It's Not Unusual", artist: 'Tom Jones', genres: ['Pop'], decade: '1960s' },
+  {
+    videoId: 'k-HdGnzYdFQ',
+    title: "It's Not Unusual",
+    artist: 'Tom Jones',
+    genres: ['Pop'],
+    decade: '1960s',
+  },
   {
     videoId: 'RJi4iDdxY5M',
     title: 'All You Need Is Love',
@@ -320,7 +350,13 @@ const SEED_BATCH_5 = [
     genres: ['Musical', 'Traditional'],
     decade: '1960s',
   },
-  { videoId: 'RQ_33knoPRg', title: 'La Vie en rose', artist: 'Louis Armstrong', genres: ['Jazz'], decade: '1950s' },
+  {
+    videoId: 'RQ_33knoPRg',
+    title: 'La Vie en rose',
+    artist: 'Louis Armstrong',
+    genres: ['Jazz'],
+    decade: '1950s',
+  },
   {
     videoId: 'HbA71FO3TRs',
     title: 'Everybody Loves Somebody',
@@ -335,7 +371,13 @@ const SEED_BATCH_5 = [
     genres: ['Pop', 'Disco'],
     decade: '1970s',
   },
-  { videoId: 'TQemQRL_YVQ', title: 'Yesterday', artist: 'The Beatles', genres: ['Rock', 'Pop'], decade: '1960s' },
+  {
+    videoId: 'TQemQRL_YVQ',
+    title: 'Yesterday',
+    artist: 'The Beatles',
+    genres: ['Rock', 'Pop'],
+    decade: '1960s',
+  },
   {
     videoId: 'XT4pwRi2JmY',
     title: 'I Want To Hold Your Hand',
@@ -367,7 +409,13 @@ const SEED_BATCH_6 = [
     genres: ['Soft Rock', 'R&B'],
     decade: '1970s',
   },
-  { videoId: 'XvfImv9NseY', title: "That's Life", artist: 'Frank Sinatra', genres: ['Jazz', 'Pop'], decade: '1960s' },
+  {
+    videoId: 'XvfImv9NseY',
+    title: "That's Life",
+    artist: 'Frank Sinatra',
+    genres: ['Jazz', 'Pop'],
+    decade: '1960s',
+  },
   {
     videoId: 'BTOeRwIUnG0',
     title: 'Strangers In The Night',
@@ -417,7 +465,13 @@ const SEED_BATCH_6 = [
     genres: ['Traditional Pop'],
     decade: '1960s',
   },
-  { videoId: '-vTBV-9Y4fQ', title: "She's Got You", artist: 'Patsy Cline', genres: ['Country'], decade: '1960s' },
+  {
+    videoId: '-vTBV-9Y4fQ',
+    title: "She's Got You",
+    artist: 'Patsy Cline',
+    genres: ['Country'],
+    decade: '1960s',
+  },
 ];
 
 // Note: "(What A) Wonderful World" (Sam Cooke, vizl2aAONVY) is a different
@@ -446,7 +500,13 @@ const SEED_BATCH_7 = [
     genres: ['Doo-wop', 'Traditional Pop'],
     decade: '1950s',
   },
-  { videoId: 'h3JFEfdK_Ls', title: 'My Life', artist: 'Billy Joel', genres: ['Pop', 'Rock'], decade: '1970s' },
+  {
+    videoId: 'h3JFEfdK_Ls',
+    title: 'My Life',
+    artist: 'Billy Joel',
+    genres: ['Pop', 'Rock'],
+    decade: '1970s',
+  },
   {
     videoId: '6dYWe1c3OyU',
     title: 'I Will Survive',
@@ -475,7 +535,13 @@ const SEED_BATCH_7 = [
     genres: ['Soft Rock', 'Pop'],
     decade: '1970s',
   },
-  { videoId: '7hx4gdlfamo', title: 'The Gambler', artist: 'Kenny Rogers', genres: ['Country'], decade: '1970s' },
+  {
+    videoId: '7hx4gdlfamo',
+    title: 'The Gambler',
+    artist: 'Kenny Rogers',
+    genres: ['Country'],
+    decade: '1970s',
+  },
   {
     videoId: 'LgR6UNeQxXE',
     title: 'Lucy In The Sky With Diamonds',
@@ -567,7 +633,13 @@ const SEED_BATCH_8 = [
     genres: ['Pop', 'Rock'],
     decade: '1970s',
   },
-  { videoId: 'VQHDVGhnoHU', title: 'Solitude', artist: 'Billie Holiday', genres: ['Jazz'], decade: '1950s' },
+  {
+    videoId: 'VQHDVGhnoHU',
+    title: 'Solitude',
+    artist: 'Billie Holiday',
+    genres: ['Jazz'],
+    decade: '1950s',
+  },
 ];
 
 // Add new SEED_BATCH_N arrays above and list them here — everything gets

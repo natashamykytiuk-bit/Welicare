@@ -79,12 +79,20 @@ export default function DeleteAccountScreen({ navigation }) {
         <BackButton navigation={navigation} />
 
         <Text style={styles.heading}>Delete your account</Text>
-        <Text style={styles.body}>This permanently deletes your Welicare account. It can't be undone.</Text>
+        <Text style={styles.body}>
+          This permanently deletes your Welicare account. It can't be undone.
+        </Text>
         <Text style={styles.body}>
           {'• Your login, username and profile are removed.\n'}
-          {"• If you use Welicare at home (a personal organization), your residents and their life stories are deleted too.\n"}
-          {'• In a care organization, residents stay with the organization — you are just removed as their caregiver.\n'}
-          {"• If you're an organization's only administrator, you'll need to make someone else the administrator first."}
+          {
+            '• If you use Welicare at home (a personal organization), your residents and their life stories are deleted too.\n'
+          }
+          {
+            '• In a care organization, residents stay with the organization — you are just removed as their caregiver.\n'
+          }
+          {
+            "• If you're an organization's only administrator, you'll need to make someone else the administrator first."
+          }
         </Text>
 
         {error ? (
@@ -114,7 +122,9 @@ export default function DeleteAccountScreen({ navigation }) {
           accessibilityRole="button"
           accessibilityLabel={loading ? 'Deleting account…' : 'Permanently delete account'}
         >
-          <Text style={styles.buttonText}>{loading ? 'Deleting…' : 'Permanently delete account'}</Text>
+          <Text style={styles.buttonText}>
+            {loading ? 'Deleting…' : 'Permanently delete account'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>

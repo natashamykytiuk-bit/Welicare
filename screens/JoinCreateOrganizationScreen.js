@@ -95,9 +95,16 @@ export default function JoinCreateOrganizationScreen({ navigation }) {
               accessibilityRole="button"
               accessibilityLabel="Join an organization"
             >
-              <Ionicons name="business-outline" size={28} color={colors.primary} style={styles.cardIcon} />
+              <Ionicons
+                name="business-outline"
+                size={28}
+                color={colors.primary}
+                style={styles.cardIcon}
+              />
               <Text style={styles.cardTitle}>Join an organization</Text>
-              <Text style={styles.cardBody}>Enter the invite code your administrator sent you.</Text>
+              <Text style={styles.cardBody}>
+                Enter the invite code your administrator sent you.
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -107,9 +114,16 @@ export default function JoinCreateOrganizationScreen({ navigation }) {
               accessibilityRole="button"
               accessibilityLabel="Create an organization"
             >
-              <Ionicons name="people-outline" size={28} color={colors.primary} style={styles.cardIcon} />
+              <Ionicons
+                name="people-outline"
+                size={28}
+                color={colors.primary}
+                style={styles.cardIcon}
+              />
               <Text style={styles.cardTitle}>Create an organization</Text>
-              <Text style={styles.cardBody}>Set up a new Welicare facility for your care home.</Text>
+              <Text style={styles.cardBody}>
+                Set up a new Welicare facility for your care home.
+              </Text>
             </TouchableOpacity>
 
             {!isAdministrator ? (

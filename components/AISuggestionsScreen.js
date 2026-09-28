@@ -1,7 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useResidentLock } from '../contexts/ResidentLockContext';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
@@ -104,7 +112,9 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
 
         {loading ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        {!loading && !error && suggestions ? <Text style={styles.suggestions}>{suggestions}</Text> : null}
+        {!loading && !error && suggestions ? (
+          <Text style={styles.suggestions}>{suggestions}</Text>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

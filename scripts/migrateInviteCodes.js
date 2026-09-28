@@ -19,7 +19,8 @@
 // firebase-admin is only installed under functions/, so resolve it (and
 // its /firestore subpath export) from there.
 const path = require('path');
-const fromFunctions = (id) => require(require.resolve(id, { paths: [path.join(__dirname, '..', 'functions')] }));
+const fromFunctions = (id) =>
+  require(require.resolve(id, { paths: [path.join(__dirname, '..', 'functions')] }));
 const admin = fromFunctions('firebase-admin');
 const { FieldValue } = fromFunctions('firebase-admin/firestore');
 
@@ -41,7 +42,9 @@ async function migrate(db, { apply }) {
     if (existing && existing.orgId !== org.id) {
       // Two orgs somehow shared a code. Leave this one alone and report it;
       // its admin can issue a fresh code from Organizational Settings.
-      console.log(`${org.id}: CONFLICT — code ${code} already belongs to ${existing.orgId}; skipped`);
+      console.log(
+        `${org.id}: CONFLICT — code ${code} already belongs to ${existing.orgId}; skipped`
+      );
       conflicts += 1;
       continue;
     }
@@ -56,12 +59,17 @@ async function migrate(db, { apply }) {
           uses: 0,
         });
       }
-      await org.ref.collection('private').doc('invite').set({ code, updatedAt: FieldValue.serverTimestamp() });
+      await org.ref
+        .collection('private')
+        .doc('invite')
+        .set({ code, updatedAt: FieldValue.serverTimestamp() });
       await org.ref.update({ inviteCode: FieldValue.delete() });
     }
     moved += 1;
   }
-  console.log(`${apply ? 'Migrated' : 'Would migrate'} ${moved} code(s); ${conflicts} conflict(s).`);
+  console.log(
+    `${apply ? 'Migrated' : 'Would migrate'} ${moved} code(s); ${conflicts} conflict(s).`
+  );
   return { moved, conflicts };
 }
 

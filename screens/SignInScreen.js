@@ -76,7 +76,9 @@ export default function SignInScreen({ navigation }) {
         // nudged — sign them back out so no session survives on device.
         await signOut(auth);
         setUnverified(true);
-        setError('Please verify your email before signing in. Check your inbox for the verification link.');
+        setError(
+          'Please verify your email before signing in. Check your inbox for the verification link.'
+        );
         return;
       }
       // On success, App.js's onAuthStateChanged listener picks up the
@@ -183,9 +185,7 @@ export default function SignInScreen({ navigation }) {
           accessibilityRole="button"
           accessibilityLabel={loading ? 'Signing in…' : 'Sign in'}
         >
-          <Text style={styles.buttonText}>
-            {loading ? 'Signing In…' : 'Sign In'}
-          </Text>
+          <Text style={styles.buttonText}>{loading ? 'Signing In…' : 'Sign In'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -207,8 +207,7 @@ export default function SignInScreen({ navigation }) {
           accessibilityRole="link"
         >
           <Text style={styles.switchLinkText}>
-            Don't have an account?{' '}
-            <Text style={styles.switchLinkBold}>Create one</Text>
+            Don't have an account? <Text style={styles.switchLinkBold}>Create one</Text>
           </Text>
         </TouchableOpacity>
       </ScrollView>

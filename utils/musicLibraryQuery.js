@@ -38,12 +38,15 @@ export async function getCurrentUserFacilityId() {
 export async function queryMusicLibrarySubset({ decade, genres, facilityId } = {}) {
   const extraConstraints = [];
   if (decade) extraConstraints.push(where('decade', '==', decade));
-  if (genres && genres.length > 0) extraConstraints.push(where('genres', 'array-contains-any', genres));
+  if (genres && genres.length > 0)
+    extraConstraints.push(where('genres', 'array-contains-any', genres));
 
   const facilityValues = facilityId ? ['global', facilityId] : ['global'];
   const snapshots = await Promise.all(
     facilityValues.map((value) =>
-      getDocs(query(collection(db, 'musicLibrary'), where('facilityId', '==', value), ...extraConstraints))
+      getDocs(
+        query(collection(db, 'musicLibrary'), where('facilityId', '==', value), ...extraConstraints)
+      )
     )
   );
   return snapshots.flatMap((snapshot) => snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
@@ -85,7 +88,11 @@ export async function queryMusicLibraryByVideoIds(videoIds, facilityId) {
     chunks.flatMap((chunk) =>
       facilityValues.map((value) =>
         getDocs(
-          query(collection(db, 'musicLibrary'), where('videoId', 'in', chunk), where('facilityId', '==', value))
+          query(
+            collection(db, 'musicLibrary'),
+            where('videoId', 'in', chunk),
+            where('facilityId', '==', value)
+          )
         )
       )
     )

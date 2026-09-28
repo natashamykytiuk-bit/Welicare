@@ -15,7 +15,14 @@ module.exports = defineConfig([
   expoConfig,
   {
     // Generated output, dependencies, and local AI-assistant folders.
-    ignores: ['dist/*', 'web-build/*', '.expo/*', 'node_modules/*', '.agents/*', 'Claude outputs/*'],
+    ignores: [
+      'dist/*',
+      'web-build/*',
+      '.expo/*',
+      'node_modules/*',
+      '.agents/*',
+      'Claude outputs/*',
+    ],
   },
   {
     // Cloud Functions and the one-off admin scripts run in Node, not the app.

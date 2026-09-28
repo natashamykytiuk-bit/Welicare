@@ -1,21 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import {
-  FlatList,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, fonts, radii } from '../theme';
 
 // Tap-to-open dropdown list, used in place of @react-native-picker/picker —
 // that component renders as a native scrolling wheel on iOS, which doesn't
 // read as a "select this from a list" control the way a dropdown does.
 // `options` is an array of strings; `placeholder` shows when value is ''.
-export default function Dropdown({ label, value, onValueChange, options, placeholder, accessibilityLabel }) {
+export default function Dropdown({
+  label,
+  value,
+  onValueChange,
+  options,
+  placeholder,
+  accessibilityLabel,
+}) {
   const [open, setOpen] = useState(false);
 
   function handleSelect(option) {

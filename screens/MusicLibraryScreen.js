@@ -22,8 +22,16 @@ import ChipSelector from '../components/ChipSelector';
 import { auth, db } from '../firebaseConfig';
 import { MUSIC_GENRE_OPTIONS } from './BuildProfileScreen';
 import { colors, fonts, radii } from '../theme';
-import { MUSIC_DECADE_OPTIONS, extractYouTubeVideoId, thumbnailForVideoId } from '../utils/musicLibrary';
-import { genresOf, getCurrentUserFacilityId, queryMusicLibrarySubset } from '../utils/musicLibraryQuery';
+import {
+  MUSIC_DECADE_OPTIONS,
+  extractYouTubeVideoId,
+  thumbnailForVideoId,
+} from '../utils/musicLibrary';
+import {
+  genresOf,
+  getCurrentUserFacilityId,
+  queryMusicLibrarySubset,
+} from '../utils/musicLibraryQuery';
 import { searchYouTube } from '../utils/youtube';
 
 const LOAD_TIMEOUT_MS = 10000;
@@ -231,7 +239,8 @@ export default function MusicLibraryScreen({ navigation }) {
 
   const filteredLibrary = library.filter(
     (entry) =>
-      (!filterGenre || genresOf(entry).includes(filterGenre)) && (!filterDecade || entry.decade === filterDecade)
+      (!filterGenre || genresOf(entry).includes(filterGenre)) &&
+      (!filterDecade || entry.decade === filterDecade)
   );
 
   return (
@@ -239,7 +248,9 @@ export default function MusicLibraryScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <BackButton navigation={navigation} />
         <Text style={styles.heading}>Music Library</Text>
-        <Text style={styles.body}>Search YouTube or paste a link to add videos to the shared library.</Text>
+        <Text style={styles.body}>
+          Search YouTube or paste a link to add videos to the shared library.
+        </Text>
 
         <Text style={styles.sectionLabel}>Search YouTube</Text>
         <View style={styles.searchRow}>
@@ -327,7 +338,9 @@ export default function MusicLibraryScreen({ navigation }) {
             </View>
             <TouchableOpacity
               style={styles.addButton}
-              onPress={() => openAddModal({ videoId: urlPreview.videoId, title: '', channelTitle: '' })}
+              onPress={() =>
+                openAddModal({ videoId: urlPreview.videoId, title: '', channelTitle: '' })
+              }
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel="Add this video to library"
@@ -338,11 +351,23 @@ export default function MusicLibraryScreen({ navigation }) {
         ) : null}
 
         <Text style={styles.sectionLabel}>Library ({library.length})</Text>
-        <ChipSelector options={MUSIC_GENRE_OPTIONS} value={filterGenre} onChange={setFilterGenre} includeAll />
+        <ChipSelector
+          options={MUSIC_GENRE_OPTIONS}
+          value={filterGenre}
+          onChange={setFilterGenre}
+          includeAll
+        />
         <View style={styles.chipSpacer} />
-        <ChipSelector options={MUSIC_DECADE_OPTIONS} value={filterDecade} onChange={setFilterDecade} includeAll />
+        <ChipSelector
+          options={MUSIC_DECADE_OPTIONS}
+          value={filterDecade}
+          onChange={setFilterDecade}
+          includeAll
+        />
 
-        {libraryLoading ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
+        {libraryLoading ? (
+          <ActivityIndicator color={colors.primary} style={styles.spinner} />
+        ) : null}
         {libraryError ? <Text style={styles.error}>{libraryError}</Text> : null}
         {!libraryLoading && !libraryError && filteredLibrary.length === 0 ? (
           <Text style={styles.note}>No videos match these filters yet.</Text>
@@ -372,7 +397,8 @@ export default function MusicLibraryScreen({ navigation }) {
                   ) : null}
                 </View>
                 <Text style={styles.cardSubtitle} numberOfLines={1}>
-                  {entry.artist || entry.channelTitle} · {genresOf(entry).join(', ')} · {entry.decade}
+                  {entry.artist || entry.channelTitle} · {genresOf(entry).join(', ')} ·{' '}
+                  {entry.decade}
                 </Text>
               </View>
               <TouchableOpacity
@@ -384,7 +410,11 @@ export default function MusicLibraryScreen({ navigation }) {
                 accessibilityLabel={`Edit ${entry.title}`}
                 accessibilityState={{ disabled: isGlobal }}
               >
-                <Ionicons name="create-outline" size={20} color={isGlobal ? colors.textMuted : colors.textPrimary} />
+                <Ionicons
+                  name="create-outline"
+                  size={20}
+                  color={isGlobal ? colors.textMuted : colors.textPrimary}
+                />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.iconButton, isGlobal && styles.iconButtonDisabled]}
@@ -395,22 +425,36 @@ export default function MusicLibraryScreen({ navigation }) {
                 accessibilityLabel={`Remove ${entry.title}`}
                 accessibilityState={{ disabled: isGlobal }}
               >
-                <Ionicons name="trash-outline" size={20} color={isGlobal ? colors.textMuted : colors.destructive} />
+                <Ionicons
+                  name="trash-outline"
+                  size={20}
+                  color={isGlobal ? colors.textMuted : colors.destructive}
+                />
               </TouchableOpacity>
             </View>
           );
         })}
       </ScrollView>
 
-      <Modal visible={formVisible} transparent animationType="fade" onRequestClose={() => setFormVisible(false)}>
+      <Modal
+        visible={formVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFormVisible(false)}
+      >
         <KeyboardAvoidingView
           style={styles.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <Pressable style={styles.modalBackdrop} onPress={() => setFormVisible(false)} />
-          <ScrollView contentContainerStyle={styles.modalSheetWrap} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            contentContainerStyle={styles.modalSheetWrap}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={styles.modalSheet}>
-              <Text style={styles.modalHeading}>{formMode === 'add' ? 'Add to Library' : 'Edit Entry'}</Text>
+              <Text style={styles.modalHeading}>
+                {formMode === 'add' ? 'Add to Library' : 'Edit Entry'}
+              </Text>
 
               <Text style={styles.fieldLabel}>Title</Text>
               <TextInput
@@ -440,10 +484,19 @@ export default function MusicLibraryScreen({ navigation }) {
               />
 
               <Text style={styles.fieldLabel}>Genres</Text>
-              <ChipSelector options={MUSIC_GENRE_OPTIONS} value={formGenres} onChange={setFormGenres} multi />
+              <ChipSelector
+                options={MUSIC_GENRE_OPTIONS}
+                value={formGenres}
+                onChange={setFormGenres}
+                multi
+              />
 
               <Text style={[styles.fieldLabel, styles.fieldLabelSpaced]}>Decade</Text>
-              <ChipSelector options={MUSIC_DECADE_OPTIONS} value={formDecade} onChange={setFormDecade} />
+              <ChipSelector
+                options={MUSIC_DECADE_OPTIONS}
+                value={formDecade}
+                onChange={setFormDecade}
+              />
 
               {formError ? <Text style={styles.error}>{formError}</Text> : null}
 

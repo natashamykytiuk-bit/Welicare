@@ -37,7 +37,11 @@ export function similarityScore(anchor, candidate) {
     else if (Math.abs(a - c) === 10) score += ADJACENT_DECADE_WEIGHT;
   }
 
-  if (anchor.artist && candidate.artist && anchor.artist.toLowerCase() === candidate.artist.toLowerCase()) {
+  if (
+    anchor.artist &&
+    candidate.artist &&
+    anchor.artist.toLowerCase() === candidate.artist.toLowerCase()
+  ) {
     score += SAME_ARTIST_WEIGHT;
   }
 

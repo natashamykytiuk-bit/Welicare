@@ -38,9 +38,7 @@ export default function WelcomeScreen({ navigation }) {
           <Text style={styles.outlineButtonText}>Sign In</Text>
         </TouchableOpacity>
 
-        <Text style={styles.tagNote}>
-          Supporting care teams and families
-        </Text>
+        <Text style={styles.tagNote}>Supporting care teams and families</Text>
       </View>
     </SafeAreaView>
   );

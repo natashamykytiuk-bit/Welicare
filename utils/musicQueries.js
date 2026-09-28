@@ -6,7 +6,12 @@
 const FALLBACK_QUERIES = ['classic oldies music', 'big band music'];
 
 function isEmpty(value) {
-  return value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0);
+  return (
+    value === null ||
+    value === undefined ||
+    value === '' ||
+    (Array.isArray(value) && value.length === 0)
+  );
 }
 
 export function buildMusicQueries(lifeStory) {
@@ -23,9 +28,10 @@ export function buildMusicQueries(lifeStory) {
   if (!isEmpty(lifeStory.musicGenres)) {
     // Same "Other" substitution buildFactLines does for musicGenres — a
     // literal "Other music oldies" query would return junk results.
-    const genres = lifeStory.musicGenres.includes('Other') && lifeStory.musicGenresOtherDetail
-      ? [...lifeStory.musicGenres.filter((g) => g !== 'Other'), lifeStory.musicGenresOtherDetail]
-      : lifeStory.musicGenres;
+    const genres =
+      lifeStory.musicGenres.includes('Other') && lifeStory.musicGenresOtherDetail
+        ? [...lifeStory.musicGenres.filter((g) => g !== 'Other'), lifeStory.musicGenresOtherDetail]
+        : lifeStory.musicGenres;
     return genres.map((genre) => `${genre} music oldies`);
   }
 

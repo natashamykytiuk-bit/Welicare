@@ -17,7 +17,8 @@
 export function nextOnboardingRoute(userData) {
   const data = userData ?? {};
   if (!data.pinHash) return 'PINSetup';
-  const needsOrg = data.role === 'Administrator' ? !data.orgId : !data.orgId && !data.orgStepSkipped;
+  const needsOrg =
+    data.role === 'Administrator' ? !data.orgId : !data.orgId && !data.orgStepSkipped;
   if (needsOrg) return 'JoinCreateOrganization';
   return 'ModeSelection';
 }

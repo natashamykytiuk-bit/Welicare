@@ -7,7 +7,12 @@
 const FALLBACK_QUERIES = ['classic hollywood movies', 'old TV shows compilation'];
 
 function isEmpty(value) {
-  return value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0);
+  return (
+    value === null ||
+    value === undefined ||
+    value === '' ||
+    (Array.isArray(value) && value.length === 0)
+  );
 }
 
 export function buildMovieQueries(lifeStory) {

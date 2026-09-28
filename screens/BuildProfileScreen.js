@@ -47,19 +47,49 @@ const AGE_RANGE_OPTIONS = ['Under 60', '60-70', '70-80', '80-90', '90-100', '100
 const RELATIONSHIP_OPTIONS = ['Married', 'Widowed', 'Divorced', 'Single', 'Prefer not to say'];
 const YES_NO = ['Yes', 'No'];
 const HOBBY_OPTIONS = [
-  'Reading', 'Gardening', 'Cooking', 'Walking', 'Travel', 'Dancing',
-  'Cards & Games', 'Church/Faith', 'Volunteering', 'Sports', 'Fishing', 'Knitting', 'Other',
+  'Reading',
+  'Gardening',
+  'Cooking',
+  'Walking',
+  'Travel',
+  'Dancing',
+  'Cards & Games',
+  'Church/Faith',
+  'Volunteering',
+  'Sports',
+  'Fishing',
+  'Knitting',
+  'Other',
 ];
 const CREATIVE_HOBBY_OPTIONS = [
-  'Painting', 'Drawing', 'Knitting', 'Sewing', 'Woodworking', 'Photography',
-  'Writing', 'Playing Music', 'Singing', 'None', 'Other',
+  'Painting',
+  'Drawing',
+  'Knitting',
+  'Sewing',
+  'Woodworking',
+  'Photography',
+  'Writing',
+  'Playing Music',
+  'Singing',
+  'None',
+  'Other',
 ];
 // Exported so MusicLibraryScreen/CurateResidentMusicScreen can reuse the
 // same genre vocabulary when curating musicLibrary — keeps filter chips
 // there consistent with what a resident's lifeStory.musicGenres can hold.
 export const MUSIC_GENRE_OPTIONS = [
-  'Classic Rock', 'Country', 'Jazz', 'Classical', 'Folk', 'Big Band',
-  'Oldies/50s-60s', 'Gospel', 'Pop', 'Blues', 'Opera', 'Other',
+  'Classic Rock',
+  'Country',
+  'Jazz',
+  'Classical',
+  'Folk',
+  'Big Band',
+  'Oldies/50s-60s',
+  'Gospel',
+  'Pop',
+  'Blues',
+  'Opera',
+  'Other',
 ];
 
 function SectionHeader({ children }) {
@@ -198,10 +228,16 @@ export default function BuildProfileScreen({ navigation, route }) {
     }
     setSaveError('');
     try {
-      await setDoc(doc(db, 'residents', residentId), { name: trimmedName, lifeStory: toSave }, { merge: true });
+      await setDoc(
+        doc(db, 'residents', residentId),
+        { name: trimmedName, lifeStory: toSave },
+        { merge: true }
+      );
     } catch (e) {
       console.error('[BuildProfile] failed to save profile:', e.code, e.message, e);
-      setSaveError("We couldn't save this just now. Your answers are still here — please try again.");
+      setSaveError(
+        "We couldn't save this just now. Your answers are still here — please try again."
+      );
       return;
     } finally {
       // Always re-enable the button, even when the save failed.
@@ -311,7 +347,9 @@ export default function BuildProfileScreen({ navigation, route }) {
             />
           ) : null}
 
-          <Text style={[styles.fieldLabel, styles.fieldLabelSpaced]}>Do you have grandchildren?</Text>
+          <Text style={[styles.fieldLabel, styles.fieldLabelSpaced]}>
+            Do you have grandchildren?
+          </Text>
           <ChipRow
             options={YES_NO}
             value={story.hasGrandchildren === null ? null : story.hasGrandchildren ? 'Yes' : 'No'}
@@ -348,7 +386,12 @@ export default function BuildProfileScreen({ navigation, route }) {
 
           <SectionHeader>Hobbies &amp; Interests</SectionHeader>
           <Text style={styles.fieldLabel}>What did you love to do in your spare time?</Text>
-          <ChipRow options={HOBBY_OPTIONS} value={story.hobbies} onChange={(v) => set('hobbies', v)} multi />
+          <ChipRow
+            options={HOBBY_OPTIONS}
+            value={story.hobbies}
+            onChange={(v) => set('hobbies', v)}
+            multi
+          />
           {story.hobbies.includes('Other') ? (
             <TextField
               value={story.hobbiesOtherDetail}

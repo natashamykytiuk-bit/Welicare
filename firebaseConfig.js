@@ -9,13 +9,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // they're safe to ship in a client app; access is enforced by the
 // security rules in firestore.rules, not by hiding this config).
 const firebaseConfig = {
-  apiKey: "AIzaSyDwkxmWCgv7QMUEVj-1Br6gOOu_qfL_b6E",
-  authDomain: "welicare.firebaseapp.com",
-  projectId: "welicare",
-  storageBucket: "welicare.firebasestorage.app",
-  messagingSenderId: "796680295722",
-  appId: "1:796680295722:web:1b64ffc1ab2520a8617a53",
-  measurementId: "G-ZZ9NT731S0",
+  apiKey: 'AIzaSyDwkxmWCgv7QMUEVj-1Br6gOOu_qfL_b6E',
+  authDomain: 'welicare.firebaseapp.com',
+  projectId: 'welicare',
+  storageBucket: 'welicare.firebasestorage.app',
+  messagingSenderId: '796680295722',
+  appId: '1:796680295722:web:1b64ffc1ab2520a8617a53',
+  measurementId: 'G-ZZ9NT731S0',
 };
 
 const app = initializeApp(firebaseConfig);
@@ -26,9 +26,10 @@ const app = initializeApp(firebaseConfig);
 // build resolves to a different module that doesn't export it, so calling
 // it there throws and crashes the whole app before anything can render.
 // getAuth() on web already persists to localStorage by default.
-const auth = Platform.OS === 'web'
-  ? getAuth(app)
-  : initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
+const auth =
+  Platform.OS === 'web'
+    ? getAuth(app)
+    : initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
 
 // The Firestore database where user profiles (users/{uid}) are stored.
 const db = getFirestore(app);

@@ -28,12 +28,27 @@ function timeGreeting() {
 // show a home icon (gated by the Resident Mode lock, like every other
 // activity screen) instead of its normal back-only header.
 const ACTIVITIES = [
-  { label: 'Guided Meditation & Exercise', screen: 'GuidedMeditation', accent: 'meditation', icon: 'leaf-outline' },
-  { label: 'Music Player', screen: 'MusicSelection', accent: 'music', icon: 'musical-notes-outline' },
+  {
+    label: 'Guided Meditation & Exercise',
+    screen: 'GuidedMeditation',
+    accent: 'meditation',
+    icon: 'leaf-outline',
+  },
+  {
+    label: 'Music Player',
+    screen: 'MusicSelection',
+    accent: 'music',
+    icon: 'musical-notes-outline',
+  },
   { label: 'Games', screen: 'Games', accent: 'games', icon: 'game-controller-outline' },
   { label: 'Trivia', screen: 'Trivia', accent: 'trivia', icon: 'help-circle-outline' },
   { label: 'Photo Album', screen: 'PhotoAlbum', accent: 'photoAlbum', icon: 'images-outline' },
-  { label: 'Movies & Videos', screen: 'MoviesSelection', accent: 'moviesVideos', icon: 'film-outline' },
+  {
+    label: 'Movies & Videos',
+    screen: 'MoviesSelection',
+    accent: 'moviesVideos',
+    icon: 'film-outline',
+  },
   {
     label: 'Conversation Starters',
     screen: 'ConversationStarters',
@@ -163,7 +178,12 @@ export default function ActivityMenuScreen({ navigation, route }) {
             <View style={styles.bannerAccent} />
             <View style={styles.bannerBody}>
               <View style={styles.bannerHeaderRow}>
-                <Ionicons name="sparkles" size={20} color={colors.primary} style={styles.bannerIcon} />
+                <Ionicons
+                  name="sparkles"
+                  size={20}
+                  color={colors.primary}
+                  style={styles.bannerIcon}
+                />
                 <Text style={styles.bannerTitle}>Personalize {preferredName}'s experience</Text>
                 <TouchableOpacity
                   onPress={() => setBannerDismissed(true)}
@@ -191,7 +211,8 @@ export default function ActivityMenuScreen({ navigation, route }) {
         ) : null}
 
         <Text style={styles.heading}>
-          {timeGreeting()}{greetingName ? `, ${greetingName}` : ''}.
+          {timeGreeting()}
+          {greetingName ? `, ${greetingName}` : ''}.
         </Text>
         <Text style={styles.body}>What would you like to do today?</Text>
 
@@ -202,12 +223,19 @@ export default function ActivityMenuScreen({ navigation, route }) {
               <TouchableOpacity
                 key={activity.screen}
                 style={[styles.tile, { backgroundColor: accent.bg }]}
-                onPress={() => navigation.navigate(activity.screen, { ...activity.params, residentId })}
+                onPress={() =>
+                  navigation.navigate(activity.screen, { ...activity.params, residentId })
+                }
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel={activity.label}
               >
-                <Ionicons name={activity.icon} size={34} color={colors.textPrimary} style={styles.tileIcon} />
+                <Ionicons
+                  name={activity.icon}
+                  size={34}
+                  color={colors.textPrimary}
+                  style={styles.tileIcon}
+                />
                 <Text style={styles.tileLabel}>{activity.label}</Text>
               </TouchableOpacity>
             );

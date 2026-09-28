@@ -134,134 +134,140 @@ export default function App() {
     // — this is the only place a single Provider can reach all of them.
     // Other modes just never call useResidentLock(), so it's inert for them.
     <ResidentLockProvider>
-    <NavigationContainer>
-      {/*
+      <NavigationContainer>
+        {/*
         Only one of the two branches below is ever rendered, based on
         whether `user` is signed in. Swapping between them resets the
         navigator to `initialRouteName`, which is how a fresh sign-up
         lands on PINSetup while a normal sign-in lands on ModeSelection.
       */}
-      <Stack.Navigator
-        screenOptions={{ headerShown: false }}
-        initialRouteName={initialRouteName}
-      >
-        {user ? (
-          <>
-            {/* Onboarding — reached whenever the saved account state says a
+        <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRouteName}>
+          {user ? (
+            <>
+              {/* Onboarding — reached whenever the saved account state says a
                 step is still missing (see utils/onboarding.js), not only
                 right after sign-up */}
-            <Stack.Screen name="PINSetup" component={PINSetupScreen} />
-            <Stack.Screen name="JoinCreateOrganization" component={JoinCreateOrganizationScreen} />
-            <Stack.Screen name="JoinOrganization" component={JoinOrganizationScreen} />
-            <Stack.Screen name="CreateOrganization" component={CreateOrganizationScreen} />
+              <Stack.Screen name="PINSetup" component={PINSetupScreen} />
+              <Stack.Screen
+                name="JoinCreateOrganization"
+                component={JoinCreateOrganizationScreen}
+              />
+              <Stack.Screen name="JoinOrganization" component={JoinOrganizationScreen} />
+              <Stack.Screen name="CreateOrganization" component={CreateOrganizationScreen} />
 
-            {/* The post-login hub, plus screens reachable from anywhere.
+              {/* The post-login hub, plus screens reachable from anywhere.
                 animation is dynamic (not a fixed screenOption) because this
                 screen is reached both going forward (finishing onboarding)
                 and going "back" out of a mode — the back-style callers pass
                 params.animation: 'slide_from_left' so the transition mirrors
                 a real pop instead of looking like another forward push. */}
-            <Stack.Screen
-              name="ModeSelection"
-              component={ModeSelectionScreen}
-              options={({ route }) => ({ animation: route.params?.animation ?? 'default' })}
-            />
-            <Stack.Screen name="Settings" component={SettingsScreen} />
-            {/* Reached from Settings' "Organization" row — only shown
+              <Stack.Screen
+                name="ModeSelection"
+                component={ModeSelectionScreen}
+                options={({ route }) => ({ animation: route.params?.animation ?? 'default' })}
+              />
+              <Stack.Screen name="Settings" component={SettingsScreen} />
+              {/* Reached from Settings' "Organization" row — only shown
                 while the signed-in user's org is a personal one (see
                 createPersonalOrganization / OrganizationSettingsScreen). */}
-            <Stack.Screen name="OrganizationSettings" component={OrganizationSettingsScreen} />
-            {/* "Change Username" on SettingsScreen. */}
-            <Stack.Screen name="ChangeUsername" component={ChangeUsernameScreen} />
-            <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
-            {/* Reusable PIN check — every mode entry (and Resident Mode's
+              <Stack.Screen name="OrganizationSettings" component={OrganizationSettingsScreen} />
+              {/* "Change Username" on SettingsScreen. */}
+              <Stack.Screen name="ChangeUsername" component={ChangeUsernameScreen} />
+              <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
+              {/* Reusable PIN check — every mode entry (and Resident Mode's
                 exit) routes through here with a `destination` param.
                 transparentModal keeps the screen underneath mounted and
                 visible instead of unmounting it, which is what lets
                 PINEntryScreen's own dark overlay show it dimmed behind
                 the floating card. */}
-            <Stack.Screen
-              name="PINEntry"
-              component={PINEntryScreen}
-              options={{ presentation: 'transparentModal', animation: 'fade' }}
-            />
-            {/* "Forgot PIN?" on PINEntryScreen — re-verifies the user's
+              <Stack.Screen
+                name="PINEntry"
+                component={PINEntryScreen}
+                options={{ presentation: 'transparentModal', animation: 'fade' }}
+              />
+              {/* "Forgot PIN?" on PINEntryScreen — re-verifies the user's
                 password, then hands off to PINSetup in reset mode. */}
-            <Stack.Screen name="ForgotPin" component={ForgotPinScreen} />
-            {/* Also reachable from SettingsScreen's "Change Password" row,
+              <Stack.Screen name="ForgotPin" component={ForgotPinScreen} />
+              {/* Also reachable from SettingsScreen's "Change Password" row,
                 pre-filled with the signed-in user's email. */}
-            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+              <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
 
-            {/* Family Mode */}
-            <Stack.Screen name="FamilyMode" component={FamilyModeScreen} />
-            <Stack.Screen name="FamilyResidents" component={FamilyResidentsScreen} />
+              {/* Family Mode */}
+              <Stack.Screen name="FamilyMode" component={FamilyModeScreen} />
+              <Stack.Screen name="FamilyResidents" component={FamilyResidentsScreen} />
 
-            {/* Caregiver Mode */}
-            <Stack.Screen name="CaregiverMode" component={CaregiverModeScreen} />
-            <Stack.Screen name="CaregiverResidents" component={CaregiverResidentsScreen} />
-            <Stack.Screen name="OverallStats" component={OverallStatsScreen} />
-            <Stack.Screen name="ManageMusic" component={ManageMusicScreen} />
-            <Stack.Screen name="MusicLibrary" component={MusicLibraryScreen} />
-            <Stack.Screen name="CurateResidentMusic" component={CurateResidentMusicScreen} />
+              {/* Caregiver Mode */}
+              <Stack.Screen name="CaregiverMode" component={CaregiverModeScreen} />
+              <Stack.Screen name="CaregiverResidents" component={CaregiverResidentsScreen} />
+              <Stack.Screen name="OverallStats" component={OverallStatsScreen} />
+              <Stack.Screen name="ManageMusic" component={ManageMusicScreen} />
+              <Stack.Screen name="MusicLibrary" component={MusicLibraryScreen} />
+              <Stack.Screen name="CurateResidentMusic" component={CurateResidentMusicScreen} />
 
-            {/* Administrator Mode */}
-            <Stack.Screen name="AdministratorMode" component={AdministratorModeScreen} />
-            <Stack.Screen name="ManageUsers" component={ManageUsersScreen} />
-            <Stack.Screen name="OrganizationalSettings" component={OrganizationalSettingsScreen} />
+              {/* Administrator Mode */}
+              <Stack.Screen name="AdministratorMode" component={AdministratorModeScreen} />
+              <Stack.Screen name="ManageUsers" component={ManageUsersScreen} />
+              <Stack.Screen
+                name="OrganizationalSettings"
+                component={OrganizationalSettingsScreen}
+              />
 
-            {/* Volunteer Mode */}
-            <Stack.Screen name="VolunteerMode" component={VolunteerModeScreen} />
-            <Stack.Screen name="HourTracker" component={HourTrackerScreen} />
-            <Stack.Screen name="VolunteerResidents" component={VolunteerResidentsScreen} />
+              {/* Volunteer Mode */}
+              <Stack.Screen name="VolunteerMode" component={VolunteerModeScreen} />
+              <Stack.Screen name="HourTracker" component={HourTrackerScreen} />
+              <Stack.Screen name="VolunteerResidents" component={VolunteerResidentsScreen} />
 
-            {/* Resident Mode. gestureEnabled: false blocks the iOS
+              {/* Resident Mode. gestureEnabled: false blocks the iOS
                 swipe-back gesture here, so the only way out is the
                 Home icon, which goes through the PIN gate. animation is
                 dynamic for the same reason as ModeSelection above: entering
                 from ModeSelectionScreen is a forward push, but arriving via
                 ActivityMenuScreen's PIN-gated back button is conceptually a
                 back navigation and passes params.animation accordingly. */}
-            <Stack.Screen
-              name="ResidentMode"
-              component={ResidentModeScreen}
-              options={({ route }) => ({
-                gestureEnabled: false,
-                animation: route.params?.animation ?? 'default',
-              })}
-            />
-            <Stack.Screen name="ActivityMenu" component={ActivityMenuScreen} />
-            <Stack.Screen name="GuidedMeditation" component={GuidedMeditationScreen} />
-            <Stack.Screen name="MusicSelection" component={MusicSelectionScreen} />
-            <Stack.Screen name="MusicPlayer" component={MusicPlayerScreen} />
-            <Stack.Screen name="Games" component={GamesScreen} />
-            <Stack.Screen name="WordGames" component={WordGamesScreen} />
-            <Stack.Screen name="Trivia" component={TriviaScreen} />
-            <Stack.Screen name="PhotoAlbum" component={PhotoAlbumScreen} />
-            <Stack.Screen name="MoviesSelection" component={MoviesSelectionScreen} />
-            <Stack.Screen name="MoviesPlayer" component={MoviesPlayerScreen} />
-            <Stack.Screen name="Molehunt" component={MolehuntScreen} />
+              <Stack.Screen
+                name="ResidentMode"
+                component={ResidentModeScreen}
+                options={({ route }) => ({
+                  gestureEnabled: false,
+                  animation: route.params?.animation ?? 'default',
+                })}
+              />
+              <Stack.Screen name="ActivityMenu" component={ActivityMenuScreen} />
+              <Stack.Screen name="GuidedMeditation" component={GuidedMeditationScreen} />
+              <Stack.Screen name="MusicSelection" component={MusicSelectionScreen} />
+              <Stack.Screen name="MusicPlayer" component={MusicPlayerScreen} />
+              <Stack.Screen name="Games" component={GamesScreen} />
+              <Stack.Screen name="WordGames" component={WordGamesScreen} />
+              <Stack.Screen name="Trivia" component={TriviaScreen} />
+              <Stack.Screen name="PhotoAlbum" component={PhotoAlbumScreen} />
+              <Stack.Screen name="MoviesSelection" component={MoviesSelectionScreen} />
+              <Stack.Screen name="MoviesPlayer" component={MoviesPlayerScreen} />
+              <Stack.Screen name="Molehunt" component={MolehuntScreen} />
 
-            {/* Shared screens used across multiple modes (mainly
+              {/* Shared screens used across multiple modes (mainly
                 Caregiver Mode's quick links, and Resident Mode's
                 Add Resident / resident-info-edit shortcuts) */}
-            <Stack.Screen name="AddResident" component={AddResidentScreen} />
-            <Stack.Screen name="SelectOrganizationResident" component={SelectOrganizationResidentScreen} />
-            <Stack.Screen name="BuildProfile" component={BuildProfileScreen} />
-            <Stack.Screen name="ResidentProfile" component={ResidentProfileScreen} />
-            <Stack.Screen name="ActivityIdeas" component={ActivityIdeasScreen} />
-            <Stack.Screen name="ConversationStarters" component={ConversationStartersScreen} />
-            <Stack.Screen name="MusicMovieRecs" component={MusicMovieRecsScreen} />
-            <Stack.Screen name="FamilyFeed" component={FamilyFeedScreen} />
-          </>
-        ) : (
-          <>
-            <Stack.Screen name="Welcome" component={WelcomeScreen} />
-            <Stack.Screen name="SignUp" component={SignUpScreen} />
-            <Stack.Screen name="SignIn" component={SignInScreen} />
-            {/* "Forgot password?" on SignInScreen — sends a Firebase Auth
+              <Stack.Screen name="AddResident" component={AddResidentScreen} />
+              <Stack.Screen
+                name="SelectOrganizationResident"
+                component={SelectOrganizationResidentScreen}
+              />
+              <Stack.Screen name="BuildProfile" component={BuildProfileScreen} />
+              <Stack.Screen name="ResidentProfile" component={ResidentProfileScreen} />
+              <Stack.Screen name="ActivityIdeas" component={ActivityIdeasScreen} />
+              <Stack.Screen name="ConversationStarters" component={ConversationStartersScreen} />
+              <Stack.Screen name="MusicMovieRecs" component={MusicMovieRecsScreen} />
+              <Stack.Screen name="FamilyFeed" component={FamilyFeedScreen} />
+            </>
+          ) : (
+            <>
+              <Stack.Screen name="Welcome" component={WelcomeScreen} />
+              <Stack.Screen name="SignUp" component={SignUpScreen} />
+              <Stack.Screen name="SignIn" component={SignInScreen} />
+              {/* "Forgot password?" on SignInScreen — sends a Firebase Auth
                 password reset email. */}
-            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-            {/* Reached right after sign-up, while the account exists in
+              <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+              {/* Reached right after sign-up, while the account exists in
                 Firebase Auth but isn't verified yet — still part of the
                 signed-out stack since `user` above is null until then.
                 Rendered via a children function (instead of `component`)
@@ -271,18 +277,18 @@ export default function App() {
                 The onboarding-status effect above then naturally routes a
                 brand-new user to PINSetup, since they won't have a
                 pinHash yet. */}
-            <Stack.Screen name="EmailVerification">
-              {(props) => (
-                <EmailVerificationScreen
-                  {...props}
-                  onVerified={() => setUser(auth.currentUser)}
-                />
-              )}
-            </Stack.Screen>
-          </>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+              <Stack.Screen name="EmailVerification">
+                {(props) => (
+                  <EmailVerificationScreen
+                    {...props}
+                    onVerified={() => setUser(auth.currentUser)}
+                  />
+                )}
+              </Stack.Screen>
+            </>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
     </ResidentLockProvider>
   );
 }

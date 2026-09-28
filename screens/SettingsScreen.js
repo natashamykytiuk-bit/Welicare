@@ -2,14 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import appConfig from '../app.json';
 import BackButton from '../components/BackButton';
 import { auth, db } from '../firebaseConfig';
@@ -164,9 +157,7 @@ function Row({ label, onPress, destructive, last, showArrow }) {
       accessibilityLabel={label}
     >
       <Text style={[styles.rowLabel, destructive && styles.rowLabelDestructive]}>{label}</Text>
-      {showArrow ? (
-        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-      ) : null}
+      {showArrow ? <Ionicons name="chevron-forward" size={18} color={colors.textMuted} /> : null}
     </TouchableOpacity>
   );
 }

@@ -40,7 +40,11 @@ export default function MoviesPlayerScreen({ navigation, route }) {
         {videoId ? (
           <View style={styles.playerWrap} onLayout={handlePlayerLayout}>
             {playerLayout.width > 0 && playerLayout.height > 0 ? (
-              <YoutubePlayer height={playerLayout.height} width={playerLayout.width} videoId={videoId} />
+              <YoutubePlayer
+                height={playerLayout.height}
+                width={playerLayout.width}
+                videoId={videoId}
+              />
             ) : null}
           </View>
         ) : (

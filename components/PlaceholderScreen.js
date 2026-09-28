@@ -55,7 +55,11 @@ export default function PlaceholderScreen({
           <View style={styles.headerRow}>
             <View style={styles.headerLeft}>
               {showBack ? (
-                <BackButton navigation={navigation} onPress={onBackPress} style={styles.iconNoMargin} />
+                <BackButton
+                  navigation={navigation}
+                  onPress={onBackPress}
+                  style={styles.iconNoMargin}
+                />
               ) : null}
               {settingsTarget ? (
                 <TouchableOpacity

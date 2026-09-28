@@ -100,7 +100,9 @@ export default function ResidentModeScreen({ navigation }) {
             throw e;
           });
           const assignedSnap = await withTimeout(
-            getDocs(query(collection(db, 'residents'), where('assignedCaregivers', 'array-contains', uid))),
+            getDocs(
+              query(collection(db, 'residents'), where('assignedCaregivers', 'array-contains', uid))
+            ),
             LOAD_TIMEOUT_MS,
             'Loading residents is taking longer than expected. Please check your connection and try again.'
           ).catch((e) => {
@@ -109,7 +111,9 @@ export default function ResidentModeScreen({ navigation }) {
           });
           if (cancelled) return;
           const merged = new Map();
-          [...ownedSnap.docs, ...assignedSnap.docs].forEach((d) => merged.set(d.id, { id: d.id, ...d.data() }));
+          [...ownedSnap.docs, ...assignedSnap.docs].forEach((d) =>
+            merged.set(d.id, { id: d.id, ...d.data() })
+          );
           const list = Array.from(merged.values()).sort(
             (a, b) => (a.createdAt?.toMillis?.() ?? 0) - (b.createdAt?.toMillis?.() ?? 0)
           );
@@ -220,7 +224,10 @@ export default function ResidentModeScreen({ navigation }) {
             <TouchableOpacity
               style={styles.cardBody}
               onPress={() =>
-                navigation.navigate('ActivityMenu', { residentId: item.id, residentName: item.name })
+                navigation.navigate('ActivityMenu', {
+                  residentId: item.id,
+                  residentName: item.name,
+                })
               }
               activeOpacity={0.8}
               accessibilityRole="button"
@@ -246,10 +253,18 @@ export default function ResidentModeScreen({ navigation }) {
         )}
       />
 
-      <Modal visible={!!menuFor} transparent animationType="fade" onRequestClose={() => setMenuFor(null)}>
+      <Modal
+        visible={!!menuFor}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuFor(null)}
+      >
         <Pressable style={styles.modalOverlay} onPress={() => setMenuFor(null)}>
           <View style={styles.menuSheet}>
-            <TouchableOpacity style={styles.menuItem} onPress={() => menuFor && handleEdit(menuFor)}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => menuFor && handleEdit(menuFor)}
+            >
               <Ionicons name="create-outline" size={20} color={colors.textPrimary} />
               <Text style={styles.menuItemText}>Edit Profile</Text>
             </TouchableOpacity>
@@ -263,7 +278,9 @@ export default function ResidentModeScreen({ navigation }) {
                 }}
               >
                 <Ionicons name="trash-outline" size={20} color={colors.destructive} />
-                <Text style={[styles.menuItemText, { color: colors.destructive }]}>Remove Resident</Text>
+                <Text style={[styles.menuItemText, { color: colors.destructive }]}>
+                  Remove Resident
+                </Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -302,7 +319,9 @@ export default function ResidentModeScreen({ navigation }) {
                 {removing ? (
                   <ActivityIndicator color={colors.white} size="small" />
                 ) : (
-                  <Text style={[styles.confirmButtonText, styles.confirmButtonTextDestructive]}>Remove</Text>
+                  <Text style={[styles.confirmButtonText, styles.confirmButtonTextDestructive]}>
+                    Remove
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>

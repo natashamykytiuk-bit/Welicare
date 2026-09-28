@@ -69,13 +69,17 @@ export default function CurateResidentMusicScreen({ navigation }) {
       setResidentsError('');
       const uid = auth.currentUser?.uid;
       try {
-        const ownedSnap = await getDocs(query(collection(db, 'residents'), where('createdBy', '==', uid)));
+        const ownedSnap = await getDocs(
+          query(collection(db, 'residents'), where('createdBy', '==', uid))
+        );
         const assignedSnap = await getDocs(
           query(collection(db, 'residents'), where('assignedCaregivers', 'array-contains', uid))
         );
         if (cancelled) return;
         const merged = new Map();
-        [...ownedSnap.docs, ...assignedSnap.docs].forEach((d) => merged.set(d.id, { id: d.id, ...d.data() }));
+        [...ownedSnap.docs, ...assignedSnap.docs].forEach((d) =>
+          merged.set(d.id, { id: d.id, ...d.data() })
+        );
         setResidents(Array.from(merged.values()));
       } catch (e) {
         console.error('[CurateResidentMusic] failed to load residents:', e.code, e.message, e);
@@ -100,13 +104,19 @@ export default function CurateResidentMusicScreen({ navigation }) {
       try {
         const facilityId = await getCurrentUserFacilityId();
         if (cancelled) return;
-        const results = await queryMusicLibrarySubset({ decade: filterDecade, genres: filterGenres, facilityId });
+        const results = await queryMusicLibrarySubset({
+          decade: filterDecade,
+          genres: filterGenres,
+          facilityId,
+        });
         if (!cancelled) setSubset(results);
       } catch (e) {
         console.error('[CurateResidentMusic] failed to load library:', e.code, e.message, e);
         if (!cancelled) {
           setLibraryError(
-            e.code === 'failed-precondition' ? e.message : 'Could not load the music library. Please try again.'
+            e.code === 'failed-precondition'
+              ? e.message
+              : 'Could not load the music library. Please try again.'
           );
           setSubset([]);
         }
@@ -169,7 +179,9 @@ export default function CurateResidentMusicScreen({ navigation }) {
         <View style={styles.pickerContainer}>
           <BackButton navigation={navigation} />
           <Text style={styles.heading}>Curate for Resident</Text>
-          <Text style={styles.body}>Choose a resident to curate their music &amp; video selection.</Text>
+          <Text style={styles.body}>
+            Choose a resident to curate their music &amp; video selection.
+          </Text>
 
           {residentsError ? <Text style={styles.error}>{residentsError}</Text> : null}
           {residentsLoading ? (
@@ -204,9 +216,12 @@ export default function CurateResidentMusicScreen({ navigation }) {
   }
 
   const lifeStory = selectedResident.lifeStory;
-  const hasHint = lifeStory && (lifeStory.favouriteMusicians || (lifeStory.musicGenres ?? []).length > 0);
+  const hasHint =
+    lifeStory && (lifeStory.favouriteMusicians || (lifeStory.musicGenres ?? []).length > 0);
   const availableArtists = distinctArtists(subset);
-  const filteredLibrary = (filterArtist ? subset.filter((v) => (v.artist || v.channelTitle) === filterArtist) : subset)
+  const filteredLibrary = (
+    filterArtist ? subset.filter((v) => (v.artist || v.channelTitle) === filterArtist) : subset
+  )
     .slice()
     .sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
   const consoleLink = extractConsoleLink(libraryError);
@@ -216,14 +231,20 @@ export default function CurateResidentMusicScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <BackButton navigation={navigation} onPress={handleChangeResident} />
         <Text style={styles.heading}>{selectedResident.name}</Text>
-        <TouchableOpacity onPress={handleChangeResident} accessibilityRole="button" accessibilityLabel="Change resident">
+        <TouchableOpacity
+          onPress={handleChangeResident}
+          accessibilityRole="button"
+          accessibilityLabel="Change resident"
+        >
           <Text style={styles.changeResidentLink}>Change resident</Text>
         </TouchableOpacity>
 
         {hasHint ? (
           <View style={styles.hintBox}>
             {lifeStory.favouriteMusicians ? (
-              <Text style={styles.hintText}>Favourite musicians: {lifeStory.favouriteMusicians}</Text>
+              <Text style={styles.hintText}>
+                Favourite musicians: {lifeStory.favouriteMusicians}
+              </Text>
             ) : null}
             {(lifeStory.musicGenres ?? []).length > 0 ? (
               <Text style={styles.hintText}>Enjoys: {lifeStory.musicGenres.join(', ')}</Text>
@@ -232,22 +253,38 @@ export default function CurateResidentMusicScreen({ navigation }) {
         ) : null}
 
         <Text style={styles.sectionLabel}>Artist</Text>
-        <ChipSelector options={availableArtists} value={filterArtist} onChange={setFilterArtist} includeAll />
+        <ChipSelector
+          options={availableArtists}
+          value={filterArtist}
+          onChange={setFilterArtist}
+          includeAll
+        />
         <View style={styles.chipSpacer} />
         <Text style={styles.sectionLabel}>Genre</Text>
-        <ChipSelector options={MUSIC_GENRE_OPTIONS} value={filterGenres} onChange={setFilterGenres} multi />
+        <ChipSelector
+          options={MUSIC_GENRE_OPTIONS}
+          value={filterGenres}
+          onChange={setFilterGenres}
+          multi
+        />
         <View style={styles.chipSpacer} />
         <Text style={styles.sectionLabel}>Decade</Text>
-        <ChipSelector options={MUSIC_DECADE_OPTIONS} value={filterDecade} onChange={setFilterDecade} includeAll />
+        <ChipSelector
+          options={MUSIC_DECADE_OPTIONS}
+          value={filterDecade}
+          onChange={setFilterDecade}
+          includeAll
+        />
 
-        <Text style={styles.sectionLabel}>
-          Videos ({selectedIds.size} selected)
-        </Text>
+        <Text style={styles.sectionLabel}>Videos ({selectedIds.size} selected)</Text>
         {libraryError ? (
           <View style={styles.errorBox}>
             <Text style={styles.error}>{libraryError}</Text>
             {consoleLink ? (
-              <TouchableOpacity onPress={() => Linking.openURL(consoleLink)} accessibilityRole="link">
+              <TouchableOpacity
+                onPress={() => Linking.openURL(consoleLink)}
+                accessibilityRole="link"
+              >
                 <Text style={styles.errorLink}>{consoleLink}</Text>
               </TouchableOpacity>
             ) : null}
@@ -284,7 +321,8 @@ export default function CurateResidentMusicScreen({ navigation }) {
                     {entry.title}
                   </Text>
                   <Text style={styles.cardSubtitle} numberOfLines={1}>
-                    {entry.artist || entry.channelTitle} · {(entry.genres ?? []).join(', ')} · {entry.decade}
+                    {entry.artist || entry.channelTitle} · {(entry.genres ?? []).join(', ')} ·{' '}
+                    {entry.decade}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -302,7 +340,11 @@ export default function CurateResidentMusicScreen({ navigation }) {
           accessibilityRole="button"
           accessibilityLabel="Save selection"
         >
-          {saving ? <ActivityIndicator color={colors.white} /> : <Text style={styles.saveButtonText}>Save</Text>}
+          {saving ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.saveButtonText}>Save</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

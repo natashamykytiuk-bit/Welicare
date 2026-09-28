@@ -204,7 +204,9 @@ export default function OrganizationalSettingsScreen({ navigation }) {
     setRegenerating(true);
     try {
       setInviteCode(await regenerateInviteCode(orgId));
-      setCodeNote('New code created. The old code no longer works; people who already joined are unaffected.');
+      setCodeNote(
+        'New code created. The old code no longer works; people who already joined are unaffected.'
+      );
     } catch (e) {
       console.error('Regenerate code error:', e.code, e.message, e);
       setCodeNote("Couldn't create a new code. Please try again.");
@@ -239,7 +241,9 @@ export default function OrganizationalSettingsScreen({ navigation }) {
       setTransferTo(null);
     } catch (e) {
       console.error('Transfer admin error:', e.code, e.message, e);
-      setTransferError('Something went wrong and the administrator was not changed. Please try again.');
+      setTransferError(
+        'Something went wrong and the administrator was not changed. Please try again.'
+      );
     } finally {
       setTransferring(false);
     }
@@ -255,7 +259,9 @@ export default function OrganizationalSettingsScreen({ navigation }) {
       navigation.reset({ index: 0, routes: [{ name: 'JoinCreateOrganization' }] });
     } catch (e) {
       console.error('Org delete error:', e.code, e.message, e);
-      setDeleteError('Something went wrong and the organization was not deleted. Please try again.');
+      setDeleteError(
+        'Something went wrong and the organization was not deleted. Please try again.'
+      );
       setDeleting(false);
     }
   }
@@ -341,7 +347,9 @@ export default function OrganizationalSettingsScreen({ navigation }) {
 
             {showUnlock ? (
               <View style={styles.sectionCard}>
-                <Text style={styles.dangerText}>Enter your password to edit this organization.</Text>
+                <Text style={styles.dangerText}>
+                  Enter your password to edit this organization.
+                </Text>
                 {unlockError ? (
                   <Text style={styles.errorBanner} accessibilityRole="alert">
                     {unlockError}
@@ -505,7 +513,8 @@ export default function OrganizationalSettingsScreen({ navigation }) {
                   ) : transferTo ? (
                     <>
                       <Text style={styles.dangerText}>
-                        Make {transferTo.name} the administrator of {org.name || 'this organization'}?
+                        Make {transferTo.name} the administrator of{' '}
+                        {org.name || 'this organization'}?
                       </Text>
                       <TouchableOpacity
                         style={[styles.button, transferring && styles.buttonDisabled]}
@@ -557,10 +566,10 @@ export default function OrganizationalSettingsScreen({ navigation }) {
                   ) : (
                     <>
                       <Text style={styles.dangerText}>
-                        This permanently deletes {org.name || 'this organization'}, every resident in
-                        it (including their life stories) and its music library. Members keep their
-                        accounts but will need to join or create a new organization. This can't be
-                        undone.
+                        This permanently deletes {org.name || 'this organization'}, every resident
+                        in it (including their life stories) and its music library. Members keep
+                        their accounts but will need to join or create a new organization. This
+                        can't be undone.
                       </Text>
                       {deleteError ? (
                         <Text style={styles.errorBanner} accessibilityRole="alert">
@@ -591,7 +600,9 @@ export default function OrganizationalSettingsScreen({ navigation }) {
                         disabled={confirmName.trim() !== (org.name ?? '').trim() || deleting}
                         activeOpacity={0.85}
                         accessibilityRole="button"
-                        accessibilityLabel={deleting ? 'Deleting organization…' : 'Permanently delete organization'}
+                        accessibilityLabel={
+                          deleting ? 'Deleting organization…' : 'Permanently delete organization'
+                        }
                       >
                         <Text style={styles.buttonText}>
                           {deleting ? 'Deleting…' : 'Permanently delete organization'}
@@ -716,7 +727,12 @@ const styles = StyleSheet.create({
   },
   sectionGap: { marginTop: 16 },
   codeActions: { marginTop: -8, marginBottom: 20, gap: 8 },
-  codeNote: { fontFamily: fonts.sansRegular, fontSize: 15, color: colors.textMuted, lineHeight: 21 },
+  codeNote: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 15,
+    color: colors.textMuted,
+    lineHeight: 21,
+  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -751,8 +767,18 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   memberRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  memberName: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.textPrimary, flexShrink: 1 },
-  memberRole: { fontFamily: fonts.sansRegular, fontSize: 15, color: colors.textMuted, marginLeft: 12 },
+  memberName: {
+    fontFamily: fonts.sansBold,
+    fontSize: 16,
+    color: colors.textPrimary,
+    flexShrink: 1,
+  },
+  memberRole: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 15,
+    color: colors.textMuted,
+    marginLeft: 12,
+  },
   dangerLabel: { color: colors.destructive, marginTop: 16 },
   dangerCard: {
     borderWidth: 1,

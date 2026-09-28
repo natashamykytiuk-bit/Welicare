@@ -99,9 +99,7 @@ export default function ForgotPasswordScreen({ navigation, route }) {
           accessibilityRole="button"
           accessibilityLabel={loading ? 'Sending…' : 'Send reset link'}
         >
-          <Text style={styles.buttonText}>
-            {loading ? 'Sending…' : 'Send reset link'}
-          </Text>
+          <Text style={styles.buttonText}>{loading ? 'Sending…' : 'Send reset link'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

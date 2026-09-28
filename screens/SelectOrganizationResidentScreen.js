@@ -1,12 +1,4 @@
-import {
-  arrayUnion,
-  collection,
-  doc,
-  getDocs,
-  query,
-  updateDoc,
-  where,
-} from 'firebase/firestore';
+import { arrayUnion, collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -64,7 +56,8 @@ export default function SelectOrganizationResidentScreen({ navigation, route }) 
         const all = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
         const selectable = all.filter((r) => {
           const isOwner = r.caregiverId === uid || r.createdBy === uid;
-          const isAssigned = Array.isArray(r.assignedCaregivers) && r.assignedCaregivers.includes(uid);
+          const isAssigned =
+            Array.isArray(r.assignedCaregivers) && r.assignedCaregivers.includes(uid);
           return !isOwner && !isAssigned;
         });
         console.log('[SelectOrgResident] found', selectable.length, 'selectable residents');

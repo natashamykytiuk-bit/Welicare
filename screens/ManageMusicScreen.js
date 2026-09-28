@@ -24,7 +24,9 @@ export default function ManageMusicScreen({ navigation }) {
           accessibilityLabel="Music Library"
         >
           <Text style={styles.cardTitle}>Music Library</Text>
-          <Text style={styles.cardSubtitle}>Search, add, and edit videos in the shared library</Text>
+          <Text style={styles.cardSubtitle}>
+            Search, add, and edit videos in the shared library
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity

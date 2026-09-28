@@ -125,7 +125,9 @@ export default function MoviesSelectionScreen({ navigation, route }) {
         {loading ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        {showEmptyState ? <Text style={styles.note}>No results found — try a different search.</Text> : null}
+        {showEmptyState ? (
+          <Text style={styles.note}>No results found — try a different search.</Text>
+        ) : null}
 
         {!loading && !error
           ? results.map((video) => (

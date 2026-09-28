@@ -8,7 +8,13 @@ import { colors, radii } from '../theme';
 // mode-hub screens (FamilyModeScreen, CaregiverModeScreen, etc.) point it
 // straight at ModeSelection instead, since their stack history was reset
 // when the PIN gate let them in.
-export default function BackButton({ navigation, style, onPress, color = colors.textPrimary, iconStyle }) {
+export default function BackButton({
+  navigation,
+  style,
+  onPress,
+  color = colors.textPrimary,
+  iconStyle,
+}) {
   return (
     <TouchableOpacity
       style={[styles.button, style]}

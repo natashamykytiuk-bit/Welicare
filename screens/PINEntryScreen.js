@@ -1,7 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import NumberPad from '../components/NumberPad';
 import PinDots from '../components/PinDots';
 import { auth, db } from '../firebaseConfig';
@@ -147,7 +154,11 @@ export default function PINEntryScreen({ navigation, route }) {
             <Ionicons name="close" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
 
-          <ScrollView style={styles.cardScroll} contentContainerStyle={styles.cardContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.cardScroll}
+            contentContainerStyle={styles.cardContent}
+            showsVerticalScrollIndicator={false}
+          >
             {storedHash === undefined ? (
               <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
             ) : (
@@ -169,7 +180,11 @@ export default function PINEntryScreen({ navigation, route }) {
                 ) : null}
 
                 <PinDots value={digits} />
-                <NumberPad onDigit={handleDigit} onBackspace={handleBackspace} disabled={checking || lockedOut} />
+                <NumberPad
+                  onDigit={handleDigit}
+                  onBackspace={handleBackspace}
+                  disabled={checking || lockedOut}
+                />
 
                 <TouchableOpacity
                   style={styles.forgotLink}
