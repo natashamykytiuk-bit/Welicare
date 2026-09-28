@@ -28,6 +28,7 @@ import {
   thumbnailForVideoId,
 } from '../utils/musicLibrary';
 import {
+  findLibraryEntryByVideoId,
   genresOf,
   getCurrentUserFacilityId,
   queryMusicLibrarySubset,
@@ -86,6 +87,14 @@ export default function MusicLibraryScreen({ navigation }) {
   // same entry instead of adding the song twice. The rules let a caregiver
   // update entries in their own organization, so that overwrite is allowed.
   const addRef = useRef(null);
+
+  // True if this video is already in the library shown on screen (global or
+  // this organization's entries). Search results and the pasted-link preview
+  // use it to show an "In library" badge instead of the Add button, so the
+  // same song can't be added twice. handleSaveForm double-checks with the
+  // server, since someone else may have added it since the list loaded.
+  const libraryVideoIds = new Set(library.map((entry) => entry.videoId));
+  const isInLibrary = (videoId) => libraryVideoIds.has(videoId);
   const [formError, setFormError] = useState('');
 
   const [confirmTarget, setConfirmTarget] = useState(null);
@@ -193,6 +202,17 @@ export default function MusicLibraryScreen({ navigation }) {
     setFormError('');
     try {
       if (formMode === 'add') {
+        // Someone else may have added this song since the list loaded. Our
+        // own earlier attempt from this same form (same id) doesn't count —
+        // that's a retry, which setDoc safely overwrites.
+        const existing = await findLibraryEntryByVideoId(formVideoId, facilityId);
+        if (existing && existing.id !== addRef.current.id) {
+          setFormError(
+            `“${existing.title || 'This song'}” is already in your library, so it wasn’t added again.`
+          );
+          await loadLibrary();
+          return;
+        }
         await setDoc(addRef.current, {
           videoId: formVideoId,
           title,
@@ -302,15 +322,19 @@ export default function MusicLibraryScreen({ navigation }) {
                 {video.channelTitle}
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => openAddModal(video)}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={`Add ${video.title} to library`}
-            >
-              <Ionicons name="add" size={22} color={colors.white} />
-            </TouchableOpacity>
+            {isInLibrary(video.videoId) ? (
+              <InLibraryBadge />
+            ) : (
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => openAddModal(video)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`Add ${video.title} to library`}
+              >
+                <Ionicons name="add" size={22} color={colors.white} />
+              </TouchableOpacity>
+            )}
           </View>
         ))}
 
@@ -346,17 +370,21 @@ export default function MusicLibraryScreen({ navigation }) {
                 {urlPreview.videoId}
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() =>
-                openAddModal({ videoId: urlPreview.videoId, title: '', channelTitle: '' })
-              }
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Add this video to library"
-            >
-              <Ionicons name="add" size={22} color={colors.white} />
-            </TouchableOpacity>
+            {isInLibrary(urlPreview.videoId) ? (
+              <InLibraryBadge />
+            ) : (
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() =>
+                  openAddModal({ videoId: urlPreview.videoId, title: '', channelTitle: '' })
+                }
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Add this video to library"
+              >
+                <Ionicons name="add" size={22} color={colors.white} />
+              </TouchableOpacity>
+            )}
           </View>
         ) : null}
 
@@ -585,7 +613,29 @@ export default function MusicLibraryScreen({ navigation }) {
   );
 }
 
+// Shown in place of the Add button for a song that's already in the
+// library. Not a button — there's nothing to do — but readable by screen
+// readers so it's clear why Add isn't offered.
+function InLibraryBadge() {
+  return (
+    <View style={styles.inLibraryBadge} accessible accessibilityLabel="Already in library">
+      <Ionicons name="checkmark" size={16} color={colors.primary} />
+      <Text style={styles.inLibraryText}>In library</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  inLibraryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    minHeight: 44,
+    borderRadius: radii.circular,
+    backgroundColor: colors.mistBackground,
+  },
+  inLibraryText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.primary },
   flex: { flex: 1, backgroundColor: colors.background },
   content: { padding: 28, paddingTop: 24, paddingBottom: 48 },
   heading: {

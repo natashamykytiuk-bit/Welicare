@@ -296,6 +296,23 @@ describe('music library add (MusicLibraryScreen)', () => {
     });
   });
 
+  // The duplicate check (findLibraryEntryByVideoId) queries by facilityId
+  // AND videoId; it has to satisfy the same list rules as the library screen.
+  it('the duplicate-check query is allowed for your org and the global list', async () => {
+    const db = as('caregiverA');
+    const byVideo = (facility) =>
+      getDocs(
+        query(
+          collection(db, 'musicLibrary'),
+          where('facilityId', '==', facility),
+          where('videoId', '==', 'abc123')
+        )
+      );
+    await assertSucceeds(byVideo('orgA'));
+    await assertSucceeds(byVideo('global'));
+    await assertFails(byVideo('orgB'));
+  });
+
   it('volunteers still cannot add to the library', async () => {
     await assertFails(setDoc(doc(as('volunteerA'), 'musicLibrary', 'm3'), entry('Crazy')));
   });

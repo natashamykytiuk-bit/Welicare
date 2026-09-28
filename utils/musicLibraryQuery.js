@@ -110,3 +110,29 @@ export function extractConsoleLink(message) {
   const match = typeof message === 'string' ? message.match(/https?:\/\/\S+/) : null;
   return match ? match[0] : null;
 }
+
+// Looks up whether a YouTube video is already in the library this caregiver
+// can see — the shared "global" baseline or their own organization's
+// entries. Returns the first matching entry ({ id, ...data }) or null.
+// Used by MusicLibraryScreen right before saving a new entry, to catch a
+// song someone else added since the screen loaded. Two queries (one per
+// facilityId value) for the same reason as queryMusicLibrarySubset: each
+// has to match one of the rules' separate `allow list` branches on its own.
+// videoId + facilityId are both equality filters, so no composite index is
+// needed.
+export async function findLibraryEntryByVideoId(videoId, facilityId) {
+  const facilityValues = facilityId ? ['global', facilityId] : ['global'];
+  const snapshots = await Promise.all(
+    facilityValues.map((value) =>
+      getDocs(
+        query(
+          collection(db, 'musicLibrary'),
+          where('facilityId', '==', value),
+          where('videoId', '==', videoId)
+        )
+      )
+    )
+  );
+  const match = snapshots.flatMap((snapshot) => snapshot.docs)[0];
+  return match ? { id: match.id, ...match.data() } : null;
+}
