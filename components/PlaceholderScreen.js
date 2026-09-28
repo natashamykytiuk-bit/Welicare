@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useResidentLock } from '../contexts/ResidentLockContext';
 import { colors, fonts, radii } from '../theme';
 import BackButton from './BackButton';
+import HomeButton from './HomeButton';
 import OrgIdBadge from './OrgIdBadge';
 
 // The reusable shell behind most "not built yet" screens: just a title,
@@ -37,16 +37,7 @@ export default function PlaceholderScreen({
   homeDestination,
   showOrgId,
 }) {
-  const { locked, requestPin } = useResidentLock();
   const showHeaderRow = showBack || settingsTarget || homeDestination;
-
-  function goHome() {
-    // slide_from_left makes this read as a back transition rather than a
-    // forward push — see App.js's dynamic animation option on the
-    // ModeSelection screen, which every other exit-to-ModeSelection in the
-    // app already uses.
-    navigation.navigate(homeDestination, { animation: 'slide_from_left' });
-  }
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -73,16 +64,9 @@ export default function PlaceholderScreen({
                 </TouchableOpacity>
               ) : null}
             </View>
+            {/* PIN-gated while Resident Mode is locked — see HomeButton. */}
             {homeDestination ? (
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => (locked ? requestPin(goHome) : goHome())}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Return to Mode Selection"
-              >
-                <Ionicons name="home-outline" size={20} color={colors.textPrimary} />
-              </TouchableOpacity>
+              <HomeButton navigation={navigation} destination={homeDestination} />
             ) : null}
           </View>
         ) : null}

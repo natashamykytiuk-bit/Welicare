@@ -15,6 +15,7 @@
     "components/**/*.js",
     "utils/**/*.js",
     "contexts/**/*.js",
+    "games/**/*.js",
     "types/**/*.js"
   ],
   "exclude": ["node_modules", "functions", "scripts", ".agents", "Claude outputs"]

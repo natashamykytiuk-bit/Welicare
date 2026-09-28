@@ -45,6 +45,7 @@ import ActivityLogScreen from './screens/ActivityLogScreen';
 import ManageUsersScreen from './screens/ManageUsersScreen';
 import ResidentSafetyScreen from './screens/ResidentSafetyScreen';
 import ModeSelectionScreen from './screens/ModeSelectionScreen';
+import MemoryMatchScreen from './screens/MemoryMatchScreen';
 import MolehuntScreen from './screens/MolehuntScreen';
 import MovieLibraryScreen from './screens/MovieLibraryScreen';
 import MoviesPlayerScreen from './screens/MoviesPlayerScreen';
@@ -284,6 +285,7 @@ export default function App() {
               <Stack.Screen name="MusicSelection" component={MusicSelectionScreen} />
               <Stack.Screen name="MusicPlayer" component={MusicPlayerScreen} />
               <Stack.Screen name="Games" component={GamesScreen} />
+              <Stack.Screen name="MemoryMatch" component={MemoryMatchScreen} />
               <Stack.Screen name="WordGames" component={WordGamesScreen} />
               <Stack.Screen name="Trivia" component={TriviaScreen} />
               <Stack.Screen name="PhotoAlbum" component={PhotoAlbumScreen} />
