@@ -4,6 +4,7 @@ import { signOut } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -128,7 +129,14 @@ export default function ModeSelectionScreen({ navigation }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
-          <Text style={styles.logo}>Welicare</Text>
+          {/* The Welicare logo (same image as the splash screen). */}
+          <Image
+            source={require('../assets/welicare-logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+            accessibilityRole="image"
+            accessibilityLabel="Welicare"
+          />
           <View style={styles.headerRight}>
             {role !== undefined ? (
               <View style={styles.userInfo}>
@@ -230,11 +238,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
-  logo: {
-    fontFamily: fonts.serifBold,
-    fontSize: 20,
-    color: colors.primary,
-  },
+  // 773×248 image, kept at that shape at roughly the old text logo's height.
+  logo: { width: 112, height: 36 },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',

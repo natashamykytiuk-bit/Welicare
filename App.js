@@ -9,11 +9,12 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 import { auth, db } from './firebaseConfig';
 import LoadError from './components/LoadError';
 import { ResidentLockProvider } from './contexts/ResidentLockContext';
 import { nextOnboardingRoute } from './utils/onboarding';
+import { colors } from './theme';
 import { withTimeout } from './utils/withTimeout';
 
 import ActivityIdeasScreen from './screens/ActivityIdeasScreen';
@@ -153,8 +154,19 @@ export default function App() {
 
   if (user === undefined || !fontsReady || (user && !onboardingStatus)) {
     return (
+      // The app's own startup screen, shown while sign-in state, fonts and
+      // the user's profile load. It mirrors the native splash configured in
+      // app.json (same logo, same background), so a real build hands over
+      // seamlessly — and in Expo Go, which shows the app icon instead of the
+      // native splash, this is where the logo appears.
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#2D9B8A" />
+        <Image
+          source={require('./assets/welicare-logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+          accessibilityLabel="Welicare"
+        />
+        <ActivityIndicator size="large" color={colors.primary} style={styles.loadingSpinner} />
       </View>
     );
   }
@@ -347,8 +359,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    // Same as the native splash background in app.json (theme background).
+    backgroundColor: colors.background,
   },
+  // The logo image is 773×248; this keeps that shape at a comfortable width.
+  logo: { width: 280, height: 90 },
+  loadingSpinner: { marginTop: 32 },
   // Centred Try again block if the signed-in user's profile won't load.
   loadError: {
     flex: 1,
