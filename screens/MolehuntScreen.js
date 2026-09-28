@@ -13,8 +13,8 @@ import {
 } from '../games/molehunt/logic';
 import { colors, radii } from '../theme';
 
-// A calm beat between a mole sinking and a new one peeking out. This is
-// pacing only — the new mole then waits as long as it takes.
+// A calm beat between a mole sinking (found, or moving on) and the next
+// one peeking out.
 const NEXT_MOLE_DELAY_MS = 600;
 // Lets the last mole's pulse be seen before the completion message.
 const COMPLETE_DELAY_MS = 900;
@@ -56,36 +56,74 @@ export default function MolehuntScreen({ navigation }) {
 // One round. `activeHoles` are the holes with a mole up (one, or two with
 // the switch on); `found` only ever counts up.
 //
-// A tap on a mole: light haptic, the mole pulses and sinks, `found` goes
-// up, and — if the round still has moles to come (shouldShowAnother) —
-// after NEXT_MOLE_DELAY_MS a new one appears in a hole that is neither
-// occupied nor the one just emptied. Taps on empty molehills are ignored:
-// there is no "miss".
+// Every mole that appears (showMole) gets its own hide timer of the level's
+// visibleMs:
+// - tapped in time: light haptic, the mole pulses and sinks, `found` goes
+//   up, and — if the round still has moles to come (shouldShowAnother) —
+//   after NEXT_MOLE_DELAY_MS a new one appears elsewhere.
+// - not tapped: it quietly ducks down and, after the same short beat,
+//   pops up in a different hole. Nothing is counted — it's the same mole
+//   moving, so the round can't be lost, only take a little longer.
+// Taps on empty molehills are ignored: there is no "miss".
 //
 // The round's counters live in refs as well as state because the delayed
-// "show a new mole" callback runs later, when the state it closed over may
-// be stale (e.g. the other mole was found in the meantime).
+// callbacks run later, when the state they closed over may be stale (e.g.
+// the other mole was found in the meantime).
 export function MolehuntBoard({ difficulty, twoMoles, onComplete }) {
-  const { holes, moles } = levelFor(difficulty);
-  const [activeHoles, setActiveHoles] = useState(() => startingHoles(holes, twoMoles));
+  const { holes, moles, visibleMs } = levelFor(difficulty);
+  const [startHoles] = useState(() => startingHoles(holes, twoMoles));
+  const [activeHoles, setActiveHoles] = useState([]);
   const [found, setFound] = useState(0);
   const [area, setArea] = useState(null);
-  const active = useRef(activeHoles);
+  const active = useRef([]);
   const foundCount = useRef(0);
-  const shown = useRef(activeHoles.length);
+  const shown = useRef(startHoles.length);
+  // Each showing mole's hide timer, by hole, so finding it can cancel it.
+  const hideTimers = useRef(new Map());
 
   // Pending timers, cleared if the resident leaves mid-round.
   const timers = useRef([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
-  const later = (fn, ms) => timers.current.push(setTimeout(fn, ms));
+  const later = (fn, ms) => {
+    const id = setTimeout(fn, ms);
+    timers.current.push(id);
+    return id;
+  };
 
   function updateActive(next) {
     active.current = next;
     setActiveHoles(next);
   }
 
+  // Puts a mole up in `hole` and starts its hide timer.
+  function showMole(hole) {
+    updateActive([...active.current, hole]);
+    hideTimers.current.set(
+      hole,
+      later(() => {
+        hideTimers.current.delete(hole);
+        updateActive(active.current.filter((h) => h !== hole));
+        // The same mole reappears somewhere else (never the hole it left).
+        later(
+          () =>
+            showMole(pickNextHole(holes, [...active.current, hole], Math.random, active.current)),
+          NEXT_MOLE_DELAY_MS
+        );
+      }, visibleMs)
+    );
+  }
+
+  // The round's first mole(s), shown once the board mounts.
+  useEffect(() => {
+    startHoles.forEach(showMole);
+    // Runs once per round; GameShell remounts the board for a new round.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function handleFound(hole) {
-    if (!active.current.includes(hole)) return; // already found
+    if (!active.current.includes(hole)) return; // already found or hidden
+    clearTimeout(hideTimers.current.get(hole));
+    hideTimers.current.delete(hole);
     gentleHaptic();
     foundCount.current += 1;
     setFound(foundCount.current);
@@ -96,10 +134,10 @@ export function MolehuntBoard({ difficulty, twoMoles, onComplete }) {
     }
     if (!shouldShowAnother(shown.current, difficulty)) return;
     shown.current += 1;
-    later(() => {
-      const next = pickNextHole(holes, [...active.current, hole], Math.random, active.current);
-      updateActive([...active.current, next]);
-    }, NEXT_MOLE_DELAY_MS);
+    later(
+      () => showMole(pickNextHole(holes, [...active.current, hole], Math.random, active.current)),
+      NEXT_MOLE_DELAY_MS
+    );
   }
 
   // Largest round molehill that fits the grid in the measured area.
@@ -138,17 +176,21 @@ export function MolehuntBoard({ difficulty, twoMoles, onComplete }) {
   );
 }
 
-// One molehill. When `up`, the mole rises and fades in; when it goes down
-// (after being found) it gives a soft pulse first, then sinks. Empty
-// molehills are disabled so a tap on them does nothing at all.
+// One molehill. When `up`, the mole rises and fades in. When it goes down
+// it sinks — with a soft pulse first only if it was tapped (found), so a
+// mole that simply moves on leaves quietly. Empty molehills are disabled
+// so a tap on them does nothing at all.
 function Molehill({ size, up, onPress }) {
   const rise = useRef(new Animated.Value(up ? 1 : 0)).current;
   const scale = useRef(new Animated.Value(1)).current;
   const wasUp = useRef(up);
+  // Set by a tap, so the next "going down" knows it was a find.
+  const tapped = useRef(false);
 
   useEffect(() => {
-    const sinking = wasUp.current && !up;
+    const sinking = wasUp.current && !up && tapped.current;
     wasUp.current = up;
+    tapped.current = false;
     const move = Animated.timing(rise, {
       toValue: up ? 1 : 0,
       duration: 350,
@@ -169,7 +211,10 @@ function Molehill({ size, up, onPress }) {
 
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={() => {
+        tapped.current = true;
+        onPress();
+      }}
       disabled={!up}
       activeOpacity={0.9}
       accessibilityRole="button"

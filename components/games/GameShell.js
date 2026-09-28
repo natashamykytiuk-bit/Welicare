@@ -1,6 +1,13 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { colors, fonts, radii } from '../../theme';
 import BackButton from '../BackButton';
 import HomeButton from '../HomeButton';
@@ -115,9 +122,10 @@ export default function GameShell({
               {switches.map((option) => {
                 const on = !!options[option.key];
                 return (
-                  // A large tap-anywhere toggle rather than a small native
-                  // Switch, which is fiddly to hit. The tick icon and the
-                  // filled style both show "on", not colour alone.
+                  // A large tap-anywhere row with an on/off switch. The
+                  // whole row is the button (the Switch itself ignores
+                  // touches), since a lone switch is a small target. The
+                  // knob position shows "on", not colour alone.
                   <TouchableOpacity
                     key={option.key}
                     style={[styles.switchButton, on && styles.difficultySelected]}
@@ -127,11 +135,15 @@ export default function GameShell({
                     accessibilityState={{ checked: on }}
                     accessibilityLabel={option.label}
                   >
-                    <Ionicons
-                      name={on ? 'checkbox' : 'square-outline'}
-                      size={36}
-                      color={accent.icon}
-                    />
+                    <View pointerEvents="none" importantForAccessibility="no-hide-descendants">
+                      <Switch
+                        value={on}
+                        style={styles.switch}
+                        trackColor={{ false: colors.border, true: accent.icon }}
+                        thumbColor={colors.white}
+                        ios_backgroundColor={colors.border}
+                      />
+                    </View>
                     <Text style={styles.difficultyText}>{option.label}</Text>
                   </TouchableOpacity>
                 );
@@ -241,15 +253,17 @@ const styles = StyleSheet.create({
   switchButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 24,
     minHeight: 88,
-    paddingHorizontal: 28,
+    paddingHorizontal: 32,
     marginBottom: 32,
     borderRadius: radii.lg,
     borderWidth: 3,
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
+  // The native switch is small; scale it up to suit the resident-sized row.
+  switch: { transform: [{ scale: 1.4 }] },
   completeButtons: { gap: 16, alignItems: 'center', marginTop: 16 },
   bigButton: {
     minWidth: 320,

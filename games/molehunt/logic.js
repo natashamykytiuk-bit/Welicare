@@ -5,26 +5,30 @@
 // easy to test (tests/molehuntLogic.test.js) and the screen
 // (screens/MolehuntScreen.js) only draws and animates.
 //
-// The game: a friendly mole peeks out of a molehill. It stays up until the
-// resident taps it — there is no timer, so it can never "get away" — then
-// it sinks and another mole pops up somewhere else. Taps on empty
-// molehills do nothing. The round ends after a set number of moles.
+// The game: a friendly mole peeks out of a molehill. When the resident taps
+// it, it sinks and another pops up somewhere else. If it isn't tapped for
+// a while (visibleMs, longest on Gentle), it ducks down and pops up in a
+// different hole a moment later. That is not a "miss": nothing is counted
+// or lost, no countdown is shown, and the round still ends only once the
+// set number of moles has been found. Taps on empty molehills do nothing.
 //
 // Two settings shape a round, both picked by the caregiver in GameShell:
-// - difficulty (Gentle / Medium / Challenge): how many molehills and how
-//   many moles in the round (LEVELS);
+// - difficulty (Gentle / Medium / Challenge): how many molehills, how many
+//   moles in the round, and how long each mole stays up (LEVELS);
 // - the "Two moles at once" switch: two moles are up together instead of
 //   one (molesUpAtOnce). It works with any difficulty.
 
 /**
- * Molehills and moles per round for each difficulty. More holes means more
- * to scan; the round is still short.
- * @type {Record<'gentle' | 'medium' | 'challenge', { holes: number, moles: number }>}
+ * Molehills, moles per round, and how long (ms) a mole stays up before
+ * moving, for each difficulty. More holes means more to scan; less time
+ * means quicker spotting. Gentle stays generous, as residents may need a
+ * caregiver to point the mole out.
+ * @type {Record<'gentle' | 'medium' | 'challenge', { holes: number, moles: number, visibleMs: number }>}
  */
 export const LEVELS = {
-  gentle: { holes: 3, moles: 5 }, // one row of 3
-  medium: { holes: 6, moles: 8 }, // 3 × 2
-  challenge: { holes: 9, moles: 10 }, // 3 × 3
+  gentle: { holes: 3, moles: 5, visibleMs: 7000 }, // one row of 3
+  medium: { holes: 6, moles: 8, visibleMs: 5000 }, // 3 × 2
+  challenge: { holes: 9, moles: 10, visibleMs: 3500 }, // 3 × 3
 };
 
 /**

@@ -63,6 +63,25 @@ describe('MolehuntScreen', () => {
     expect(screen.getByText('Wonderful! You found all the moles.')).toBeTruthy();
   });
 
+  it('moves an untapped mole to another hole without counting a miss', async () => {
+    await startRound();
+    const holeOf = () =>
+      screen
+        .getAllByLabelText(/^(Mole|Molehill)$/)
+        .findIndex((h) => h.props.accessibilityLabel === 'Mole');
+    const first = holeOf();
+
+    // Gentle keeps a mole up for 7 seconds; then it ducks down…
+    await act(() => jest.advanceTimersByTime(7000));
+    expect(screen.queryByLabelText('Mole')).toBeNull();
+    // …and pops up somewhere else after a short beat.
+    await act(() => jest.advanceTimersByTime(600));
+    expect(holeOf()).not.toBe(first);
+    expect(holeOf()).toBeGreaterThanOrEqual(0);
+    expect(screen.getByLabelText('0 of 5 moles found')).toBeTruthy();
+    expect(screen.queryByText(/wrong|miss|try again|oops/i)).toBeNull();
+  });
+
   it('ignores taps on empty molehills, with no negative message', async () => {
     await startRound();
     for (const hill of screen.getAllByLabelText('Molehill')) await fireEvent.press(hill);

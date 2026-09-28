@@ -15,10 +15,16 @@ const sweep = Array.from({ length: 100 }, (_, i) => i / 100);
 
 describe('levelFor', () => {
   it('returns each difficulty and falls back to Gentle', () => {
-    expect(levelFor('gentle')).toEqual({ holes: 3, moles: 5 });
-    expect(levelFor('medium')).toEqual({ holes: 6, moles: 8 });
-    expect(levelFor('challenge')).toEqual({ holes: 9, moles: 10 });
+    expect(levelFor('gentle')).toMatchObject({ holes: 3, moles: 5 });
+    expect(levelFor('medium')).toMatchObject({ holes: 6, moles: 8 });
+    expect(levelFor('challenge')).toMatchObject({ holes: 9, moles: 10 });
     expect(levelFor('unknown')).toBe(LEVELS.gentle);
+  });
+
+  it('gives moles the longest time on Gentle and the shortest on Challenge', () => {
+    const { gentle, medium, challenge } = LEVELS;
+    expect(gentle.visibleMs).toBeGreaterThan(medium.visibleMs);
+    expect(medium.visibleMs).toBeGreaterThan(challenge.visibleMs);
   });
 });
 
