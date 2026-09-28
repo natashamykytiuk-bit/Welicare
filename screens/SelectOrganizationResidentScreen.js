@@ -45,7 +45,6 @@ export default function SelectOrganizationResidentScreen({ navigation, route }) 
       setLoading(true);
       setError('');
       const uid = auth.currentUser?.uid;
-      console.log('[SelectOrgResident] loading residents for facility', orgId);
       try {
         const snapshot = await withTimeout(
           getDocs(query(collection(db, 'residents'), where('facilityId', '==', orgId))),
@@ -79,14 +78,12 @@ export default function SelectOrganizationResidentScreen({ navigation, route }) 
     const uid = auth.currentUser?.uid;
     setError('');
     setAssigningId(resident.id);
-    console.log('[SelectOrgResident] assigning resident', resident.id, 'to', uid);
     try {
       await withTimeout(
         updateDoc(doc(db, 'residents', resident.id), { assignedCaregivers: arrayUnion(uid) }),
         ASSIGN_TIMEOUT_MS,
         'This is taking longer than expected. Please check your connection and try again.'
       );
-      console.log('[SelectOrgResident] assigned resident', resident.id);
       navigation.navigate('ResidentMode');
     } catch (e) {
       console.error('[SelectOrgResident] assignment failed:', e.code, e.message, e);

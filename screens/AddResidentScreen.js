@@ -69,7 +69,6 @@ export default function AddResidentScreen({ navigation }) {
       }
       setLoadError(false);
       setOrgId(undefined);
-      console.log('[AddResident] checking organization membership for', uid);
       try {
         const userSnap = await getDoc(doc(db, 'users', uid));
         const id = userSnap.data()?.orgId ?? null;
@@ -144,7 +143,6 @@ export default function AddResidentScreen({ navigation }) {
   }
 
   function finishSuccess(id) {
-    console.log('[AddResident] resident created:', id);
     navigation.goBack();
   }
 
@@ -156,7 +154,6 @@ export default function AddResidentScreen({ navigation }) {
     setSaving(true);
     const uid = auth.currentUser?.uid;
     const ref = getResidentRef();
-    console.log('[AddResident] creating resident', { id: ref.id, name: trimmed, uid, orgId });
     try {
       // A retry after an uncertain save: the first attempt may have landed
       // since. Check before writing, because writing the whole doc again

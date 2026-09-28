@@ -139,9 +139,15 @@ exports.generateSuggestions = onCall({ secrets: [anthropicApiKey] }, async (requ
     }),
   });
 
+  // The provider's error body stays in the server logs (truncated — it can
+  // echo parts of the request) and the app only gets a stable reason code,
+  // so nothing about the resident or our account setup reaches the client.
   if (!response.ok) {
     const errorText = await response.text();
-    throw new HttpsError('internal', `Anthropic API error: ${errorText}`);
+    console.error('[generateSuggestions] Anthropic error', response.status, errorText.slice(0, 500));
+    throw new HttpsError('unavailable', 'Suggestions are unavailable right now. Please try again.', {
+      reason: 'ai-provider-error',
+    });
   }
 
   const data = await response.json();
@@ -184,9 +190,14 @@ exports.searchYouTube = onCall({ secrets: [youtubeApiKey] }, async (request) => 
 
   const response = await fetch(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`);
 
+  // Same as generateSuggestions: details to the server log, a stable
+  // reason code to the app.
   if (!response.ok) {
     const errorText = await response.text();
-    throw new HttpsError('internal', `YouTube API error: ${errorText}`);
+    console.error('[searchYouTube] YouTube error', response.status, errorText.slice(0, 500));
+    throw new HttpsError('unavailable', 'Search is unavailable right now. Please try again.', {
+      reason: 'search-provider-error',
+    });
   }
 
   const data = await response.json();
@@ -816,7 +827,8 @@ exports.createOrganization = onCall(async (request) => {
       type: str(type),
       province: str(province),
       city: str(city),
-      email: request.auth.token.email ?? null,
+      // No email: the org doc is readable by anyone signed in who knows its
+      // id (firestore.rules), so contact details aren't stored on it.
       isPersonal: false,
       createdBy: uid,
       adminId: uid,

@@ -281,6 +281,17 @@ describe('personal organization batch (createPersonalOrganization)', () => {
     });
   });
 
+  // Org docs are readable by anyone signed in who knows the id, so the
+  // owner's email must not be stored on one (security review #1).
+  it('refuses a personal org that carries an email address', async () => {
+    await assertFails(
+      personalOrgBatch(as('familyA'), 'familyA', 'withEmail', {
+        ...personal('familyA'),
+        email: 'fam@example.test',
+      })
+    );
+  });
+
   it('still refuses linking to an existing org you did not create', async () => {
     await assertFails(updateDoc(doc(as('familyA'), 'users', 'familyA'), { orgId: 'orgB' }));
   });

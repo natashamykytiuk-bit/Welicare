@@ -89,6 +89,8 @@ describe('createOrganization', () => {
 
     const org = (await adminDb.doc(`organizations/${orgId}`).get()).data();
     expect(org).toMatchObject({ name: 'Maple', isPersonal: false, createdBy: uid });
+    // Org docs are readable by id, so the creator's email isn't stored.
+    expect(org).not.toHaveProperty('email');
     expect((await adminDb.doc(`inviteCodes/${inviteCode}`).get()).data().orgId).toBe(orgId);
     expect((await adminDb.doc(`organizations/${orgId}/private/invite`).get()).data().code).toBe(
       inviteCode

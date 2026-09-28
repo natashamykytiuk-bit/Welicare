@@ -321,7 +321,10 @@ service cloud.firestore {
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.adminId == request.auth.uid &&
         request.resource.data.isPersonal == true &&
-        !('inviteCode' in request.resource.data);
+        !('inviteCode' in request.resource.data) &&
+        // Any signed-in user can get() an org by id, so no contact details
+        // may be stored on it.
+        !('email' in request.resource.data);
 
       // The owner may edit the display details OrganizationalSettingsScreen
       // shows, and nothing else. In particular not createdBy/adminId

@@ -53,8 +53,7 @@ export function formatOrgCode(raw) {
 
 // Creates a new organization owned by the current user, with a unique
 // invite code, and links them to it. adminId mirrors createdBy: whoever
-// creates an org is its administrator. The org's email is the creator's
-// own account email, so CreateOrganizationScreen doesn't ask for one.
+// creates an org is its administrator (and the function makes them one).
 export async function createOrganization({ name, type, province, city }) {
   const result = await callCreateOrganization({ name, type, province, city });
   return result.data.orgId;
@@ -114,7 +113,8 @@ export async function createPersonalOrganization() {
     type: null,
     province: null,
     city: null,
-    email: auth.currentUser?.email ?? null,
+    // No email: any signed-in user who knows an org's id can read its doc
+    // (to show a facility name), so contact details don't belong here.
     isPersonal: true,
     createdBy: uid,
     adminId: uid,

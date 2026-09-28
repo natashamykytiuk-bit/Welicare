@@ -95,7 +95,6 @@ export default function ResidentModeScreen({ navigation }) {
         setLoading(true);
         setError('');
         const uid = auth.currentUser?.uid;
-        console.log('[ResidentMode] loading residents for', uid);
         try {
           // Queried and caught separately (not Promise.all) so a
           // permission-denied on one doesn't hide which one it was — a
