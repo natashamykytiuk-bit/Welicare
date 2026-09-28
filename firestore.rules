@@ -82,16 +82,23 @@ service cloud.firestore {
     // username to an email for sign-in-by-username — both need to work
     // before/without the person being signed in as themselves.
     match /usernames/{usernameLower} {
-      // Public read: needed to resolve a username to an email before the
-      // person is signed in (sign-in-by-username) and to check
-      // availability during sign-up/username changes.
+      // Public read, so sign-up can check a username is free before the
+      // account exists. The doc holds only the owning account's id — never
+      // the email. Signing in with a username goes through the
+      // resolveSignInEmail Cloud Function instead, which reads the real
+      // email from Firebase Auth and is rate-limited.
       allow get: if true;
-      // Only the account it belongs to can claim it, and only if this
-      // exact username isn't already taken — `create` only matches when
-      // no document currently exists at this path, so a second person
-      // trying to grab the same username hits `update` semantics instead
-      // and is rejected below.
-      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      // Only the account it belongs to can claim it; only if this exact
+      // username isn't already taken (`create` only matches when no doc
+      // exists yet); with nothing but { uid }; and only if it's the
+      // username on the claimer's own profile (getAfter, so it also works
+      // when the profile's username changes in the same batch — see
+      // ChangeUsernameScreen). That keeps one real username per account,
+      // instead of claiming extra names that point somewhere misleading.
+      allow create: if request.auth != null &&
+        request.resource.data.keys().hasOnly(['uid']) &&
+        request.resource.data.uid == request.auth.uid &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.username.trim().lower() == usernameLower;
       // Only the owner can release their own old username (used when
       // changing usernames).
       allow delete: if request.auth != null && resource.data.uid == request.auth.uid;

@@ -36,7 +36,7 @@ describe('ChangeUsernameScreen', () => {
 
     expect(batches).toHaveLength(1);
     expect(batches[0].ops).toEqual([
-      ['set', 'usernames/new.name', { uid: 'test-uid', email: 'tester@example.com' }],
+      ['set', 'usernames/new.name', { uid: 'test-uid' }],
       ['update', 'users/test-uid', { username: 'New.Name' }],
       ['delete', 'usernames/old.name'],
     ]);

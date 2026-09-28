@@ -170,7 +170,9 @@ export default function SignUpScreen({ navigation, route }) {
       // Also create-only in the rules, which is what catches the race where
       // someone else claimed the same username between the availability
       // check and this write.
-      await setDoc(doc(db, 'usernames', usernameKey), { uid: user.uid, email: emailAddress });
+      // Only the account id — the email is never stored in this public
+      // lookup (sign-in by username asks the server for it instead).
+      await setDoc(doc(db, 'usernames', usernameKey), { uid: user.uid });
     } catch (claimError) {
       console.log('Username claim error:', claimError);
       // Undo the profile so the account is back in the "no profile yet"

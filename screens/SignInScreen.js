@@ -1,5 +1,5 @@
 import { sendEmailVerification, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -12,12 +12,13 @@ import {
 } from 'react-native';
 import BackButton from '../components/BackButton';
 import PasswordField from '../components/PasswordField';
-import { auth, db } from '../firebaseConfig';
+import { auth, functions } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
-import { normalizeUsername } from '../utils/username';
 
 // Maps Firebase Auth error codes to messages a user can actually act on,
 // instead of showing a generic "something went wrong" for everything.
+const callResolveSignInEmail = httpsCallable(functions, 'resolveSignInEmail');
+
 function getAuthErrorMessage(code) {
   switch (code) {
     case 'auth/invalid-email':
@@ -27,6 +28,7 @@ function getAuthErrorMessage(code) {
     case 'auth/invalid-credential':
       return 'Incorrect email or password.';
     case 'auth/too-many-requests':
+    case 'functions/resource-exhausted': // username look-ups are rate-limited
       return 'Too many failed attempts. Please try again later.';
     default:
       return 'Something went wrong. Please try again.';
@@ -48,11 +50,22 @@ export default function SignInScreen({ navigation }) {
   // Returns null if a username was entered but no such username exists,
   // which callers fold into the same generic "incorrect" error so this
   // can't be used to probe which usernames are registered.
+  // Email as typed, or — for a username — the account's email from the
+  // resolveSignInEmail Cloud Function (usernames no longer store emails
+  // publicly). null if there's no such username; the caller shows the same
+  // "incorrect email or password" message either way, so this doesn't
+  // reveal which usernames exist.
   async function resolveEmail(value) {
     const trimmed = value.trim();
     if (trimmed.includes('@')) return trimmed;
-    const usernameSnap = await getDoc(doc(db, 'usernames', normalizeUsername(trimmed)));
-    return usernameSnap.exists() ? usernameSnap.data().email : null;
+    try {
+      const result = await callResolveSignInEmail({ username: trimmed });
+      return result.data.email ?? null;
+    } catch (e) {
+      if (e.code === 'functions/resource-exhausted') throw e; // rate limited — say so
+      if (e.code === 'functions/not-found') return null;
+      throw e;
+    }
   }
 
   async function handleSignIn() {

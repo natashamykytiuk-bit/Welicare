@@ -192,12 +192,12 @@ describe('changing a username (ChangeUsernameScreen batch)', () => {
   // that a clash rejects the WHOLE batch (nothing half-applied).
   async function seedUsername(key, uid) {
     await env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), 'usernames', key), { uid, email: `${uid}@example.test` });
+      await setDoc(doc(ctx.firestore(), 'usernames', key), { uid });
     });
   }
   function changeBatch(db, uid, newKey, oldKey) {
     const batch = writeBatch(db);
-    batch.set(doc(db, 'usernames', newKey), { uid, email: `${uid}@example.test` });
+    batch.set(doc(db, 'usernames', newKey), { uid });
     batch.update(doc(db, 'users', uid), { username: newKey });
     batch.delete(doc(db, 'usernames', oldKey));
     return batch.commit();
@@ -525,6 +525,41 @@ describe('verified email (security fix)', () => {
 
   it('can still do the sign-up steps (own profile)', async () => {
     await assertSucceeds(getDoc(doc(unverified(), 'users', 'caregiverA')));
+  });
+});
+
+describe('usernames hold no email and match your profile (security fix)', () => {
+  // usernames/{name} is publicly readable (for availability checks), so it
+  // may only contain the account id, and you can only claim the username
+  // that's on your own profile — one real username per account.
+  async function setProfileUsername(uid, username) {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'users', uid), { username });
+    });
+  }
+
+  it('claiming your own profile username with only { uid } is allowed', async () => {
+    await setProfileUsername('caregiverA', 'Ann.Smith');
+    await assertSucceeds(
+      setDoc(doc(as('caregiverA'), 'usernames', 'ann.smith'), { uid: 'caregiverA' })
+    );
+  });
+
+  it('storing an email in the public username record is refused', async () => {
+    await setProfileUsername('caregiverA', 'ann.smith');
+    await assertFails(
+      setDoc(doc(as('caregiverA'), 'usernames', 'ann.smith'), {
+        uid: 'caregiverA',
+        email: 'someone-else@example.test',
+      })
+    );
+  });
+
+  it("claiming a username that isn't on your profile is refused", async () => {
+    await setProfileUsername('caregiverA', 'ann.smith');
+    await assertFails(
+      setDoc(doc(as('caregiverA'), 'usernames', 'extra.name'), { uid: 'caregiverA' })
+    );
   });
 });
 

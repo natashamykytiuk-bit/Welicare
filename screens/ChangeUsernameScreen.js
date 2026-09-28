@@ -98,7 +98,8 @@ export default function ChangeUsernameScreen({ navigation }) {
       // name has no doc yet (create), the profile update may not touch the
       // role, and only the owner can release their old name.
       const batch = writeBatch(db);
-      batch.set(doc(db, 'usernames', newKey), { uid, email: auth.currentUser.email });
+      // Only the account id — never the email (see firestore.rules).
+      batch.set(doc(db, 'usernames', newKey), { uid });
       batch.update(doc(db, 'users', uid), { username });
       if (oldKey) batch.delete(doc(db, 'usernames', oldKey));
       await batch.commit();

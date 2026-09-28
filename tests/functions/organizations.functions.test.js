@@ -282,3 +282,29 @@ describe('verified email and invite code format (security fixes)', () => {
     expect((await call('joinOrganization', { code: 'ol4821' })).data.orgId).toBe(org.id);
   });
 });
+
+describe('resolveSignInEmail (sign-in with a username)', () => {
+  // Looks up the email for the account's CURRENT username, from Firebase
+  // Auth itself — not from any stored field — and nothing for stale or
+  // unknown names.
+  it("returns the account's real email for its current username", async () => {
+    const uid = await newUser({ role: 'Caregiver', username: 'Ann.Smith' });
+    await adminDb.doc('usernames/ann.smith').set({ uid });
+    const { email } = (await call('resolveSignInEmail', { username: ' ANN.smith ' })).data;
+    expect(email).toBe((await admin.auth().getUser(uid)).email);
+  });
+
+  it('does not resolve a username that is no longer on the profile', async () => {
+    const uid = await newUser({ role: 'Caregiver', username: 'new.name' });
+    await adminDb.doc('usernames/old.name').set({ uid });
+    expect(await outcome(call('resolveSignInEmail', { username: 'old.name' }))).toBe(
+      'functions/not-found'
+    );
+  });
+
+  it('gives the same answer for a username that does not exist', async () => {
+    expect(await outcome(call('resolveSignInEmail', { username: 'nobody.here' }))).toBe(
+      'functions/not-found'
+    );
+  });
+});

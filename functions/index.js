@@ -246,7 +246,12 @@ function trackedBulkWriter(db, label) {
   const writer = db.bulkWriter();
   const outcomes = [];
   const track = (promise, what) =>
-    outcomes.push(promise.then(() => null, (error) => ({ what, error })));
+    outcomes.push(
+      promise.then(
+        () => null,
+        (error) => ({ what, error })
+      )
+    );
   return {
     delete: (ref) => track(writer.delete(ref), `delete ${ref.path}`),
     update: (ref, data) => track(writer.update(ref, data), `update ${ref.path}`),
@@ -736,6 +741,65 @@ exports.regenerateInviteCode = onCall(async (request) => {
     return newCode;
   });
   return { inviteCode: code };
+});
+
+// Username look-ups allowed per network address per window, so the
+// username → email mapping can't be harvested by trying names in bulk.
+const SIGNIN_LOOKUP_MAX = 20;
+const SIGNIN_LOOKUP_WINDOW_MS = 15 * 60 * 1000;
+
+// Sign-in with a username: returns the email the app should pass to
+// Firebase Auth. Replaces reading usernames/{name}.email directly, which
+// made every account's email public. Here:
+// - the email comes from Firebase Auth itself (never from a stored field
+//   someone could have set to anything);
+// - it only answers for the account's CURRENT username (the one on its
+//   profile), so leftover or misleading claims don't resolve;
+// - it's rate-limited per network address (a hashed IP, not stored raw);
+// - unknown names get the same not-found as a wrong username would, and
+//   the app shows its usual "incorrect email or password".
+// Callable without being signed in — the person is signing in.
+exports.resolveSignInEmail = onCall(async (request) => {
+  const key =
+    typeof request.data?.username === 'string' ? request.data.username.trim().toLowerCase() : '';
+  const notFound = new HttpsError('not-found', 'No account with that username.');
+  if (!key || key.includes('/')) throw notFound;
+  const admin = getAdmin();
+  const db = admin.firestore();
+
+  const forwarded = request.rawRequest?.headers?.['x-forwarded-for'];
+  const ip =
+    (typeof forwarded === 'string' ? forwarded.split(',')[0] : request.rawRequest?.ip) || 'unknown';
+  const ipKey = require('crypto').createHash('sha256').update(ip).digest('hex').slice(0, 32);
+  const limitRef = db.doc(`rateLimits/signin_${ipKey}`);
+  await db.runTransaction(async (tx) => {
+    const now = Date.now();
+    const data = (await tx.get(limitRef)).data();
+    const inWindow = !!data && now - data.windowStart < SIGNIN_LOOKUP_WINDOW_MS;
+    const count = inWindow ? data.count : 0;
+    if (count >= SIGNIN_LOOKUP_MAX) {
+      throw new HttpsError('resource-exhausted', 'Too many attempts. Please try again later.');
+    }
+    tx.set(limitRef, { windowStart: inWindow ? data.windowStart : now, count: count + 1 });
+  });
+
+  const claim = (await db.doc(`usernames/${key}`).get()).data();
+  if (!claim?.uid) throw notFound;
+  const profile = (await db.doc(`users/${claim.uid}`).get()).data();
+  if (
+    String(profile?.username ?? '')
+      .trim()
+      .toLowerCase() !== key
+  )
+    throw notFound;
+  let email;
+  try {
+    email = (await admin.auth().getUser(claim.uid)).email;
+  } catch {
+    throw notFound;
+  }
+  if (!email) throw notFound;
+  return { email };
 });
 
 // Join attempts allowed per user per window, so invite codes (about 5
