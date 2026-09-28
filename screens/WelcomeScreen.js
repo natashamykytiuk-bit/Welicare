@@ -1,4 +1,4 @@
-import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, fonts, radii } from '../theme';
 
 // The very first screen a signed-out user sees (App.js's initialRouteName
@@ -7,11 +7,14 @@ export default function WelcomeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.hero}>
-        <View style={styles.brandMark}>
-          <View style={[styles.orb, styles.orbPrimary]} />
-          <View style={[styles.orb, styles.orbSecondary]} />
-        </View>
-        <Text style={styles.appName}>Welicare</Text>
+        {/* The Welicare logo (the same image as the splash screen). */}
+        <Image
+          source={require('../assets/welicare-logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+          accessibilityRole="image"
+          accessibilityLabel="Welicare"
+        />
         <Text style={styles.tagline}>
           Thoughtful activity ideas for the{'\n'}people you care for
         </Text>
@@ -56,37 +59,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  brandMark: {
-    width: 80,
-    height: 80,
-    marginBottom: 28,
-    position: 'relative',
-  },
-  orb: {
-    width: 56,
-    height: 56,
-    borderRadius: radii.circular,
-    position: 'absolute',
-  },
-  orbPrimary: {
-    backgroundColor: colors.primary,
-    opacity: 0.85,
-    top: 0,
-    left: 0,
-  },
-  orbSecondary: {
-    backgroundColor: colors.secondary,
-    opacity: 0.85,
-    bottom: 0,
-    right: 0,
-  },
-  appName: {
-    fontFamily: fonts.serifBold,
-    fontSize: 34,
-    color: colors.textPrimary,
-    marginBottom: 12,
-    letterSpacing: -0.3,
-  },
+  // 773×248 image, kept at that shape.
+  logo: { width: 260, height: 83, marginBottom: 12 },
   tagline: {
     fontFamily: fonts.sansRegular,
     fontSize: 17,
