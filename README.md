@@ -66,8 +66,8 @@ Welicare takes this information and puts it somewhere it can actually be useful 
 | Auth | Firebase Auth | Sign-up with an email + password with mandatory email verification. Sign-in can be done with a username or email. |
 | Data | Cloud Firestore, `northamerica-northeast1` (Montréal) | Resident data is stored on Canadian servers. |
 | Backend | Firebase Cloud Functions v2 (`onCall`), `northamerica-northeast1` (Montréal) | API keys are stored server-side & functions refuse calls from people who are not signed in or not verified. Functions run in the same Canadian region as the database. |
-| AI | Claude (`claude-sonnet-5`) via the Anthropic Messages API | The Cloud Function turns the resident's life story into a prompt and sends it to Anthropic, whose API is outside Canada — this is the one place resident information leaves Canadian infrastructure. |
-| Media | YouTube Data API + `react-native-youtube-iframe` | Staff search YouTube through a Cloud Function and curate what residents can see; residents only browse staff-approved videos. Playback uses YouTube's embedded player (its external links have not yet been checked on a real device). |
+| AI | Claude (`claude-sonnet-5`) via the Anthropic Messages API | The Cloud Function turns the resident's life story into a prompt and sends it to Anthropic, whose API is outside Canada. This is the one place resident information leaves Canadian infrastructure. |
+| Media | YouTube Data API + `react-native-youtube-iframe` | Staff search YouTube through a Cloud Function and curate what residents can see; residents only browse staff-approved videos. Playback uses YouTube's embedded player. |
 | Fonts | Lora + Atkinson Hyperlegible | Fonts chosen specifically for visual accessibility. |
 
 ## Development
