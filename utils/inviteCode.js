@@ -30,24 +30,22 @@ const callRegenerateInviteCode =
     httpsCallable(functions, 'regenerateInviteCode')
   );
 
-// Invite codes are always 2 letters + 4 digits, e.g. "MG-4821" (minted by
-// the server) — this mirrors that shape as the user types so they never
-// have to type the dash themselves: it strips anything that isn't
-// alphanumeric, treats the first 2 characters as the letters and the next
-// 4 as digits (silently dropping non-digit keystrokes there, since that
-// segment can only ever be numeric), and only inserts the dash once a
-// digit has actually been entered. Shared by JoinOrganizationScreen
-// (onboarding) and OrganizationSettingsScreen (joining later from a
-// personal org).
+// Invite codes are 8 characters shown as two groups of four, e.g.
+// "MGK7-4TXR" (minted by the server). This tidies what someone types so
+// they never have to type the dash: it upper-cases, drops anything that
+// isn't a letter or digit, keeps at most 8 characters, and adds the dash
+// after the first four. Older organizations may still have a 6-character
+// code like "MG-4821"; typed in, that shows as "MG48-21", which the server
+// still recognises (it ignores dashes when matching). Shared by
+// JoinOrganizationScreen (onboarding) and OrganizationSettingsScreen
+// (joining later from a personal org).
 /**
  * @param {string} raw What the user has typed so far.
- * @returns {string} e.g. 'MG', 'MG-48', 'MG-4821'
+ * @returns {string} e.g. 'MGK', 'MGK7-4', 'MGK7-4TXR'
  */
 export function formatOrgCode(raw) {
-  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const letters = cleaned.slice(0, 2);
-  const digits = cleaned.slice(2, 6).replace(/[^0-9]/g, '');
-  return digits ? `${letters}-${digits}` : letters;
+  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+  return cleaned.length > 4 ? `${cleaned.slice(0, 4)}-${cleaned.slice(4)}` : cleaned;
 }
 
 // Creates a new organization owned by the current user, with a unique

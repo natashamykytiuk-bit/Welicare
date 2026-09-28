@@ -150,10 +150,10 @@ export default function OrganizationSettingsScreen({ navigation }) {
               {joinError ? <Text style={styles.error}>{joinError}</Text> : null}
               <TextInput
                 style={styles.input}
-                placeholder="e.g. MG-4821"
+                placeholder="e.g. MGK7-4TXR"
                 placeholderTextColor={colors.textMuted}
                 autoCapitalize="characters"
-                maxLength={7}
+                maxLength={9}
                 value={joinCode}
                 onChangeText={handleChangeJoinCode}
                 accessibilityLabel="Organization join code"

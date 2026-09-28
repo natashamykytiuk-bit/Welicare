@@ -50,8 +50,12 @@ const USERS = {
 };
 
 /** Firestore as seen by a signed-in user (or signed-out if uid is null). */
-function as(uid) {
-  return uid ? env.authenticatedContext(uid).firestore() : env.unauthenticatedContext().firestore();
+// Test users have a verified email unless a test asks otherwise — the
+// rules require email_verified for resident, library and org data.
+function as(uid, { verified = true } = {}) {
+  return uid
+    ? env.authenticatedContext(uid, { email_verified: verified }).firestore()
+    : env.unauthenticatedContext().firestore();
 }
 
 /** Writes test data with rules disabled, so setup can't be blocked by them. */
@@ -497,6 +501,30 @@ describe('life stories and Manage Volunteer Permissions', () => {
     batch.delete(lifeStoryDoc(db));
     batch.delete(doc(db, 'residents', 'residentA'));
     await assertSucceeds(batch.commit());
+  });
+});
+
+describe('verified email (security fix)', () => {
+  // Signed in but email not verified yet: the app signs these users out,
+  // and the rules now refuse them too, so the check isn't interface-only.
+  const unverified = () => as('caregiverA', { verified: false });
+
+  it('cannot read or edit residents', async () => {
+    await assertFails(getDoc(doc(unverified(), 'residents', 'residentA')));
+    await assertFails(
+      getDocs(query(collection(unverified(), 'residents'), where('facilityId', '==', 'orgA')))
+    );
+    await assertFails(updateDoc(doc(unverified(), 'residents', 'residentA'), { name: 'x' }));
+  });
+
+  it('cannot read the music library', async () => {
+    await assertFails(
+      getDocs(query(collection(unverified(), 'musicLibrary'), where('facilityId', '==', 'global')))
+    );
+  });
+
+  it('can still do the sign-up steps (own profile)', async () => {
+    await assertSucceeds(getDoc(doc(unverified(), 'users', 'caregiverA')));
   });
 });
 

@@ -13,25 +13,27 @@
 import { createPersonalOrganization, formatOrgCode } from '../utils/inviteCode';
 import { batches, firestore } from './mocks/firebase';
 import { hasAnyLifeStoryData } from '../utils/lifeStory';
+import { filterToApprovedMusic, isMusicCurated } from '../utils/musicLibrary';
 import { nextOnboardingRoute } from '../utils/onboarding';
 import { rankBySimilarity, similarityScore } from '../utils/songSimilarity';
 
 describe('formatOrgCode', () => {
-  // Invite codes are 2 letters + 4 digits, e.g. "MG-4821". formatOrgCode
-  // shapes what someone types into that format as they type it.
-  it('upper-cases and adds the dash once a digit is typed', () => {
-    expect(formatOrgCode('mg')).toBe('MG');
-    expect(formatOrgCode('mg4')).toBe('MG-4');
-    expect(formatOrgCode('mg4821')).toBe('MG-4821');
+  // Invite codes are 8 characters in two groups of four, e.g. "MGK7-4TXR".
+  // formatOrgCode shapes what someone types into that format as they type.
+  it('upper-cases and adds the dash after the first four', () => {
+    expect(formatOrgCode('mgk')).toBe('MGK');
+    expect(formatOrgCode('mgk7')).toBe('MGK7');
+    expect(formatOrgCode('mgk74')).toBe('MGK7-4');
+    expect(formatOrgCode('mgk74txr')).toBe('MGK7-4TXR');
   });
 
   it('ignores spaces, punctuation and extra characters', () => {
-    expect(formatOrgCode(' m-g 48.21 ')).toBe('MG-4821');
-    expect(formatOrgCode('MG-48219999')).toBe('MG-4821');
+    expect(formatOrgCode(' mgk7 - 4txr ')).toBe('MGK7-4TXR');
+    expect(formatOrgCode('MGK7-4TXR-EXTRA')).toBe('MGK7-4TXR');
   });
 
-  it('drops letters typed where digits belong', () => {
-    expect(formatOrgCode('MGab12')).toBe('MG-12');
+  it('still lets an old 6-character code through (the server ignores dashes)', () => {
+    expect(formatOrgCode('MG-4821')).toBe('MG48-21');
   });
 });
 
@@ -113,5 +115,31 @@ describe('createPersonalOrganization', () => {
     expect(batches[0].commit).toHaveBeenCalledTimes(1);
     expect(firestore.addDoc).not.toHaveBeenCalled();
     expect(firestore.setDoc).not.toHaveBeenCalled();
+  });
+});
+
+describe('music approval (filterToApprovedMusic)', () => {
+  // One rule for every music path: no approved list → whole library; a
+  // saved list (even empty) → only those songs.
+  const library = [{ videoId: 'a' }, { videoId: 'b' }, { videoId: 'c' }];
+  const ids = (entries) => entries.map((e) => e.videoId);
+
+  it('a resident with no approved list sees the whole library', () => {
+    expect(isMusicCurated({})).toBe(false);
+    expect(ids(filterToApprovedMusic(library, {}))).toEqual(['a', 'b', 'c']);
+  });
+
+  it('a curated resident only sees approved songs', () => {
+    expect(ids(filterToApprovedMusic(library, { selectedMusicVideoIds: ['b'] }))).toEqual(['b']);
+  });
+
+  it('an empty approved list means nothing, not everything', () => {
+    expect(isMusicCurated({ selectedMusicVideoIds: [] })).toBe(true);
+    expect(filterToApprovedMusic(library, { selectedMusicVideoIds: [] })).toEqual([]);
+  });
+
+  it('a favourite that was un-approved no longer shows', () => {
+    const favourites = [{ videoId: 'a' }, { videoId: 'c' }];
+    expect(ids(filterToApprovedMusic(favourites, { selectedMusicVideoIds: ['a'] }))).toEqual(['a']);
   });
 });

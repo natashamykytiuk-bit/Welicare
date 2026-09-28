@@ -55,7 +55,7 @@ afterAll(async () => {
 });
 
 /** Signs up a fresh test user with the given users/{uid} data; returns uid. */
-async function newUser(data) {
+async function newUser(data, { verified = true } = {}) {
   await signOut(auth);
   userCount += 1;
   const { user } = await createUserWithEmailAndPassword(
@@ -64,6 +64,12 @@ async function newUser(data) {
     'test-password'
   );
   await adminDb.doc(`users/${user.uid}`).set(data);
+  // The organization functions require a verified email. Mark the test
+  // user verified, then refresh their token so it carries the claim.
+  if (verified) {
+    await admin.auth().updateUser(user.uid, { emailVerified: true });
+    await user.getIdToken(true);
+  }
   return user.uid;
 }
 
@@ -204,6 +210,7 @@ describe('recent sign-in required for destructive actions', () => {
       auth_time: now - 60 * 60, // an hour ago
       iat: now,
       exp: now + 3600,
+      email_verified: true,
       firebase: { sign_in_provider: 'password', identities: {} },
     };
     return `${b64({ alg: 'none', typ: 'JWT' })}.${b64(payload)}.`;
@@ -245,5 +252,33 @@ describe('recent sign-in required for destructive actions', () => {
     const { orgId } = (await call('createOrganization', { name: 'Aspen' })).data;
     expect(await outcome(call('deleteOrganization', { orgId }))).toBe('ok');
     expect((await adminDb.doc(`organizations/${orgId}`).get()).exists).toBe(false);
+  });
+});
+
+describe('verified email and invite code format (security fixes)', () => {
+  it('refuses organization functions for an unverified email', async () => {
+    await newUser({ role: 'Administrator' }, { verified: false });
+    const err = await call('createOrganization', { name: 'Nope' }).catch((e) => e);
+    expect(err.code).toBe('functions/permission-denied');
+    expect(err.details?.reason).toBe('email-not-verified');
+  });
+
+  it('issues new 8-character codes that can be typed in any case, with or without the dash', async () => {
+    await newUser({ role: 'Administrator' });
+    const { orgId, inviteCode } = (await call('createOrganization', { name: 'Cedar' })).data;
+    // 4 + 4 characters from the no-look-alikes alphabet.
+    expect(inviteCode).toMatch(/^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/);
+
+    await newUser({ role: 'Caregiver' });
+    const typed = inviteCode.toLowerCase().replace('-', ' ');
+    expect((await call('joinOrganization', { code: typed })).data.orgId).toBe(orgId);
+  });
+
+  it('still accepts old-format codes', async () => {
+    const org = adminDb.collection('organizations').doc();
+    await org.set({ name: 'Old', isPersonal: false, createdBy: 'x' });
+    await adminDb.doc('inviteCodes/OL-4821').set({ orgId: org.id, revoked: false, uses: 0 });
+    await newUser({ role: 'Caregiver' });
+    expect((await call('joinOrganization', { code: 'ol4821' })).data.orgId).toBe(org.id);
   });
 });

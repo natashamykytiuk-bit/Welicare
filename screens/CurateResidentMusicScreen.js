@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
+import { collection, deleteField, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,7 +17,7 @@ import ChipSelector from '../components/ChipSelector';
 import { auth, db } from '../firebaseConfig';
 import { MUSIC_GENRE_OPTIONS } from './BuildProfileScreen';
 import { colors, fonts, radii } from '../theme';
-import { MUSIC_DECADE_OPTIONS, thumbnailForVideoId } from '../utils/musicLibrary';
+import { MUSIC_DECADE_OPTIONS, thumbnailForVideoId, isMusicCurated } from '../utils/musicLibrary';
 import {
   distinctArtists,
   extractConsoleLink,
@@ -151,6 +151,30 @@ export default function CurateResidentMusicScreen({ navigation }) {
     setSaved(false);
   }
 
+  // Removes the approved list entirely, so the resident sees the whole
+  // facility library again. Distinct from saving an empty list, which means
+  // "nothing approved".
+  async function handleAllowWholeLibrary() {
+    setSaving(true);
+    setSaveError('');
+    try {
+      await updateDoc(doc(db, 'residents', selectedResident.id), {
+        selectedMusicVideoIds: deleteField(),
+      });
+      setSelectedResident((prev) => {
+        const { selectedMusicVideoIds: _removed, ...rest } = prev;
+        return rest;
+      });
+      setSelectedIds(new Set());
+      setSaved(true);
+    } catch (e) {
+      console.error('[CurateResidentMusic] failed to clear selection:', e.code, e.message, e);
+      setSaveError('Could not save this change. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function handleChangeResident() {
     setSelectedResident(null);
     setSelectedIds(new Set());
@@ -172,9 +196,13 @@ export default function CurateResidentMusicScreen({ navigation }) {
     setSaving(true);
     setSaveError('');
     try {
+      const ids = Array.from(selectedIds);
       await updateDoc(doc(db, 'residents', selectedResident.id), {
-        selectedMusicVideoIds: Array.from(selectedIds),
+        selectedMusicVideoIds: ids,
       });
+      // Now curated: the resident sees exactly these songs (see
+      // filterToApprovedMusic) — none at all if the list is empty.
+      setSelectedResident((prev) => ({ ...prev, selectedMusicVideoIds: ids }));
       setSaved(true);
     } catch (e) {
       console.error('[CurateResidentMusic] failed to save selection:', e.code, e.message, e);
@@ -287,6 +315,24 @@ export default function CurateResidentMusicScreen({ navigation }) {
           includeAll
         />
 
+        {/* Tells staff which rule currently applies to this resident —
+            "no list" and "empty list" behave very differently. */}
+        <Text style={styles.note}>
+          {isMusicCurated(selectedResident)
+            ? `${selectedResident.name} only sees the songs approved here.`
+            : `No approved list yet — ${selectedResident.name} sees the whole library. Saving a selection limits it to those songs.`}
+        </Text>
+        {isMusicCurated(selectedResident) ? (
+          <TouchableOpacity
+            onPress={handleAllowWholeLibrary}
+            disabled={saving}
+            accessibilityRole="button"
+            accessibilityLabel="Show the whole library instead"
+          >
+            <Text style={styles.errorLink}>Show the whole library instead</Text>
+          </TouchableOpacity>
+        ) : null}
+
         <Text style={styles.sectionLabel}>Videos ({selectedIds.size} selected)</Text>
         {libraryError ? (
           <View style={styles.errorBox}>
@@ -341,6 +387,11 @@ export default function CurateResidentMusicScreen({ navigation }) {
           })
         )}
 
+        {selectedIds.size === 0 && isMusicCurated(selectedResident) ? (
+          <Text style={styles.error}>
+            {`No songs are approved, so ${selectedResident.name} won’t see any music until you approve some.`}
+          </Text>
+        ) : null}
         {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
         {saved ? <Text style={styles.savedNote}>Selection saved.</Text> : null}
         <TouchableOpacity

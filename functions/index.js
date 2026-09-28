@@ -92,12 +92,28 @@ function buildPrompt(kind, lifeStory) {
   ].join('\n');
 }
 
+// Refuses callers whose email address hasn't been verified yet (the
+// email_verified claim in their ID token, set by Firebase Auth). The app
+// already signs unverified users out, but that's only the interface — this
+// is what stops an unverified account calling these functions directly,
+// including the paid ones (AI suggestions, YouTube search). deleteAccount
+// deliberately doesn't use it, so someone who never verified can still
+// remove their account.
+function requireVerified(request) {
+  if (request.auth?.token?.email_verified !== true) {
+    throw new HttpsError('permission-denied', 'Please verify your email address first.', {
+      reason: 'email-not-verified',
+    });
+  }
+}
+
 // Redeployed to repair a missing public-invoker IAM binding on the
 // underlying Cloud Run service, left over from a failed first deploy.
 exports.generateSuggestions = onCall({ secrets: [anthropicApiKey] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
   }
+  requireVerified(request);
 
   const { kind, lifeStory } = request.data ?? {};
   if (!KIND_PHRASES[kind]) {
@@ -140,6 +156,7 @@ exports.searchYouTube = onCall({ secrets: [youtubeApiKey] }, async (request) => 
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
   }
+  requireVerified(request);
 
   const query = typeof request.data?.query === 'string' ? request.data.query.trim() : '';
   if (!query) {
@@ -212,6 +229,40 @@ function requireRecentLogin(request) {
       { reason: 'requires-recent-login' }
     );
   }
+}
+
+// A BulkWriter that remembers the outcome of every write it's given.
+//
+// BulkWriter.close() resolves once everything has been attempted, but never
+// rejects — a write that failed (after BulkWriter's own retries) only shows
+// up on that write's own promise. finish() waits for all of them and throws
+// if ANY failed, so callers can refuse to carry on to their final,
+// irreversible step (deleting the account or the organization) until every
+// cleanup write is confirmed. Each promise gets a handler immediately, so a
+// failure can't surface as an unhandled rejection before finish() runs.
+// All the writes used with it are safe to repeat, so a failed run can just
+// be retried.
+function trackedBulkWriter(db, label) {
+  const writer = db.bulkWriter();
+  const outcomes = [];
+  const track = (promise, what) =>
+    outcomes.push(promise.then(() => null, (error) => ({ what, error })));
+  return {
+    delete: (ref) => track(writer.delete(ref), `delete ${ref.path}`),
+    update: (ref, data) => track(writer.update(ref, data), `update ${ref.path}`),
+    async finish() {
+      await writer.close();
+      const failures = (await Promise.all(outcomes)).filter(Boolean);
+      if (failures.length) {
+        for (const f of failures) console.error(`[${label}] ${f.what} failed:`, f.error);
+        throw new HttpsError(
+          'internal',
+          'Something went wrong partway through. Nothing important was lost — please try again.',
+          { reason: 'cleanup-incomplete', failed: failures.length }
+        );
+      }
+    },
+  };
 }
 
 let adminApp = null;
@@ -303,7 +354,10 @@ exports.deleteAccount = onCall(async (request) => {
     residents.set(snap.id, snap);
 
   // BulkWriter batches and retries on its own — no 500-op batch limit.
-  const writer = db.bulkWriter();
+  // Step 1: cleanup, every write checked (see trackedBulkWriter). The user
+  // doc is left in place until this succeeds, so a failed run can simply be
+  // retried — it still knows the user's org, personal org, etc.
+  const writer = trackedBulkWriter(db, 'deleteAccount');
   for (const snap of residents.values()) {
     const data = snap.data();
     const assignedList = Array.isArray(data.assignedCaregivers) ? data.assignedCaregivers : [];
@@ -325,9 +379,10 @@ exports.deleteAccount = onCall(async (request) => {
 
   const usernames = await db.collection('usernames').where('uid', '==', uid).get();
   for (const snap of usernames.docs) writer.delete(snap.ref);
+  await writer.finish();
 
-  writer.delete(db.doc(`users/${uid}`));
-  await writer.close();
+  // Step 2: only now remove the profile, then (below) the login itself.
+  await db.doc(`users/${uid}`).delete();
 
   // Last, so if anything above fails the person can still sign in and try
   // again rather than being left with half-cleaned data and no account.
@@ -370,6 +425,7 @@ exports.listOrgMembers = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
   }
+  requireVerified(request);
   const db = getAdmin().firestore();
   const orgId = request.data?.orgId;
   await requireOrgOwner(db, orgId, request.auth.uid);
@@ -394,6 +450,7 @@ exports.transferOrgAdmin = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
   }
+  requireVerified(request);
   requireRecentLogin(request);
   const db = getAdmin().firestore();
   const { orgId, newAdminUid } = request.data ?? {};
@@ -433,6 +490,7 @@ exports.deleteOrganization = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
   }
+  requireVerified(request);
   requireRecentLogin(request);
   const orgId = request.data?.orgId;
   const admin = getAdmin();
@@ -448,7 +506,9 @@ exports.deleteOrganization = onCall(async (request) => {
     db.collection('users').where('orgId', '==', orgId).get(),
   ]);
 
-  const writer = db.bulkWriter();
+  // Every cleanup write is checked (see trackedBulkWriter); the org doc is
+  // only deleted after all of them succeeded, so a failed run can be retried.
+  const writer = trackedBulkWriter(db, 'deleteOrganization');
   for (const snap of residents.docs) {
     // Each resident's private life story too (subcollections aren't
     // removed automatically with their parent doc).
@@ -463,7 +523,7 @@ exports.deleteOrganization = onCall(async (request) => {
   for (const snap of codes.docs) writer.delete(snap.ref);
   writer.delete(db.doc(`organizations/${orgId}/private/invite`));
   // Org doc last, so a failure partway leaves it in place for a retry.
-  await writer.close();
+  await writer.finish();
   await db.doc(`organizations/${orgId}`).delete();
 
   return { ok: true, residentsDeleted: residents.size, membersRemoved: members.size };
@@ -486,13 +546,29 @@ exports.deleteOrganization = onCall(async (request) => {
 
 // Invite codes are 2 letters + 4 digits (e.g. "MG-4821"), the shape
 // formatOrgCode in utils/inviteCode.js expects people to type.
-const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I/O, easy to misread
+// New codes: 8 characters from a 31-character alphabet with look-alikes
+// removed (no 0/O, 1/I/L), shown as two groups of four, e.g. "MGK7-4TXR".
+// That's 31^8 ≈ 850 billion possibilities, drawn with crypto.randomInt (a
+// cryptographically secure source) — Math.random is predictable, and the
+// old "MG-4821" format had only ~5.8 million codes. Codes organizations
+// already have keep working (see normalizeInviteCode).
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 function randomInviteCode() {
-  const letters = Array.from(
-    { length: 2 },
-    () => CODE_LETTERS[Math.floor(Math.random() * CODE_LETTERS.length)]
-  ).join('');
-  return `${letters}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const { randomInt } = require('crypto');
+  const chars = Array.from({ length: 8 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]);
+  return `${chars.slice(0, 4).join('')}-${chars.slice(4).join('')}`;
+}
+
+// Turns whatever someone typed into the stored form of a code, or '' if it
+// can't be one: dashes, spaces and case don't matter. Accepts both the new
+// 8-character codes ("MGK7-4TXR") and the old "MG-4821" ones.
+function normalizeInviteCode(input) {
+  const cleaned = String(input ?? '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+  if (/^[A-Z]{2}\d{4}$/.test(cleaned)) return `${cleaned.slice(0, 2)}-${cleaned.slice(2)}`;
+  if (/^[A-Z0-9]{8}$/.test(cleaned)) return `${cleaned.slice(0, 4)}-${cleaned.slice(4)}`;
+  return '';
 }
 
 // Each flow below runs as ONE Firestore transaction: all reads happen first,
@@ -567,6 +643,7 @@ exports.createOrganization = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
   }
+  requireVerified(request);
   const uid = request.auth.uid;
   const { name, type, province, city } = request.data ?? {};
   if (typeof name !== 'string' || !name.trim()) {
@@ -610,6 +687,7 @@ exports.upgradePersonalOrganization = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
   }
+  requireVerified(request);
   const uid = request.auth.uid;
   const name = typeof request.data?.name === 'string' ? request.data.name.trim() : '';
   if (!name) {
@@ -644,6 +722,7 @@ exports.regenerateInviteCode = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
   }
+  requireVerified(request);
   const db = getAdmin().firestore();
   const orgId = request.data?.orgId;
   const org = await requireOrgOwner(db, orgId, request.auth.uid);
@@ -672,10 +751,14 @@ exports.joinOrganization = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
   }
+  requireVerified(request);
   const uid = request.auth.uid;
-  const code = typeof request.data?.code === 'string' ? request.data.code.trim().toUpperCase() : '';
-  if (!/^[A-Z]{2}-\d{4}$/.test(code)) {
-    throw new HttpsError('invalid-argument', 'Please enter a code like AB-1234.');
+  const code = normalizeInviteCode(request.data?.code);
+  if (!code) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Please enter the 8-character code from your organization, like MGK7-4TXR.'
+    );
   }
   const db = getAdmin().firestore();
   const { FieldValue, Timestamp } = require('firebase-admin/firestore');

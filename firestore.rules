@@ -3,6 +3,15 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // --- Helpers ---------------------------------------------------------
 
+    // Signed in AND the email address has been verified (the email_verified
+    // claim in the ID token, set by Firebase Auth — the app can't fake it).
+    // Required for everything that touches residents, organizations and the
+    // libraries. Only sign-up's own writes (the user's profile, username
+    // and personal organization) are allowed before verification.
+    function verified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
     // The signed-in user's own users/{uid} doc (role, orgId, …).
     function me() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
@@ -108,7 +117,7 @@ service cloud.firestore {
       // BuildProfileScreen, AISuggestionsScreen) don't have this problem —
       // they're evaluated once with no query to validate — so `get` below
       // keeps the full combined condition.
-      allow get: if request.auth != null && (
+      allow get: if verified() && (
         resource.data.caregiverId == request.auth.uid ||
         resource.data.createdBy == request.auth.uid ||
         (resource.data.assignedCaregivers is list && request.auth.uid in resource.data.assignedCaregivers) ||
@@ -126,7 +135,7 @@ service cloud.firestore {
       // rejected as permission-denied. The type-guard is redundant here
       // anyway: array-contains itself guarantees the field is an array
       // containing the value for any document the query could return.
-      allow list: if request.auth != null && (
+      allow list: if verified() && (
         resource.data.caregiverId == request.auth.uid ||
         resource.data.createdBy == request.auth.uid ||
         request.auth.uid in resource.data.assignedCaregivers
@@ -136,7 +145,7 @@ service cloud.firestore {
       // where('facilityId','==',orgId) query. Kept as its own rule (not
       // OR'd into the one above) so Firestore can validate this query shape
       // independently of the plain field-match one.
-      allow list: if request.auth != null && resource.data.facilityId != null &&
+      allow list: if verified() && resource.data.facilityId != null &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId;
 
       // A new resident must be self-attributed — the creator's own uid has
@@ -149,7 +158,7 @@ service cloud.firestore {
       // the creator, and assignedCaregivers must be exactly [creator] — so
       // nobody can pre-assign other people (which would grant them access
       // through the assignment rules) or forge who created it.
-      allow create: if request.auth != null &&
+      allow create: if verified() &&
         request.resource.data.keys().hasOnly(['name', 'caregiverId', 'createdBy', 'facilityId', 'assignedCaregivers', 'createdAt', 'hasLifeStory', 'musicProvider']) &&
         request.resource.data.caregiverId == request.auth.uid &&
         request.resource.data.createdBy == request.auth.uid &&
@@ -159,7 +168,7 @@ service cloud.firestore {
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == request.resource.data.facilityId
         );
 
-      allow update: if request.auth != null && (
+      allow update: if verified() && (
         // The creator or an already-assigned caregiver may edit the
         // resident's profile fields only (name, life story, music picks and
         // favourites — everything BuildProfile, CurateResidentMusic and the
@@ -217,7 +226,7 @@ service cloud.firestore {
       // never another organization's. Both role and orgId are read from
       // the requester's own user doc, which they can't forge (see the
       // users rules above).
-      allow delete: if request.auth != null &&
+      allow delete: if verified() &&
         resource.data.facilityId != null &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Administrator' &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId;
@@ -229,14 +238,14 @@ service cloud.firestore {
         // Readable by anyone linked to the resident, except volunteers — they
         // only see it when their organization turned on "Volunteers can view
         // life stories" in Organizational Settings.
-        allow get: if request.auth != null &&
+        allow get: if verified() &&
           linkedToResident(get(/databases/$(database)/documents/residents/$(residentId)).data) &&
           (me().role != 'Volunteer' ||
             volunteersMayViewLifeStories(get(/databases/$(database)/documents/residents/$(residentId)).data.facilityId));
 
         // Writing (BuildProfile's save) follows the same people who may edit
         // the resident's profile, but never volunteers.
-        allow create, update: if request.auth != null && me().role != 'Volunteer' && (
+        allow create, update: if verified() && me().role != 'Volunteer' && (
           get(/databases/$(database)/documents/residents/$(residentId)).data.caregiverId == request.auth.uid ||
           get(/databases/$(database)/documents/residents/$(residentId)).data.createdBy == request.auth.uid ||
           request.auth.uid in get(/databases/$(database)/documents/residents/$(residentId)).data.get('assignedCaregivers', []) ||
@@ -248,7 +257,7 @@ service cloud.firestore {
         );
 
         // Deleted together with the resident, by the same people.
-        allow delete: if request.auth != null &&
+        allow delete: if verified() &&
           me().role == 'Administrator' &&
           me().orgId == get(/databases/$(database)/documents/residents/$(residentId)).data.facilityId;
       }
@@ -263,7 +272,7 @@ service cloud.firestore {
     // by code happens server-side instead (joinOrganization,
     // generateInviteCode Cloud Functions).
     match /organizations/{orgId} {
-      allow get: if request.auth != null;
+      allow get: if verified();
 
       // The app only ever creates *personal* organizations itself
       // (createPersonalOrganization at Family Caregiver sign-up). Real
@@ -282,7 +291,7 @@ service cloud.firestore {
       // (ownership moves via transferOrgAdmin) and not isPersonal —
       // flipping a real facility to "personal" would make deleteAccount
       // wipe all of its residents.
-      allow update: if request.auth != null && resource.data.createdBy == request.auth.uid &&
+      allow update: if verified() && resource.data.createdBy == request.auth.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'type', 'province', 'city', 'volunteerPermissions']) &&
         // Manage Volunteer Permissions: currently one yes/no switch.
         (
@@ -300,7 +309,7 @@ service cloud.firestore {
       // screens. Readable by the org's own members only; written only by
       // the Cloud Functions that issue codes.
       match /private/{docId} {
-        allow get: if request.auth != null &&
+        allow get: if verified() &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == orgId;
       }
     }
@@ -335,15 +344,15 @@ service cloud.firestore {
       // facilityId with two separate `==` requests (see
       // queryMusicLibrarySubset) rather than a single `in`, so each query
       // only ever needs to satisfy one of these two rules on its own.
-      allow get: if request.auth != null && (
+      allow get: if verified() && (
         resource.data.facilityId == 'global' ||
         (resource.data.facilityId != null &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId)
       );
 
-      allow list: if request.auth != null && resource.data.facilityId == 'global';
+      allow list: if verified() && resource.data.facilityId == 'global';
 
-      allow list: if request.auth != null && resource.data.facilityId != null &&
+      allow list: if verified() && resource.data.facilityId != null &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId;
 
       // Writes are Caregiver/Administrator only, and further scoped so the
@@ -351,7 +360,7 @@ service cloud.firestore {
       // are curated out-of-band by the scripts above, not through
       // ManageMusicScreen/MusicLibraryScreen (which greys out those
       // controls for global entries to match).
-      allow create: if request.auth != null &&
+      allow create: if verified() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
         request.resource.data.facilityId != 'global' &&
         request.resource.data.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId;
@@ -361,7 +370,7 @@ service cloud.firestore {
       // "global" or another org, or turned into a different video), and only
       // the fields the add/edit form writes may change. addedByUid may only
       // stay as it is or become the caller (a retry of their own add).
-      allow update: if request.auth != null &&
+      allow update: if verified() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
         resource.data.facilityId != 'global' &&
         resource.data.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId &&
@@ -371,7 +380,7 @@ service cloud.firestore {
         (request.resource.data.get('addedByUid', null) == resource.data.get('addedByUid', null) ||
           request.resource.data.addedByUid == request.auth.uid);
 
-      allow delete: if request.auth != null &&
+      allow delete: if verified() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
         resource.data.facilityId != 'global' &&
         resource.data.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId;

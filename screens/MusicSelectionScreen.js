@@ -17,7 +17,11 @@ import ChipSelector from '../components/ChipSelector';
 import { db } from '../firebaseConfig';
 import { MUSIC_GENRE_OPTIONS } from './BuildProfileScreen';
 import { colors, fonts, radii } from '../theme';
-import { MUSIC_DECADE_OPTIONS, thumbnailForVideoId } from '../utils/musicLibrary';
+import {
+  MUSIC_DECADE_OPTIONS,
+  thumbnailForVideoId,
+  filterToApprovedMusic,
+} from '../utils/musicLibrary';
 import {
   distinctArtists,
   extractConsoleLink,
@@ -84,7 +88,11 @@ export default function MusicSelectionScreen({ navigation, route }) {
           // are small) rather than folded into the videoId 'in' query,
           // which can't combine with decade/genres filters without its
           // own composite index per combination.
-          const filtered = favourites.filter(
+          // Favourites are limited to songs that are still approved for
+          // this resident (filterToApprovedMusic) — a song removed from
+          // their approved list doesn't stay playable just because it was
+          // hearted earlier.
+          const filtered = filterToApprovedMusic(favourites, residentData).filter(
             (entry) =>
               (!filterDecade || entry.decade === filterDecade) &&
               (filterGenres.length === 0 || filterGenres.some((g) => genresOf(entry).includes(g)))
@@ -97,12 +105,9 @@ export default function MusicSelectionScreen({ navigation, route }) {
             facilityId,
           });
           if (cancelled) return;
-          const selectedIds = residentData?.selectedMusicVideoIds;
-          setSubset(
-            Array.isArray(selectedIds) && selectedIds.length > 0
-              ? results.filter((entry) => selectedIds.includes(entry.videoId))
-              : results
-          );
+          // Same approval rule as Favourites. An empty approved list now
+          // means "nothing approved", not "everything".
+          setSubset(filterToApprovedMusic(results, residentData));
         }
       } catch (e) {
         console.error('[MusicSelection] failed to load music library:', e.code, e.message, e);

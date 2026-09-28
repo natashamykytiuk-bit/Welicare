@@ -4,6 +4,24 @@
 // Kept as a plain decade list rather than deriving from anything dynamic —
 // mirrors the fixed RELATIONSHIP_OPTIONS/YES_NO style lists in
 // BuildProfileScreen.js.
+// The one rule for which library songs a resident may browse and play,
+// used by every music path (All Music, Favourites) so they can't disagree:
+// - No approved list saved (selectedMusicVideoIds missing): the resident
+//   hasn't been curated, so they see the facility library.
+// - A list saved — even an empty one: ONLY those songs. An empty list means
+//   "nothing approved yet", not "everything"; and a song removed from the
+//   list disappears from Favourites too.
+// CurateResidentMusicScreen is where staff save the list or remove it
+// ("Show the whole library instead").
+export function isMusicCurated(resident) {
+  return Array.isArray(resident?.selectedMusicVideoIds);
+}
+export function filterToApprovedMusic(entries, resident) {
+  if (!isMusicCurated(resident)) return entries;
+  const approved = new Set(resident.selectedMusicVideoIds);
+  return entries.filter((entry) => approved.has(entry.videoId));
+}
+
 export const MUSIC_DECADE_OPTIONS = [
   '1940s',
   '1950s',

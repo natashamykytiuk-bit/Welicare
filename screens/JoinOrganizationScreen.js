@@ -53,10 +53,10 @@ export default function JoinOrganizationScreen({ navigation }) {
         <Text style={styles.label}>Organization code</Text>
         <TextInput
           style={styles.input}
-          placeholder="e.g. MG-4821"
+          placeholder="e.g. MGK7-4TXR"
           placeholderTextColor={colors.textMuted}
           autoCapitalize="characters"
-          maxLength={7}
+          maxLength={9}
           value={code}
           onChangeText={handleChangeCode}
           accessibilityLabel="Organization code"
