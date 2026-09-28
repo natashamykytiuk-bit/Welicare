@@ -12,6 +12,7 @@
 // Other existing custom claims on the account are preserved. The person
 // has to sign out and back in (or wait up to an hour for their token to
 // refresh) before the change shows in the app.
+const { requireProject } = require('./requireProject');
 const admin = require('../functions/node_modules/firebase-admin');
 
 async function main() {
@@ -20,7 +21,7 @@ async function main() {
     console.error('Usage: node scripts/setAllModesAccess.js <email> [--revoke]');
     process.exit(1);
   }
-  admin.initializeApp({ projectId: 'welicare' });
+  admin.initializeApp({ projectId: requireProject() });
   const user = await admin.auth().getUserByEmail(email);
   const claims = { ...(user.customClaims ?? {}) };
   if (flag === '--revoke') delete claims.allModes;

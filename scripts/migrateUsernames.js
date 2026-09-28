@@ -13,6 +13,7 @@
 // Safe to re-run. If FIRESTORE_EMULATOR_HOST is set it talks to the
 // emulator instead (used by tests), never to production.
 
+const { requireProject } = require('./requireProject');
 async function migrateUsernames({ baseUrl, token, apply }) {
   async function api(method, url, body) {
     const res = await fetch(url, {
@@ -64,7 +65,7 @@ module.exports = { migrateUsernames };
 if (require.main === module) {
   const apply = process.argv.includes('--apply');
   const emulator = process.env.FIRESTORE_EMULATOR_HOST;
-  const projectId = emulator ? 'demo-welicare' : process.env.GCLOUD_PROJECT || 'welicare';
+  const projectId = requireProject();
   const baseUrl = emulator
     ? `http://${emulator}/v1/projects/${projectId}/databases/(default)/documents`
     : `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;

@@ -25,6 +25,7 @@
 //
 // Requires the Firebase CLI, logged in with access to the "welicare"
 // project's secrets (the same session `firebase deploy` already uses).
+const { requireProject } = require('./requireProject');
 const { execSync } = require('child_process');
 const fs = require('fs');
 const https = require('https');
@@ -60,7 +61,12 @@ const SONGS = [
 ];
 
 function getYouTubeApiKey() {
-  return execSync('firebase functions:secrets:access YOUTUBE_API_KEY', { encoding: 'utf8' }).trim();
+  return execSync(
+    `firebase functions:secrets:access YOUTUBE_API_KEY --project ${requireProject()}`,
+    {
+      encoding: 'utf8',
+    }
+  ).trim();
 }
 
 function delay(ms) {

@@ -97,7 +97,19 @@ Git Bash or PowerShell both work for the commands below.
 npx expo start
 ```
 
-Then press `w` for web, or scan the QR code with Expo Go. The app talks to the live `welicare` Firebase project.
+Then press `w` for web, or scan the QR code with Expo Go. By default the app talks to the live `welicare` Firebase project.
+
+To develop against the local emulators instead (no live data involved), start them with `npm run emulators`, then start Expo with the switch on:
+
+```powershell
+$env:EXPO_PUBLIC_USE_EMULATORS=1; npx expo start
+```
+
+`127.0.0.1` works for web and the iOS simulator. For the Android emulator also set `$env:EXPO_PUBLIC_EMULATOR_HOST="10.0.2.2"`, and for a real phone set it to this computer's LAN address. AI suggestions and YouTube search don't work against the emulators, because the API keys only exist in the live project.
+
+### Admin scripts
+
+The scripts in `scripts/` (migrations, seeding) never assume a project; name it every time, e.g. `node scripts/migrateUsernames.js --project welicare`. Migrations are dry runs unless given `--apply`.
 
 ### Checks
 

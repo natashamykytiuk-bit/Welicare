@@ -27,6 +27,7 @@
 
 // Mirrors hasAnyLifeStoryData (utils/lifeStory.js) on REST values: an answer
 // counts unless it's null, an empty string, or an empty list.
+const { requireProject } = require('./requireProject');
 function valueHasData(v) {
   if (!v || 'nullValue' in v) return false;
   if ('stringValue' in v) return v.stringValue !== '';
@@ -123,7 +124,7 @@ module.exports = { migrateLifeStories };
 if (require.main === module) {
   const apply = process.argv.includes('--apply');
   const emulator = process.env.FIRESTORE_EMULATOR_HOST;
-  const projectId = emulator ? 'demo-welicare' : process.env.GCLOUD_PROJECT || 'welicare';
+  const projectId = requireProject();
   const base = emulator
     ? `http://${emulator}/v1/projects/${projectId}/databases/(default)/documents`
     : `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;

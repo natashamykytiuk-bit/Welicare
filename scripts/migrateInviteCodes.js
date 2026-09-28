@@ -18,6 +18,7 @@
 // existing inviteCodes/{CODE} doc for the same org is left as-is.
 // firebase-admin is only installed under functions/, so resolve it (and
 // its /firestore subpath export) from there.
+const { requireProject } = require('./requireProject');
 const path = require('path');
 const fromFunctions = (id) =>
   require(require.resolve(id, { paths: [path.join(__dirname, '..', 'functions')] }));
@@ -179,7 +180,7 @@ module.exports = { migrate, migrateViaRest };
 
 if (require.main === module) {
   const apply = process.argv.includes('--apply');
-  const projectId = process.env.GCLOUD_PROJECT || 'welicare';
+  const projectId = requireProject();
   const run = process.argv.includes('--rest')
     ? () => {
         // gcloud prints a short-lived OAuth token for whoever is signed in

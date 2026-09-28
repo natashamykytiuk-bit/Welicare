@@ -19,10 +19,11 @@
 // Requires the gcloud CLI, authenticated with access to the "welicare"
 // project's Firestore — run `gcloud auth application-default login`
 // first if `gcloud auth print-access-token` doesn't already work.
+const { requireProject } = require('./requireProject');
 const { execSync } = require('child_process');
 const https = require('https');
 
-const PROJECT_ID = 'welicare';
+const PROJECT_ID = requireProject();
 
 function getAccessToken() {
   // execSync (not execFileSync) so this resolves `gcloud` through the
