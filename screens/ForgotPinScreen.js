@@ -35,8 +35,10 @@ export default function ForgotPinScreen({ navigation, route }) {
       await reauthenticateWithCredential(auth.currentUser, credential);
       navigation.replace('PINSetup', { mode: 'reset', destination });
     } catch (e) {
-      // Don't reveal whether the email itself is wrong — this is the
-      // already-signed-in user's own account, so the email is fixed.
+      // Every failure shows the same message — the email is this signed-in
+      // user's own, so only the password can be wrong from their side. The
+      // real error (e.g. a network failure) is logged for debugging.
+      console.error('[ForgotPin] re-authentication failed:', e.code, e.message, e);
       setError('Incorrect password. Please try again.');
     } finally {
       setLoading(false);

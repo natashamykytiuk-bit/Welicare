@@ -59,5 +59,11 @@ module.exports = defineConfig([
       },
     },
   },
+  {
+    // react/no-unescaped-entities guards against apostrophes and quotes in
+    // JSX text breaking HTML. React Native renders <Text>, not HTML, so it
+    // only flags perfectly fine copy like "can't" — turned off.
+    rules: { 'react/no-unescaped-entities': 'off' },
+  },
   prettierConfig,
 ]);

@@ -35,8 +35,6 @@ import {
 } from '../utils/musicLibraryQuery';
 import { searchYouTube } from '../utils/youtube';
 
-const LOAD_TIMEOUT_MS = 10000;
-
 // Caregiver-facing screen for curating the shared musicLibrary collection:
 // find videos (YouTube search or a pasted link), add them to the library
 // with an artist, genres, and decade tag, then browse/edit/remove what's

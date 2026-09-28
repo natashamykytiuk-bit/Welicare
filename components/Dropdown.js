@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { colors, fonts, radii } from '../theme';
 
 // Tap-to-open dropdown list, used in place of @react-native-picker/picker —
