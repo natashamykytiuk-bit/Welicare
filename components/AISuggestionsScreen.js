@@ -110,7 +110,15 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
           <Text style={styles.note}>Add a profile to get personalized suggestions.</Text>
         ) : null}
 
-        {loading ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
+        {/* testID is only for tests (tests/AISuggestionsScreen.test.js
+            checks the spinner goes away); it has no visible effect. */}
+        {loading ? (
+          <ActivityIndicator
+            color={colors.primary}
+            style={styles.spinner}
+            testID="ai-suggestions-loading"
+          />
+        ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {!loading && !error && suggestions ? (
           <Text style={styles.suggestions}>{suggestions}</Text>

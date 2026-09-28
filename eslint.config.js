@@ -38,5 +38,25 @@ module.exports = defineConfig([
       },
     },
   },
+  {
+    // Jest test files and setup: describe/it/expect/jest/beforeEach are
+    // provided by Jest at runtime.
+    files: ['tests/**/*.js', 'jest.setup.js'],
+    languageOptions: {
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        jest: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        require: 'readonly',
+        module: 'writable',
+      },
+    },
+  },
   prettierConfig,
 ]);
