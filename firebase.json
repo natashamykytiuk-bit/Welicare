@@ -6,18 +6,18 @@
   "functions": {
     "source": "functions",
     "postdeploy": [
-      "gcloud run services add-iam-policy-binding generatesuggestions --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding searchyoutube --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding deleteaccount --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding deleteorganization --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding listorgmembers --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding transferorgadmin --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding createorganization --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding upgradepersonalorganization --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding regenerateinvitecode --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding joinorganization --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding resolvesigninemail --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding removeorgmember --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare"
+      "gcloud run services add-iam-policy-binding generatesuggestions --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding searchyoutube --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding deleteaccount --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding deleteorganization --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding listorgmembers --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding transferorgadmin --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding createorganization --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding upgradepersonalorganization --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding regenerateinvitecode --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding joinorganization --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding resolvesigninemail --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding removeorgmember --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare"
     ]
   },
   "emulators": {

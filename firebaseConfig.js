@@ -36,6 +36,9 @@ const db = getFirestore(app);
 
 // Cloud Functions — used to call the Anthropic API from a secure backend
 // (generateSuggestions) instead of embedding the API key in the client.
-const functions = getFunctions(app);
+// They run in Montréal (setGlobalOptions in functions/index.js); the region
+// must match here, or calls go to the default us-central1 and fail.
+const FUNCTIONS_REGION = 'northamerica-northeast1';
+const functions = getFunctions(app, FUNCTIONS_REGION);
 
 export { app, auth, db, functions };

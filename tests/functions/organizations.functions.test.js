@@ -45,7 +45,7 @@ beforeAll(() => {
   connectAuthEmulator(auth, `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}`, {
     disableWarnings: true,
   });
-  functions = getFunctions(app);
+  functions = getFunctions(app, 'northamerica-northeast1');
   connectFunctionsEmulator(functions, '127.0.0.1', 5001);
 });
 
@@ -218,7 +218,7 @@ describe('recent sign-in required for destructive actions', () => {
     return `${b64({ alg: 'none', typ: 'JWT' })}.${b64(payload)}.`;
   }
   async function callWithToken(name, token, data) {
-    const res = await fetch(`http://127.0.0.1:5001/${PROJECT}/us-central1/${name}`, {
+    const res = await fetch(`http://127.0.0.1:5001/${PROJECT}/northamerica-northeast1/${name}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
       body: JSON.stringify({ data }),

@@ -1,5 +1,13 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { setGlobalOptions } = require('firebase-functions/v2');
 const { defineSecret } = require('firebase-functions/params');
+
+// Every function runs in Montréal, the same region as the Firestore
+// database, so resident data is processed in Canada rather than the default
+// us-central1 (Iowa). The app must call the same region — see REGION in
+// firebaseConfig.js — and firebase.json's postdeploy list names it too.
+// (The AI request itself still goes to Anthropic's API in the US.)
+setGlobalOptions({ region: 'northamerica-northeast1' });
 
 const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
 const youtubeApiKey = defineSecret('YOUTUBE_API_KEY');
