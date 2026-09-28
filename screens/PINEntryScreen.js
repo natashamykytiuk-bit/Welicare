@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import LoadError from '../components/LoadError';
 import NumberPad from '../components/NumberPad';
 import PinDots from '../components/PinDots';
 import { auth, db } from '../firebaseConfig';
@@ -68,11 +69,25 @@ export default function PINEntryScreen({ navigation, route }) {
   const [attempts, setAttempts] = useState(0);
   const [checking, setChecking] = useState(false);
 
+  // A failed read must not look like "no PIN set" — that shows a wrong,
+  // alarming message the moment a PIN is entered. It shows LoadError with
+  // Try again instead of the number pad; reloadKey re-runs the load.
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
       const uid = auth.currentUser?.uid;
-      const snap = uid ? await getDoc(doc(db, 'users', uid)) : null;
+      setLoadError(false);
+      let snap = null;
+      try {
+        snap = uid ? await getDoc(doc(db, 'users', uid)) : null;
+      } catch (e) {
+        console.error('[PINEntry] failed to load PIN:', e.code, e.message, e);
+        if (!cancelled) setLoadError(true);
+        return;
+      }
       if (cancelled) return;
       setStoredHash(snap?.data()?.pinHash ?? null);
       setDisplayName(snap?.data()?.fullName || snap?.data()?.username || 'your account');
@@ -81,7 +96,7 @@ export default function PINEntryScreen({ navigation, route }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const lockedOut = attempts >= MAX_ATTEMPTS;
 
@@ -159,7 +174,9 @@ export default function PINEntryScreen({ navigation, route }) {
             contentContainerStyle={styles.cardContent}
             showsVerticalScrollIndicator={false}
           >
-            {storedHash === undefined ? (
+            {loadError ? (
+              <LoadError onRetry={() => setReloadKey((k) => k + 1)} />
+            ) : storedHash === undefined ? (
               <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
             ) : (
               <>

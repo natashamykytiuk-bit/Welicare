@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import BackButton from '../components/BackButton';
+import LoadError from '../components/LoadError';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { normalizeUsername } from '../utils/username';
@@ -32,19 +33,30 @@ export default function ChangeUsernameScreen({ navigation }) {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Load failure → LoadError with Try again (reloadKey re-runs the load)
+  // instead of a spinner that never stops.
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     async function loadUsername() {
       const uid = auth.currentUser?.uid;
       if (!uid) return;
-      const snap = await getDoc(doc(db, 'users', uid));
-      if (!cancelled) setCurrentUsername(snap.data()?.username ?? '');
+      setLoadError(false);
+      try {
+        const snap = await getDoc(doc(db, 'users', uid));
+        if (!cancelled) setCurrentUsername(snap.data()?.username ?? '');
+      } catch (e) {
+        console.error('[ChangeUsername] failed to load username:', e.code, e.message, e);
+        if (!cancelled) setLoadError(true);
+      }
     }
     loadUsername();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const usernameError =
     username.length > 0 && !isValidUsername(username)
@@ -139,7 +151,9 @@ export default function ChangeUsernameScreen({ navigation }) {
         {success ? <Text style={styles.successBanner}>Your username has been updated.</Text> : null}
 
         <Text style={styles.label}>Current username</Text>
-        {currentUsername === undefined ? (
+        {loadError ? (
+          <LoadError onRetry={() => setReloadKey((k) => k + 1)} />
+        ) : currentUsername === undefined ? (
           <ActivityIndicator size="small" color={colors.primary} style={styles.loading} />
         ) : (
           <Text style={styles.currentValue}>{currentUsername || '—'}</Text>

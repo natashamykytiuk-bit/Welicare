@@ -73,10 +73,17 @@ export default function MusicPlayerScreen({ navigation, route }) {
     let cancelled = false;
     async function loadFavourite() {
       if (!residentId || !videoId) return;
-      const snap = await getDoc(doc(db, 'residents', residentId));
-      if (cancelled) return;
-      const ids = snap.data()?.favouriteMusicVideoIds;
-      setIsFavourite(Array.isArray(ids) && ids.includes(videoId));
+      // The heart is a nicety, not something playback depends on, so a
+      // failed read just leaves it showing "not favourited" — the music
+      // keeps playing and nothing else on screen breaks.
+      try {
+        const snap = await getDoc(doc(db, 'residents', residentId));
+        if (cancelled) return;
+        const ids = snap.data()?.favouriteMusicVideoIds;
+        setIsFavourite(Array.isArray(ids) && ids.includes(videoId));
+      } catch (e) {
+        console.error('[MusicPlayer] failed to load favourite status:', e.code, e.message, e);
+      }
     }
     loadFavourite();
     return () => {

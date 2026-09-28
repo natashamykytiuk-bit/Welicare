@@ -11,6 +11,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { auth, db } from './firebaseConfig';
+import LoadError from './components/LoadError';
 import { ResidentLockProvider } from './contexts/ResidentLockContext';
 import { nextOnboardingRoute } from './utils/onboarding';
 
@@ -99,6 +100,11 @@ export default function App() {
   // Reads this user's own Firestore doc once per sign-in to figure out
   // what onboarding, if any, is still outstanding (see utils/onboarding.js
   // for the rules, including why Administrators can't skip the org step).
+  // A failed read must NOT be treated as "no profile" (that would send an
+  // existing user to FinishSignUp), so a failure shows LoadError with Try
+  // again instead; onboardingReloadKey re-runs the effect.
+  const [onboardingError, setOnboardingError] = useState(false);
+  const [onboardingReloadKey, setOnboardingReloadKey] = useState(0);
   useEffect(() => {
     if (!user) {
       setOnboardingStatus(undefined);
@@ -106,15 +112,29 @@ export default function App() {
     }
     let cancelled = false;
     async function loadOnboardingStatus() {
-      const snap = await getDoc(doc(db, 'users', user.uid));
-      if (cancelled) return;
-      setOnboardingStatus({ route: nextOnboardingRoute(snap.data()) });
+      setOnboardingError(false);
+      try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        if (cancelled) return;
+        setOnboardingStatus({ route: nextOnboardingRoute(snap.data()) });
+      } catch (e) {
+        console.error('[App] failed to load onboarding status:', e.code, e.message, e);
+        if (!cancelled) setOnboardingError(true);
+      }
     }
     loadOnboardingStatus();
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, onboardingReloadKey]);
+
+  if (user && onboardingError && fontsLoaded) {
+    return (
+      <View style={styles.loadError}>
+        <LoadError onRetry={() => setOnboardingReloadKey((k) => k + 1)} />
+      </View>
+    );
+  }
 
   if (user === undefined || !fontsLoaded || (user && !onboardingStatus)) {
     return (
@@ -306,5 +326,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F9FAFB',
+  },
+  // Centred Try again block if the signed-in user's profile won't load.
+  loadError: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 28,
+    backgroundColor: '#F1EDE6',
   },
 });

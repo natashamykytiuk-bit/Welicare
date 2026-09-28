@@ -57,10 +57,22 @@ export default function MoviesSelectionScreen({ navigation, route }) {
     async function run() {
       setLoading(true);
       setError('');
+      // The life story only personalises the search. If it can't be read,
+      // fall back to general suggestions (lifeStory null) rather than
+      // leaving the spinner stuck, which is what an uncaught error did.
       let lifeStory = null;
       if (residentId) {
-        const snapshot = await getDoc(doc(db, 'residents', residentId));
-        lifeStory = snapshot.data()?.lifeStory ?? null;
+        try {
+          const snapshot = await getDoc(doc(db, 'residents', residentId));
+          lifeStory = snapshot.data()?.lifeStory ?? null;
+        } catch (e) {
+          console.error(
+            '[MoviesSelection] failed to load resident; using general suggestions:',
+            e.code,
+            e.message,
+            e
+          );
+        }
       }
       if (cancelled) return;
       const [firstQuery] = buildMovieQueries(lifeStory);

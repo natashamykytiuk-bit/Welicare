@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import BackButton from '../components/BackButton';
+import LoadError from '../components/LoadError';
 import Dropdown from '../components/Dropdown';
 import { auth, db, functions } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
@@ -89,18 +90,37 @@ export default function OrganizationalSettingsScreen({ navigation }) {
   const [transferring, setTransferring] = useState(false);
   const [transferError, setTransferError] = useState('');
 
+  // Load failure → LoadError with Try again (reloadKey re-runs the load)
+  // instead of a spinner that never stops.
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     async function loadOrg() {
       const uid = auth.currentUser?.uid;
       if (!uid) return;
-      const userSnap = await getDoc(doc(db, 'users', uid));
-      const id = userSnap.data()?.orgId;
+      setLoadError(false);
+      let id;
+      let orgSnap;
+      try {
+        const userSnap = await getDoc(doc(db, 'users', uid));
+        id = userSnap.data()?.orgId;
+        if (id) orgSnap = await getDoc(doc(db, 'organizations', id));
+      } catch (e) {
+        console.error(
+          '[OrganizationalSettings] failed to load organization:',
+          e.code,
+          e.message,
+          e
+        );
+        if (!cancelled) setLoadError(true);
+        return;
+      }
       if (!id) {
         if (!cancelled) setOrg(null);
         return;
       }
-      const orgSnap = await getDoc(doc(db, 'organizations', id));
       if (cancelled) return;
       const data = orgSnap.data() ?? null;
       setOrgId(id);
@@ -119,7 +139,7 @@ export default function OrganizationalSettingsScreen({ navigation }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const hasChanges =
     !!org &&
@@ -264,6 +284,15 @@ export default function OrganizationalSettingsScreen({ navigation }) {
       );
       setDeleting(false);
     }
+  }
+
+  if (loadError) {
+    return (
+      <View style={[styles.flex, styles.content]}>
+        <BackButton navigation={navigation} />
+        <LoadError onRetry={() => setReloadKey((k) => k + 1)} />
+      </View>
+    );
   }
 
   if (org === undefined) {

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import appConfig from '../app.json';
 import BackButton from '../components/BackButton';
+import LoadError from '../components/LoadError';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 
@@ -24,29 +25,41 @@ export default function SettingsScreen({ navigation }) {
   // only makes sense from that state.
   const [orgIsPersonal, setOrgIsPersonal] = useState(false);
 
+  // Load failure → LoadError at the top with Try again. The rest of
+  // Settings (Sign Out, Delete Account, …) stays usable below it; only the
+  // account details and role-based rows depend on this load.
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     async function loadUser() {
       const uid = auth.currentUser?.uid;
       if (!uid) return;
-      const snap = await getDoc(doc(db, 'users', uid));
-      const data = snap.data();
+      setLoadError(false);
+      let data;
+      let orgData;
+      try {
+        data = (await getDoc(doc(db, 'users', uid))).data();
+        if (data?.orgId) orgData = (await getDoc(doc(db, 'organizations', data.orgId))).data();
+      } catch (e) {
+        console.error('[Settings] failed to load account:', e.code, e.message, e);
+        if (!cancelled) setLoadError(true);
+        return;
+      }
       if (cancelled) return;
       setFullName(data?.fullName || data?.username || '');
       setRole(data?.role ?? '');
-      if (data?.orgId) {
-        const orgSnap = await getDoc(doc(db, 'organizations', data.orgId));
-        if (!cancelled) {
-          setOrgName(orgSnap.data()?.name ?? '');
-          setOrgIsPersonal(orgSnap.data()?.isPersonal === true);
-        }
+      if (orgData) {
+        setOrgName(orgData.name ?? '');
+        setOrgIsPersonal(orgData.isPersonal === true);
       }
     }
     loadUser();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -54,6 +67,13 @@ export default function SettingsScreen({ navigation }) {
         <BackButton navigation={navigation} />
 
         <Text style={styles.heading}>Settings</Text>
+
+        {loadError ? (
+          <LoadError
+            message="We couldn't load your account details just now. You can still use the options below."
+            onRetry={() => setReloadKey((k) => k + 1)}
+          />
+        ) : null}
 
         <Text style={styles.sectionLabel}>Account</Text>
         <View style={styles.card}>

@@ -5,6 +5,7 @@ import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { hashPin, isValidPin } from '../utils/pin';
+import LoadError from './LoadError';
 import NumberPad from './NumberPad';
 import PinDots from './PinDots';
 
@@ -18,6 +19,8 @@ export default function LockPinModal({ visible, onSuccess, onCancel }) {
   const [digits, setDigits] = useState('');
   // undefined while loading, null if the user has no PIN set up yet
   const [storedHash, setStoredHash] = useState(undefined);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
 
@@ -31,14 +34,23 @@ export default function LockPinModal({ visible, onSuccess, onCancel }) {
     let cancelled = false;
     async function load() {
       const uid = auth.currentUser?.uid;
-      const snap = uid ? await getDoc(doc(db, 'users', uid)) : null;
-      if (!cancelled) setStoredHash(snap?.data()?.pinHash ?? null);
+      setLoadError(false);
+      // A failed read must not leave storedHash null — then even the right
+      // PIN would be rejected as "Incorrect PIN" and the caregiver could be
+      // stuck in locked Resident Mode. Show LoadError with Try again instead.
+      try {
+        const snap = uid ? await getDoc(doc(db, 'users', uid)) : null;
+        if (!cancelled) setStoredHash(snap?.data()?.pinHash ?? null);
+      } catch (e) {
+        console.error('[LockPinModal] failed to load PIN:', e.code, e.message, e);
+        if (!cancelled) setLoadError(true);
+      }
     }
     load();
     return () => {
       cancelled = true;
     };
-  }, [visible]);
+  }, [visible, reloadKey]);
 
   async function handleDigit(d) {
     if (checking || digits.length >= 4) return;
@@ -94,7 +106,11 @@ export default function LockPinModal({ visible, onSuccess, onCancel }) {
             ) : null}
 
             <PinDots value={digits} />
-            <NumberPad onDigit={handleDigit} onBackspace={handleBackspace} disabled={checking} />
+            {loadError ? (
+              <LoadError onRetry={() => setReloadKey((k) => k + 1)} />
+            ) : (
+              <NumberPad onDigit={handleDigit} onBackspace={handleBackspace} disabled={checking} />
+            )}
           </View>
         </View>
       </View>

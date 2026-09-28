@@ -66,8 +66,16 @@ export default function EmailVerificationScreen({ route, onVerified }) {
     }
   }
 
+  // Signing out is local and rarely fails, but if it does the user would
+  // otherwise tap and see nothing happen — so say so.
   async function handleSignOut() {
-    await signOut(auth);
+    setError('');
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error('[EmailVerification] sign out failed:', e.code, e.message, e);
+      setError("We couldn't sign you out just now. Please try again.");
+    }
   }
 
   return (

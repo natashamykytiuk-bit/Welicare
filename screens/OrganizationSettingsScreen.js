@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import BackButton from '../components/BackButton';
+import LoadError from '../components/LoadError';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import {
@@ -42,22 +43,34 @@ export default function OrganizationSettingsScreen({ navigation }) {
   const [createName, setCreateName] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [loadError, setLoadError] = useState(false);
 
+  // Also re-run after joining or creating. It never throws: a failure
+  // shows LoadError (with Try again) and loading is always cleared in
+  // finally, so the spinner can't get stuck — and a join that succeeded
+  // isn't reported as failed just because this refresh didn't load.
   async function loadOrgState() {
     setLoading(true);
-    const uid = auth.currentUser?.uid;
-    const userSnap = await getDoc(doc(db, 'users', uid));
-    const orgId = userSnap.data()?.orgId;
-    if (orgId) {
-      const orgSnap = await getDoc(doc(db, 'organizations', orgId));
-      const data = orgSnap.data();
-      setOrgIsPersonal(data?.isPersonal === true);
-      setOrgName(data?.name ?? '');
-      // The code isn't on the org doc — it's in the members-only
-      // private/invite doc (see fetchInviteCode).
-      setOrgInviteCode((await fetchInviteCode(orgId)) ?? '');
+    setLoadError(false);
+    try {
+      const uid = auth.currentUser?.uid;
+      const userSnap = await getDoc(doc(db, 'users', uid));
+      const orgId = userSnap.data()?.orgId;
+      if (orgId) {
+        const orgSnap = await getDoc(doc(db, 'organizations', orgId));
+        const data = orgSnap.data();
+        setOrgIsPersonal(data?.isPersonal === true);
+        setOrgName(data?.name ?? '');
+        // The code isn't on the org doc — it's in the members-only
+        // private/invite doc (see fetchInviteCode).
+        setOrgInviteCode((await fetchInviteCode(orgId)) ?? '');
+      }
+    } catch (e) {
+      console.error('[OrganizationSettings] failed to load organization:', e.code, e.message, e);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -108,7 +121,9 @@ export default function OrganizationSettingsScreen({ navigation }) {
         <BackButton navigation={navigation} />
         <Text style={styles.heading}>Organization</Text>
 
-        {loading ? (
+        {loadError ? (
+          <LoadError onRetry={loadOrgState} />
+        ) : loading ? (
           <ActivityIndicator size="large" color={colors.primary} style={styles.spinner} />
         ) : !orgIsPersonal ? (
           <View style={styles.card}>

@@ -52,8 +52,16 @@ export default function ResidentModeScreen({ navigation }) {
     async function loadRole() {
       const uid = auth.currentUser?.uid;
       if (!uid) return;
-      const snap = await getDoc(doc(db, 'users', uid));
-      if (!cancelled) setRole(snap.data()?.role ?? null);
+      // Role only decides whether the admin-only Delete option shows, so a
+      // failed read falls back to null — Delete stays hidden (the safe
+      // default) and the resident list itself is unaffected.
+      try {
+        const snap = await getDoc(doc(db, 'users', uid));
+        if (!cancelled) setRole(snap.data()?.role ?? null);
+      } catch (e) {
+        console.error('[ResidentMode] failed to load role:', e.code, e.message, e);
+        if (!cancelled) setRole(null);
+      }
     }
     loadRole();
     return () => {
