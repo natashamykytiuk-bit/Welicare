@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { useCallback, useState } from 'react';
+import { collection, deleteDoc, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -78,6 +78,14 @@ export default function MusicLibraryScreen({ navigation }) {
   const [formGenres, setFormGenres] = useState([]);
   const [formDecade, setFormDecade] = useState('');
   const [formSaving, setFormSaving] = useState(false);
+  // The new entry's document reference, generated when the Add form opens
+  // (doc() with no id picks one locally — nothing is written yet). Every
+  // save from that form writes to this same id with setDoc, so if a save
+  // actually landed but reported an error (e.g. the connection dropped
+  // before the reply) and the caregiver taps Save again, it overwrites the
+  // same entry instead of adding the song twice. The rules let a caregiver
+  // update entries in their own organization, so that overwrite is allowed.
+  const addRef = useRef(null);
   const [formError, setFormError] = useState('');
 
   const [confirmTarget, setConfirmTarget] = useState(null);
@@ -137,6 +145,8 @@ export default function MusicLibraryScreen({ navigation }) {
   }
 
   function openAddModal(video) {
+    // A fresh id per Add form — reused for every retry from this form only.
+    addRef.current = doc(collection(db, 'musicLibrary'));
     setFormMode('add');
     setFormEditingId(null);
     setFormVideoId(video.videoId);
@@ -183,7 +193,7 @@ export default function MusicLibraryScreen({ navigation }) {
     setFormError('');
     try {
       if (formMode === 'add') {
-        await addDoc(collection(db, 'musicLibrary'), {
+        await setDoc(addRef.current, {
           videoId: formVideoId,
           title,
           channelTitle: formChannelTitle.trim(),

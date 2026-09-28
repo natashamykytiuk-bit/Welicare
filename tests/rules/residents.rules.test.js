@@ -266,6 +266,41 @@ describe('personal organization batch (createPersonalOrganization)', () => {
   });
 });
 
+describe('music library add (MusicLibraryScreen)', () => {
+  // The Add form picks the entry's id up front and every save from it uses
+  // setDoc on that id. These confirm the rules allow both the first save
+  // (a create) and a repeat save on the same id (an update), so a retry
+  // after an uncertain save overwrites instead of adding a duplicate.
+  const entry = (title) => ({
+    videoId: 'abc123',
+    title,
+    artist: 'Patsy Cline',
+    genres: ['Country'],
+    decade: '1960s',
+    facilityId: 'orgA',
+  });
+
+  it('first save to a new id is allowed', async () => {
+    await assertSucceeds(setDoc(doc(as('caregiverA'), 'musicLibrary', 'm1'), entry('Crazy')));
+  });
+
+  it('a repeat save to the same id overwrites it (no duplicate)', async () => {
+    const db = as('caregiverA');
+    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'm2'), entry('Crazy')));
+    await assertSucceeds(setDoc(doc(db, 'musicLibrary', 'm2'), entry('Crazy')));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const snap = await getDocs(
+        query(collection(ctx.firestore(), 'musicLibrary'), where('videoId', '==', 'abc123'))
+      );
+      expect(snap.size).toBe(1);
+    });
+  });
+
+  it('volunteers still cannot add to the library', async () => {
+    await assertFails(setDoc(doc(as('volunteerA'), 'musicLibrary', 'm3'), entry('Crazy')));
+  });
+});
+
 describe('other facility', () => {
   it('cannot read a resident from another facility', async () => {
     await assertFails(getDoc(doc(as('caregiverB'), 'residents', 'residentA')));
