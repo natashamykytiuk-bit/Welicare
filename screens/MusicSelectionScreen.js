@@ -5,7 +5,7 @@ import {
   ActivityIndicator,
   Image,
   SafeAreaView,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -171,133 +171,143 @@ export default function MusicSelectionScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.flex}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Music</Text>
-        <Text style={styles.body}>Choose a song to play.</Text>
-
-        {residentId ? (
+      {/* One FlatList for the whole screen (header and filters included via
+          ListHeaderComponent) rather than a ScrollView around every song:
+          FlatList only renders the rows near the screen, so a large library
+          stays smooth on older tablets. */}
+      <FlatList
+        data={!loading && !error ? videos : []}
+        keyExtractor={(video) => video.id}
+        extraData={favouriteIds}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        initialNumToRender={12}
+        windowSize={7}
+        ListHeaderComponent={
           <>
-            <ChipSelector options={VIEW_MODE_OPTIONS} value={viewMode} onChange={setViewMode} />
+            <BackButton navigation={navigation} />
+            <Text style={styles.heading}>Music</Text>
+            <Text style={styles.body}>Choose a song to play.</Text>
+
+            {residentId ? (
+              <>
+                <ChipSelector options={VIEW_MODE_OPTIONS} value={viewMode} onChange={setViewMode} />
+                <View style={styles.chipSpacer} />
+              </>
+            ) : null}
+
+            <Text style={styles.filterLabel}>Artist</Text>
+            <ChipSelector
+              options={availableArtists}
+              value={filterArtist}
+              onChange={setFilterArtist}
+              includeAll
+            />
             <View style={styles.chipSpacer} />
+            <Text style={styles.filterLabel}>Genre</Text>
+            <ChipSelector
+              options={MUSIC_GENRE_OPTIONS}
+              value={filterGenres}
+              onChange={setFilterGenres}
+              multi
+            />
+            <View style={styles.chipSpacer} />
+            <Text style={styles.filterLabel}>Decade</Text>
+            <ChipSelector
+              options={MUSIC_DECADE_OPTIONS}
+              value={filterDecade}
+              onChange={setFilterDecade}
+              includeAll
+            />
+
+            {loading ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
+            {error ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.error}>{error}</Text>
+              </View>
+            ) : null}
+            {!loading && !error && showFavouritesEmptyState ? (
+              <Text style={styles.note}>
+                No favourites yet — tap the heart next to a song to add one here.
+              </Text>
+            ) : null}
+            {!loading && !error && !showFavouritesEmptyState && videos.length === 0 ? (
+              <Text style={styles.note}>No songs match these filters yet.</Text>
+            ) : null}
           </>
-        ) : null}
-
-        <Text style={styles.filterLabel}>Artist</Text>
-        <ChipSelector
-          options={availableArtists}
-          value={filterArtist}
-          onChange={setFilterArtist}
-          includeAll
-        />
-        <View style={styles.chipSpacer} />
-        <Text style={styles.filterLabel}>Genre</Text>
-        <ChipSelector
-          options={MUSIC_GENRE_OPTIONS}
-          value={filterGenres}
-          onChange={setFilterGenres}
-          multi
-        />
-        <View style={styles.chipSpacer} />
-        <Text style={styles.filterLabel}>Decade</Text>
-        <ChipSelector
-          options={MUSIC_DECADE_OPTIONS}
-          value={filterDecade}
-          onChange={setFilterDecade}
-          includeAll
-        />
-
-        {loading ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.error}>{error}</Text>
-          </View>
-        ) : null}
-        {!loading && !error && showFavouritesEmptyState ? (
-          <Text style={styles.note}>
-            No favourites yet — tap the heart next to a song to add one here.
-          </Text>
-        ) : null}
-        {!loading && !error && !showFavouritesEmptyState && videos.length === 0 ? (
-          <Text style={styles.note}>No songs match these filters yet.</Text>
-        ) : null}
-
-        {!loading && !error
-          ? videos.map((video, index) => (
-              <TouchableOpacity
-                key={video.id}
-                style={styles.card}
-                // Hands the player the whole visible list (in its current
-                // filter/view order) plus where to start, so it can play the
-                // songs after the tapped one as an "Up next" queue. Only
-                // the fields the player needs are passed — navigation params
-                // should stay small and serialisable. genres/decade/artist
-                // feed the player's similarity ranking (see songSimilarity);
-                // genresOf/channelTitle cover pre-migration docs.
-                onPress={() =>
-                  navigation.navigate('MusicPlayer', {
-                    queue: videos
-                      .filter((v) => v.videoId)
-                      .map((v) => ({
-                        videoId: v.videoId,
-                        title: v.title,
-                        genres: genresOf(v),
-                        decade: v.decade ?? null,
-                        artist: v.artist || v.channelTitle || null,
-                      })),
-                    startIndex: videos.filter((v, i) => v.videoId && i < index).length,
-                    videoId: video.videoId,
-                    title: video.title,
-                    residentId,
-                  })
-                }
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={video.title}
-              >
-                <Image
-                  source={{ uri: video.thumbnailUrl || thumbnailForVideoId(video.videoId) }}
-                  style={styles.thumbnail}
-                />
-                <View style={styles.cardText}>
-                  <Text style={styles.cardTitle} numberOfLines={1}>
-                    {video.title}
-                  </Text>
-                  <Text style={styles.cardSubtitle} numberOfLines={1}>
-                    {video.artist || video.channelTitle}
-                  </Text>
-                </View>
-                <View style={styles.cardActions}>
-                  {residentId ? (
-                    <TouchableOpacity
-                      onPress={() => handleToggleFavourite(video)}
-                      activeOpacity={0.7}
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        favouriteIds.includes(video.videoId)
-                          ? 'Remove from favourites'
-                          : 'Add to favourites'
-                      }
-                      accessibilityState={{ selected: favouriteIds.includes(video.videoId) }}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Ionicons
-                        name={favouriteIds.includes(video.videoId) ? 'heart' : 'heart-outline'}
-                        size={22}
-                        color={
-                          favouriteIds.includes(video.videoId)
-                            ? colors.destructive
-                            : colors.textMuted
-                        }
-                      />
-                    </TouchableOpacity>
-                  ) : null}
-                  <Ionicons name="play-circle-outline" size={26} color={colors.primary} />
-                </View>
-              </TouchableOpacity>
-            ))
-          : null}
-      </ScrollView>
+        }
+        renderItem={({ item: video, index }) => (
+          <TouchableOpacity
+            key={video.id}
+            style={styles.card}
+            // Hands the player the whole visible list (in its current
+            // filter/view order) plus where to start, so it can play the
+            // songs after the tapped one as an "Up next" queue. Only
+            // the fields the player needs are passed — navigation params
+            // should stay small and serialisable. genres/decade/artist
+            // feed the player's similarity ranking (see songSimilarity);
+            // genresOf/channelTitle cover pre-migration docs.
+            onPress={() =>
+              navigation.navigate('MusicPlayer', {
+                queue: videos
+                  .filter((v) => v.videoId)
+                  .map((v) => ({
+                    videoId: v.videoId,
+                    title: v.title,
+                    genres: genresOf(v),
+                    decade: v.decade ?? null,
+                    artist: v.artist || v.channelTitle || null,
+                  })),
+                startIndex: videos.filter((v, i) => v.videoId && i < index).length,
+                videoId: video.videoId,
+                title: video.title,
+                residentId,
+              })
+            }
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={video.title}
+          >
+            <Image
+              source={{ uri: video.thumbnailUrl || thumbnailForVideoId(video.videoId) }}
+              style={styles.thumbnail}
+            />
+            <View style={styles.cardText}>
+              <Text style={styles.cardTitle} numberOfLines={1}>
+                {video.title}
+              </Text>
+              <Text style={styles.cardSubtitle} numberOfLines={1}>
+                {video.artist || video.channelTitle}
+              </Text>
+            </View>
+            <View style={styles.cardActions}>
+              {residentId ? (
+                <TouchableOpacity
+                  onPress={() => handleToggleFavourite(video)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    favouriteIds.includes(video.videoId)
+                      ? 'Remove from favourites'
+                      : 'Add to favourites'
+                  }
+                  accessibilityState={{ selected: favouriteIds.includes(video.videoId) }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons
+                    name={favouriteIds.includes(video.videoId) ? 'heart' : 'heart-outline'}
+                    size={22}
+                    color={
+                      favouriteIds.includes(video.videoId) ? colors.destructive : colors.textMuted
+                    }
+                  />
+                </TouchableOpacity>
+              ) : null}
+              <Ionicons name="play-circle-outline" size={26} color={colors.primary} />
+            </View>
+          </TouchableOpacity>
+        )}
+      />
     </SafeAreaView>
   );
 }

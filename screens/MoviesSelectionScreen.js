@@ -5,7 +5,7 @@ import {
   ActivityIndicator,
   Image,
   SafeAreaView,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -117,106 +117,118 @@ export default function MoviesSelectionScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.flex}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Movies &amp; Videos</Text>
-        <Text style={styles.body}>Choose something to watch.</Text>
-
-        {residentId ? (
+      {/* One FlatList for the whole screen (header and filters included via
+          ListHeaderComponent) rather than a ScrollView around every entry:
+          FlatList only renders the rows near the screen, so a large library
+          stays smooth on older tablets. */}
+      <FlatList
+        data={!loading && !loadError ? movies : []}
+        keyExtractor={(entry) => entry.id}
+        extraData={favouriteIds}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        initialNumToRender={12}
+        windowSize={7}
+        ListHeaderComponent={
           <>
-            <ChipSelector options={VIEW_MODE_OPTIONS} value={viewMode} onChange={setViewMode} />
+            <BackButton navigation={navigation} />
+            <Text style={styles.heading}>Movies &amp; Videos</Text>
+            <Text style={styles.body}>Choose something to watch.</Text>
+
+            {residentId ? (
+              <>
+                <ChipSelector options={VIEW_MODE_OPTIONS} value={viewMode} onChange={setViewMode} />
+                <View style={styles.chipSpacer} />
+              </>
+            ) : null}
+
+            <Text style={styles.filterLabel}>Genre</Text>
+            <ChipSelector
+              options={MOVIE_GENRE_OPTIONS}
+              value={filterGenre}
+              onChange={setFilterGenre}
+              includeAll
+            />
             <View style={styles.chipSpacer} />
+            <Text style={styles.filterLabel}>Decade</Text>
+            <ChipSelector
+              options={MOVIE_DECADE_OPTIONS}
+              value={filterDecade}
+              onChange={setFilterDecade}
+              includeAll
+            />
+
+            {loadError ? <LoadError onRetry={() => setReloadKey((k) => k + 1)} /> : null}
+            {loading ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
+
+            {!loading && !loadError && showFavouritesEmptyState ? (
+              <Text style={styles.note}>
+                No favourites yet — tap the heart next to a movie to add one here.
+              </Text>
+            ) : null}
+            {!loading && !loadError && !showFavouritesEmptyState && movies.length === 0 ? (
+              <Text style={styles.note}>
+                {library.length === 0
+                  ? 'No movies have been added yet. A caregiver can add some from Manage Music & Videos.'
+                  : 'No movies match these filters.'}
+              </Text>
+            ) : null}
           </>
-        ) : null}
-
-        <Text style={styles.filterLabel}>Genre</Text>
-        <ChipSelector
-          options={MOVIE_GENRE_OPTIONS}
-          value={filterGenre}
-          onChange={setFilterGenre}
-          includeAll
-        />
-        <View style={styles.chipSpacer} />
-        <Text style={styles.filterLabel}>Decade</Text>
-        <ChipSelector
-          options={MOVIE_DECADE_OPTIONS}
-          value={filterDecade}
-          onChange={setFilterDecade}
-          includeAll
-        />
-
-        {loadError ? <LoadError onRetry={() => setReloadKey((k) => k + 1)} /> : null}
-        {loading ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
-
-        {!loading && !loadError && showFavouritesEmptyState ? (
-          <Text style={styles.note}>
-            No favourites yet — tap the heart next to a movie to add one here.
-          </Text>
-        ) : null}
-        {!loading && !loadError && !showFavouritesEmptyState && movies.length === 0 ? (
-          <Text style={styles.note}>
-            {library.length === 0
-              ? 'No movies have been added yet. A caregiver can add some from Manage Music & Videos.'
-              : 'No movies match these filters.'}
-          </Text>
-        ) : null}
-
-        {!loading && !loadError
-          ? movies.map((movie) => {
-              const isFavourite = favouriteIds.includes(movie.videoId);
-              return (
-                <TouchableOpacity
-                  key={movie.id}
-                  style={styles.card}
-                  onPress={() =>
-                    navigation.navigate('MoviesPlayer', {
-                      videoId: movie.videoId,
-                      title: movie.title,
-                      residentId,
-                    })
-                  }
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel={movie.title}
-                >
-                  <Image
-                    source={{ uri: movie.thumbnailUrl || thumbnailForVideoId(movie.videoId) }}
-                    style={styles.thumbnail}
-                  />
-                  <View style={styles.cardText}>
-                    <Text style={styles.cardTitle} numberOfLines={2}>
-                      {movie.title}
-                    </Text>
-                    <Text style={styles.cardSubtitle} numberOfLines={1}>
-                      {[(movie.genres ?? []).join(', '), movie.decade].filter(Boolean).join(' · ')}
-                    </Text>
-                  </View>
-                  <View style={styles.cardActions}>
-                    {residentId ? (
-                      <TouchableOpacity
-                        onPress={() => handleToggleFavourite(movie)}
-                        activeOpacity={0.7}
-                        accessibilityRole="button"
-                        accessibilityLabel={
-                          isFavourite ? 'Remove from favourites' : 'Add to favourites'
-                        }
-                        accessibilityState={{ selected: isFavourite }}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      >
-                        <Ionicons
-                          name={isFavourite ? 'heart' : 'heart-outline'}
-                          size={22}
-                          color={isFavourite ? colors.destructive : colors.textMuted}
-                        />
-                      </TouchableOpacity>
-                    ) : null}
-                    <Ionicons name="play-circle-outline" size={26} color={colors.primary} />
-                  </View>
-                </TouchableOpacity>
-              );
-            })
-          : null}
-      </ScrollView>
+        }
+        renderItem={({ item: movie }) => {
+          const isFavourite = favouriteIds.includes(movie.videoId);
+          return (
+            <TouchableOpacity
+              key={movie.id}
+              style={styles.card}
+              onPress={() =>
+                navigation.navigate('MoviesPlayer', {
+                  videoId: movie.videoId,
+                  title: movie.title,
+                  residentId,
+                })
+              }
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={movie.title}
+            >
+              <Image
+                source={{ uri: movie.thumbnailUrl || thumbnailForVideoId(movie.videoId) }}
+                style={styles.thumbnail}
+              />
+              <View style={styles.cardText}>
+                <Text style={styles.cardTitle} numberOfLines={2}>
+                  {movie.title}
+                </Text>
+                <Text style={styles.cardSubtitle} numberOfLines={1}>
+                  {[(movie.genres ?? []).join(', '), movie.decade].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+              <View style={styles.cardActions}>
+                {residentId ? (
+                  <TouchableOpacity
+                    onPress={() => handleToggleFavourite(movie)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      isFavourite ? 'Remove from favourites' : 'Add to favourites'
+                    }
+                    accessibilityState={{ selected: isFavourite }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons
+                      name={isFavourite ? 'heart' : 'heart-outline'}
+                      size={22}
+                      color={isFavourite ? colors.destructive : colors.textMuted}
+                    />
+                  </TouchableOpacity>
+                ) : null}
+                <Ionicons name="play-circle-outline" size={26} color={colors.primary} />
+              </View>
+            </TouchableOpacity>
+          );
+        }}
+      />
     </SafeAreaView>
   );
 }

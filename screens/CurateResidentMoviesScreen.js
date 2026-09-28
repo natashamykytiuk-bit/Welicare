@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Image,
   SafeAreaView,
+  FlatList,
   ScrollView,
   StyleSheet,
   Text,
@@ -273,124 +274,140 @@ export default function CurateResidentMoviesScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.flex}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <BackButton navigation={navigation} onPress={handleChangeResident} />
-        <Text style={styles.heading}>{selectedResident.name}</Text>
-        <TouchableOpacity
-          onPress={handleChangeResident}
-          accessibilityRole="button"
-          accessibilityLabel="Change resident"
-        >
-          <Text style={styles.changeResidentLink}>Change resident</Text>
-        </TouchableOpacity>
+      {/* One FlatList for the whole screen: the resident and filters are its
+          header and the Save button its footer, so only the rows near the
+          screen are rendered even for a large library. */}
+      <FlatList
+        data={libraryLoading || libraryError ? [] : filteredLibrary}
+        keyExtractor={(entry) => entry.id}
+        extraData={selectedIds}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        initialNumToRender={12}
+        windowSize={7}
+        ListHeaderComponent={
+          <>
+            <BackButton navigation={navigation} onPress={handleChangeResident} />
+            <Text style={styles.heading}>{selectedResident.name}</Text>
+            <TouchableOpacity
+              onPress={handleChangeResident}
+              accessibilityRole="button"
+              accessibilityLabel="Change resident"
+            >
+              <Text style={styles.changeResidentLink}>Change resident</Text>
+            </TouchableOpacity>
 
-        {hasHint ? (
-          <View style={styles.hintBox}>
-            <Text style={styles.hintText}>Favourite movies: {lifeStory.favouriteMovies}</Text>
-          </View>
-        ) : null}
+            {hasHint ? (
+              <View style={styles.hintBox}>
+                <Text style={styles.hintText}>Favourite movies: {lifeStory.favouriteMovies}</Text>
+              </View>
+            ) : null}
 
-        <Text style={styles.sectionLabel}>Genre</Text>
-        <ChipSelector
-          options={MOVIE_GENRE_OPTIONS}
-          value={filterGenres}
-          onChange={setFilterGenres}
-          multi
-        />
-        <View style={styles.chipSpacer} />
-        <Text style={styles.sectionLabel}>Decade</Text>
-        <ChipSelector
-          options={MOVIE_DECADE_OPTIONS}
-          value={filterDecade}
-          onChange={setFilterDecade}
-          includeAll
-        />
+            <Text style={styles.sectionLabel}>Genre</Text>
+            <ChipSelector
+              options={MOVIE_GENRE_OPTIONS}
+              value={filterGenres}
+              onChange={setFilterGenres}
+              multi
+            />
+            <View style={styles.chipSpacer} />
+            <Text style={styles.sectionLabel}>Decade</Text>
+            <ChipSelector
+              options={MOVIE_DECADE_OPTIONS}
+              value={filterDecade}
+              onChange={setFilterDecade}
+              includeAll
+            />
 
-        {/* Tells staff which rule currently applies to this resident —
+            {/* Tells staff which rule currently applies to this resident —
             "no list" and "empty list" behave very differently. */}
-        <Text style={styles.note}>
-          {isMoviesCurated(selectedResident)
-            ? `${selectedResident.name} only sees the movies approved here.`
-            : `No approved list yet — ${selectedResident.name} sees the whole movie library. Saving a selection limits it to those movies.`}
-        </Text>
-        {isMoviesCurated(selectedResident) ? (
-          <TouchableOpacity
-            onPress={handleAllowWholeLibrary}
-            disabled={saving}
-            accessibilityRole="button"
-            accessibilityLabel="Show the whole library instead"
-          >
-            <Text style={styles.errorLink}>Show the whole library instead</Text>
-          </TouchableOpacity>
-        ) : null}
-
-        <Text style={styles.sectionLabel}>Movies ({selectedIds.size} selected)</Text>
-        {libraryError ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.error}>{libraryError}</Text>
-          </View>
-        ) : null}
-        {libraryLoading ? (
-          <ActivityIndicator color={colors.primary} style={styles.spinner} />
-        ) : !libraryError && filteredLibrary.length === 0 ? (
-          <Text style={styles.note}>No videos match these filters.</Text>
-        ) : (
-          filteredLibrary.map((entry) => {
-            const checked = selectedIds.has(entry.videoId);
-            return (
+            <Text style={styles.note}>
+              {isMoviesCurated(selectedResident)
+                ? `${selectedResident.name} only sees the movies approved here.`
+                : `No approved list yet — ${selectedResident.name} sees the whole movie library. Saving a selection limits it to those movies.`}
+            </Text>
+            {isMoviesCurated(selectedResident) ? (
               <TouchableOpacity
-                key={entry.id}
-                style={styles.videoRow}
-                onPress={() => toggleVideo(entry.videoId)}
-                activeOpacity={0.8}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked }}
-                accessibilityLabel={entry.title}
+                onPress={handleAllowWholeLibrary}
+                disabled={saving}
+                accessibilityRole="button"
+                accessibilityLabel="Show the whole library instead"
               >
-                <Ionicons
-                  name={checked ? 'checkbox' : 'square-outline'}
-                  size={24}
-                  color={checked ? colors.primary : colors.textMuted}
-                />
-                <Image
-                  source={{ uri: entry.thumbnailUrl || thumbnailForVideoId(entry.videoId) }}
-                  style={styles.thumbnail}
-                />
-                <View style={styles.cardText}>
-                  <Text style={styles.cardTitle} numberOfLines={1}>
-                    {entry.title}
-                  </Text>
-                  <Text style={styles.cardSubtitle} numberOfLines={1}>
-                    {(entry.genres ?? []).join(', ')} · {entry.decade}
-                  </Text>
-                </View>
+                <Text style={styles.errorLink}>Show the whole library instead</Text>
               </TouchableOpacity>
-            );
-          })
-        )}
+            ) : null}
 
-        {selectedIds.size === 0 && isMoviesCurated(selectedResident) ? (
-          <Text style={styles.error}>
-            {`No movies are approved, so ${selectedResident.name} won’t see any until you approve some.`}
-          </Text>
-        ) : null}
-        {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
-        {saved ? <Text style={styles.savedNote}>Selection saved.</Text> : null}
-        <TouchableOpacity
-          style={styles.saveButton}
-          onPress={handleSave}
-          disabled={saving}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Save selection"
-        >
-          {saving ? (
-            <ActivityIndicator color={colors.white} />
-          ) : (
-            <Text style={styles.saveButtonText}>Save</Text>
-          )}
-        </TouchableOpacity>
-      </ScrollView>
+            <Text style={styles.sectionLabel}>Movies ({selectedIds.size} selected)</Text>
+            {libraryError ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.error}>{libraryError}</Text>
+              </View>
+            ) : null}
+            {libraryLoading ? (
+              <ActivityIndicator color={colors.primary} style={styles.spinner} />
+            ) : !libraryError && filteredLibrary.length === 0 ? (
+              <Text style={styles.note}>No videos match these filters.</Text>
+            ) : null}
+          </>
+        }
+        renderItem={({ item: entry }) => {
+          const checked = selectedIds.has(entry.videoId);
+          return (
+            <TouchableOpacity
+              key={entry.id}
+              style={styles.videoRow}
+              onPress={() => toggleVideo(entry.videoId)}
+              activeOpacity={0.8}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked }}
+              accessibilityLabel={entry.title}
+            >
+              <Ionicons
+                name={checked ? 'checkbox' : 'square-outline'}
+                size={24}
+                color={checked ? colors.primary : colors.textMuted}
+              />
+              <Image
+                source={{ uri: entry.thumbnailUrl || thumbnailForVideoId(entry.videoId) }}
+                style={styles.thumbnail}
+              />
+              <View style={styles.cardText}>
+                <Text style={styles.cardTitle} numberOfLines={1}>
+                  {entry.title}
+                </Text>
+                <Text style={styles.cardSubtitle} numberOfLines={1}>
+                  {(entry.genres ?? []).join(', ')} · {entry.decade}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        }}
+        ListFooterComponent={
+          <>
+            {selectedIds.size === 0 && isMoviesCurated(selectedResident) ? (
+              <Text style={styles.error}>
+                {`No movies are approved, so ${selectedResident.name} won’t see any until you approve some.`}
+              </Text>
+            ) : null}
+            {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
+            {saved ? <Text style={styles.savedNote}>Selection saved.</Text> : null}
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={handleSave}
+              disabled={saving}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Save selection"
+            >
+              {saving ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.saveButtonText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </>
+        }
+      />
     </SafeAreaView>
   );
 }

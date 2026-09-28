@@ -172,3 +172,27 @@ describe('movie library helpers', () => {
     expect(filterToApprovedMovies(movies, { selectedMusicVideoIds: [] })).toHaveLength(4);
   });
 });
+
+// Review item: favourites used to fire every query at once. runWithConcurrency
+// caps how many run in parallel while keeping results in order.
+describe('runWithConcurrency', () => {
+  const { runWithConcurrency } = require('../utils/musicLibraryQuery');
+
+  it('never runs more than the limit at once, and keeps results in order', async () => {
+    let running = 0;
+    let peak = 0;
+    const tasks = Array.from({ length: 10 }, (_, i) => async () => {
+      running++;
+      peak = Math.max(peak, running);
+      await new Promise((r) => setTimeout(r, 5));
+      running--;
+      return i;
+    });
+    expect(await runWithConcurrency(tasks, 3)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(peak).toBe(3);
+  });
+
+  it('handles an empty task list', async () => {
+    expect(await runWithConcurrency([], 4)).toEqual([]);
+  });
+});

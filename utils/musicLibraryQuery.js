@@ -86,9 +86,13 @@ export async function queryMusicLibraryByVideoIds(videoIds, facilityId) {
   const chunks = [];
   for (let i = 0; i < videoIds.length; i += 10) chunks.push(videoIds.slice(i, i + 10));
   const facilityValues = facilityId ? ['global', facilityId] : ['global'];
-  const snapshots = await Promise.all(
-    chunks.flatMap((chunk) =>
-      facilityValues.map((value) =>
+  // One query per (chunk, facility) pair. A resident with 200 favourites
+  // would mean 40 queries, so they're run a few at a time
+  // (MAX_PARALLEL_QUERIES) instead of all at once — gentler on a weak
+  // connection and on Firestore, with the same result.
+  const tasks = chunks.flatMap((chunk) =>
+    facilityValues.map(
+      (value) => () =>
         getDocs(
           query(
             collection(db, 'musicLibrary'),
@@ -96,10 +100,30 @@ export async function queryMusicLibraryByVideoIds(videoIds, facilityId) {
             where('facilityId', '==', value)
           )
         )
-      )
     )
   );
+  const snapshots = await runWithConcurrency(tasks, MAX_PARALLEL_QUERIES);
   return snapshots.flatMap((snapshot) => snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+}
+
+// How many favourites queries may be in flight at once.
+const MAX_PARALLEL_QUERIES = 4;
+
+// Runs async `tasks` (functions returning promises) with at most `limit`
+// running at a time, and returns their results in the original order —
+// like Promise.all, but bounded. Rejects as soon as any task fails, same as
+// Promise.all.
+export async function runWithConcurrency(tasks, limit) {
+  const results = new Array(tasks.length);
+  let next = 0;
+  async function worker() {
+    while (next < tasks.length) {
+      const i = next++;
+      results[i] = await tasks[i]();
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
+  return results;
 }
 
 // Looks up whether a YouTube video is already in the library this caregiver

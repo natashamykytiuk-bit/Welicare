@@ -10,6 +10,7 @@ import {
   Platform,
   Pressable,
   SafeAreaView,
+  FlatList,
   ScrollView,
   StyleSheet,
   Text,
@@ -216,20 +217,24 @@ export default function MusicLibraryScreen({ navigation }) {
         }
         const isRetry = attemptedAddRef.current;
         attemptedAddRef.current = true;
-        const result = await addLibraryEntryOnce('musicLibrary', {
-          videoId: formVideoId,
-          title,
-          channelTitle: formChannelTitle.trim(),
-          artist,
-          thumbnailUrl: formThumbnailUrl || thumbnailForVideoId(formVideoId),
-          genres: formGenres,
-          decade: formDecade,
-          // Never "global" — the app can only add entries scoped to the
-          // adding caregiver's own organization (see firestore.rules).
-          facilityId,
-          addedAt: serverTimestamp(),
-          addedByUid: auth.currentUser?.uid ?? null,
-        }, { isRetry });
+        const result = await addLibraryEntryOnce(
+          'musicLibrary',
+          {
+            videoId: formVideoId,
+            title,
+            channelTitle: formChannelTitle.trim(),
+            artist,
+            thumbnailUrl: formThumbnailUrl || thumbnailForVideoId(formVideoId),
+            genres: formGenres,
+            decade: formDecade,
+            // Never "global" — the app can only add entries scoped to the
+            // adding caregiver's own organization (see firestore.rules).
+            facilityId,
+            addedAt: serverTimestamp(),
+            addedByUid: auth.currentUser?.uid ?? null,
+          },
+          { isRetry }
+        );
         if (!result.added) {
           await showDuplicate(result.existing);
           return;
@@ -282,143 +287,157 @@ export default function MusicLibraryScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.flex}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Music Library</Text>
-        <Text style={styles.body}>
-          Search YouTube or paste a link to add videos to the shared library.
-        </Text>
+      {/* One FlatList for the whole screen (header and filters included via
+          ListHeaderComponent) rather than a ScrollView around every entry:
+          FlatList only renders the rows near the screen, so a large library
+          stays smooth on older tablets. */}
+      <FlatList
+        data={filteredLibrary}
+        keyExtractor={(entry) => entry.id}
+        extraData={filteredLibrary}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        initialNumToRender={12}
+        windowSize={7}
+        ListHeaderComponent={
+          <>
+            <BackButton navigation={navigation} />
+            <Text style={styles.heading}>Music Library</Text>
+            <Text style={styles.body}>
+              Search YouTube or paste a link to add videos to the shared library.
+            </Text>
 
-        <Text style={styles.sectionLabel}>Search YouTube</Text>
-        <View style={styles.searchRow}>
-          <TextInput
-            style={styles.searchInput}
-            value={searchText}
-            onChangeText={setSearchText}
-            placeholder="Search for a song or artist"
-            placeholderTextColor={colors.textMuted}
-            onSubmitEditing={handleSearch}
-            returnKeyType="search"
-          />
-          <TouchableOpacity
-            style={styles.searchButton}
-            onPress={handleSearch}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Search"
-          >
-            <Ionicons name="search" size={20} color={colors.white} />
-          </TouchableOpacity>
-        </View>
-        {searching ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
-        {searchError ? <Text style={styles.error}>{searchError}</Text> : null}
-        {searchResults.map((video) => (
-          <View key={video.videoId} style={styles.resultCard}>
-            {video.thumbnailUrl ? (
-              <Image source={{ uri: video.thumbnailUrl }} style={styles.thumbnail} />
-            ) : (
-              <View style={styles.artPlaceholder}>
-                <Ionicons name="musical-note" size={22} color={colors.primary} />
+            <Text style={styles.sectionLabel}>Search YouTube</Text>
+            <View style={styles.searchRow}>
+              <TextInput
+                style={styles.searchInput}
+                value={searchText}
+                onChangeText={setSearchText}
+                placeholder="Search for a song or artist"
+                placeholderTextColor={colors.textMuted}
+                onSubmitEditing={handleSearch}
+                returnKeyType="search"
+              />
+              <TouchableOpacity
+                style={styles.searchButton}
+                onPress={handleSearch}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Search"
+              >
+                <Ionicons name="search" size={20} color={colors.white} />
+              </TouchableOpacity>
+            </View>
+            {searching ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
+            {searchError ? <Text style={styles.error}>{searchError}</Text> : null}
+            {searchResults.map((video) => (
+              <View key={video.videoId} style={styles.resultCard}>
+                {video.thumbnailUrl ? (
+                  <Image source={{ uri: video.thumbnailUrl }} style={styles.thumbnail} />
+                ) : (
+                  <View style={styles.artPlaceholder}>
+                    <Ionicons name="musical-note" size={22} color={colors.primary} />
+                  </View>
+                )}
+                <View style={styles.cardText}>
+                  <Text style={styles.cardTitle} numberOfLines={1}>
+                    {video.title}
+                  </Text>
+                  <Text style={styles.cardSubtitle} numberOfLines={1}>
+                    {video.channelTitle}
+                  </Text>
+                </View>
+                {isInLibrary(video.videoId) ? (
+                  <InLibraryBadge />
+                ) : (
+                  <TouchableOpacity
+                    style={styles.addButton}
+                    onPress={() => openAddModal(video)}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add ${video.title} to library`}
+                  >
+                    <Ionicons name="add" size={22} color={colors.white} />
+                  </TouchableOpacity>
+                )}
               </View>
-            )}
-            <View style={styles.cardText}>
-              <Text style={styles.cardTitle} numberOfLines={1}>
-                {video.title}
-              </Text>
-              <Text style={styles.cardSubtitle} numberOfLines={1}>
-                {video.channelTitle}
-              </Text>
-            </View>
-            {isInLibrary(video.videoId) ? (
-              <InLibraryBadge />
-            ) : (
+            ))}
+
+            <Text style={styles.sectionLabel}>Paste a YouTube link</Text>
+            <View style={styles.searchRow}>
+              <TextInput
+                style={styles.searchInput}
+                value={urlText}
+                onChangeText={setUrlText}
+                placeholder="https://youtube.com/watch?v=..."
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                onSubmitEditing={handleParseUrl}
+                returnKeyType="done"
+              />
               <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => openAddModal(video)}
+                style={styles.searchButton}
+                onPress={handleParseUrl}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel={`Add ${video.title} to library`}
+                accessibilityLabel="Find video"
               >
-                <Ionicons name="add" size={22} color={colors.white} />
+                <Ionicons name="link" size={20} color={colors.white} />
               </TouchableOpacity>
-            )}
-          </View>
-        ))}
-
-        <Text style={styles.sectionLabel}>Paste a YouTube link</Text>
-        <View style={styles.searchRow}>
-          <TextInput
-            style={styles.searchInput}
-            value={urlText}
-            onChangeText={setUrlText}
-            placeholder="https://youtube.com/watch?v=..."
-            placeholderTextColor={colors.textMuted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            onSubmitEditing={handleParseUrl}
-            returnKeyType="done"
-          />
-          <TouchableOpacity
-            style={styles.searchButton}
-            onPress={handleParseUrl}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Find video"
-          >
-            <Ionicons name="link" size={20} color={colors.white} />
-          </TouchableOpacity>
-        </View>
-        {urlError ? <Text style={styles.error}>{urlError}</Text> : null}
-        {urlPreview ? (
-          <View style={styles.resultCard}>
-            <Image source={{ uri: urlPreview.thumbnailUrl }} style={styles.thumbnail} />
-            <View style={styles.cardText}>
-              <Text style={styles.cardSubtitle} numberOfLines={1}>
-                {urlPreview.videoId}
-              </Text>
             </View>
-            {isInLibrary(urlPreview.videoId) ? (
-              <InLibraryBadge />
-            ) : (
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() =>
-                  openAddModal({ videoId: urlPreview.videoId, title: '', channelTitle: '' })
-                }
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Add this video to library"
-              >
-                <Ionicons name="add" size={22} color={colors.white} />
-              </TouchableOpacity>
-            )}
-          </View>
-        ) : null}
+            {urlError ? <Text style={styles.error}>{urlError}</Text> : null}
+            {urlPreview ? (
+              <View style={styles.resultCard}>
+                <Image source={{ uri: urlPreview.thumbnailUrl }} style={styles.thumbnail} />
+                <View style={styles.cardText}>
+                  <Text style={styles.cardSubtitle} numberOfLines={1}>
+                    {urlPreview.videoId}
+                  </Text>
+                </View>
+                {isInLibrary(urlPreview.videoId) ? (
+                  <InLibraryBadge />
+                ) : (
+                  <TouchableOpacity
+                    style={styles.addButton}
+                    onPress={() =>
+                      openAddModal({ videoId: urlPreview.videoId, title: '', channelTitle: '' })
+                    }
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add this video to library"
+                  >
+                    <Ionicons name="add" size={22} color={colors.white} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : null}
 
-        <Text style={styles.sectionLabel}>Library ({library.length})</Text>
-        <ChipSelector
-          options={MUSIC_GENRE_OPTIONS}
-          value={filterGenre}
-          onChange={setFilterGenre}
-          includeAll
-        />
-        <View style={styles.chipSpacer} />
-        <ChipSelector
-          options={MUSIC_DECADE_OPTIONS}
-          value={filterDecade}
-          onChange={setFilterDecade}
-          includeAll
-        />
+            <Text style={styles.sectionLabel}>Library ({library.length})</Text>
+            <ChipSelector
+              options={MUSIC_GENRE_OPTIONS}
+              value={filterGenre}
+              onChange={setFilterGenre}
+              includeAll
+            />
+            <View style={styles.chipSpacer} />
+            <ChipSelector
+              options={MUSIC_DECADE_OPTIONS}
+              value={filterDecade}
+              onChange={setFilterDecade}
+              includeAll
+            />
 
-        {libraryLoading ? (
-          <ActivityIndicator color={colors.primary} style={styles.spinner} />
-        ) : null}
-        {libraryError ? <Text style={styles.error}>{libraryError}</Text> : null}
-        {!libraryLoading && !libraryError && filteredLibrary.length === 0 ? (
-          <Text style={styles.note}>No videos match these filters yet.</Text>
-        ) : null}
-
-        {filteredLibrary.map((entry) => {
+            {libraryLoading ? (
+              <ActivityIndicator color={colors.primary} style={styles.spinner} />
+            ) : null}
+            {libraryError ? <Text style={styles.error}>{libraryError}</Text> : null}
+            {!libraryLoading && !libraryError && filteredLibrary.length === 0 ? (
+              <Text style={styles.note}>No videos match these filters yet.</Text>
+            ) : null}
+          </>
+        }
+        renderItem={({ item: entry }) => {
           // Global entries are the shared admin-curated baseline —
           // firestore.rules already rejects edits/deletes on them, but
           // greying the controls out here is friendlier than letting a
@@ -478,8 +497,8 @@ export default function MusicLibraryScreen({ navigation }) {
               </TouchableOpacity>
             </View>
           );
-        })}
-      </ScrollView>
+        }}
+      />
 
       <Modal
         visible={formVisible}
