@@ -308,3 +308,44 @@ describe('resolveSignInEmail (sign-in with a username)', () => {
     );
   });
 });
+
+describe('deleting an organization safely (concurrency)', () => {
+  it('marks the org as deleting, refuses joins meanwhile, and finishes a resumed deletion', async () => {
+    await newUser({ role: 'Administrator' });
+    const { orgId, inviteCode } = (await call('createOrganization', { name: 'Pine' })).data;
+    await adminDb
+      .doc('residents/pine1')
+      .set({ name: 'Pat', facilityId: orgId, assignedCaregivers: [] });
+
+    // Simulate a deletion that stopped partway: the org is already marked.
+    await adminDb.doc(`organizations/${orgId}`).update({ status: 'deleting' });
+
+    const admin1 = auth.currentUser;
+    await newUser({ role: 'Caregiver' });
+    expect(await outcome(call('joinOrganization', { code: inviteCode }))).toBe(
+      'functions/not-found'
+    );
+
+    // The owner runs it again: it resumes and completes.
+    await signOut(auth);
+    await auth.updateCurrentUser(admin1);
+    expect(await outcome(call('deleteOrganization', { orgId }))).toBe('ok');
+    expect((await adminDb.doc(`organizations/${orgId}`).get()).exists).toBe(false);
+    expect((await adminDb.doc('residents/pine1').get()).exists).toBe(false);
+  });
+
+  it('refuses to transfer or replace the code of an org being deleted', async () => {
+    const owner = await newUser({ role: 'Administrator' });
+    const { orgId } = (await call('createOrganization', { name: 'Spruce' })).data;
+    await adminDb.doc(`organizations/${orgId}`).update({ status: 'deleting' });
+    const other = adminDb.collection('users').doc();
+    await other.set({ role: 'Caregiver', orgId });
+    expect(await outcome(call('transferOrgAdmin', { orgId, newAdminUid: other.id }))).toBe(
+      'functions/failed-precondition'
+    );
+    expect(await outcome(call('regenerateInviteCode', { orgId }))).toBe(
+      'functions/failed-precondition'
+    );
+    expect((await adminDb.doc(`organizations/${orgId}`).get()).data().createdBy).toBe(owner);
+  });
+});

@@ -65,6 +65,20 @@ async function seed() {
     for (const [uid, data] of Object.entries(USERS)) {
       await setDoc(doc(db, 'users', uid), data);
     }
+    // The two facilities themselves — new residents and library entries are
+    // only accepted for an organization that exists and isn't being deleted.
+    await setDoc(doc(db, 'organizations', 'orgA'), {
+      name: 'Maple',
+      createdBy: 'adminA',
+      adminId: 'adminA',
+      isPersonal: false,
+    });
+    await setDoc(doc(db, 'organizations', 'orgB'), {
+      name: 'Oak',
+      createdBy: 'caregiverB',
+      adminId: 'caregiverB',
+      isPersonal: false,
+    });
     // Created by caregiverA, only assigned to them.
     await setDoc(doc(db, 'residents', 'residentA'), {
       name: 'Ann',
@@ -614,6 +628,44 @@ describe('movie library (its own collection and rules)', () => {
         favouriteMovieVideoIds: ['casa'],
       })
     );
+  });
+});
+
+describe('organization being deleted (security fix)', () => {
+  // deleteOrganization marks the org status: 'deleting' first; from then on
+  // nothing new may be added to it, so cleanup can't miss anything.
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'organizations', 'orgA'), { status: 'deleting' });
+    });
+  });
+
+  it('refuses new residents', async () => {
+    await assertFails(
+      setDoc(doc(as('caregiverA'), 'residents', 'late'), {
+        name: 'Late',
+        caregiverId: 'caregiverA',
+        createdBy: 'caregiverA',
+        facilityId: 'orgA',
+        assignedCaregivers: ['caregiverA'],
+      })
+    );
+  });
+
+  it('refuses new music and movie entries', async () => {
+    const entry = {
+      videoId: 'v',
+      title: 'T',
+      genres: ['Drama'],
+      decade: '1950s',
+      facilityId: 'orgA',
+    };
+    await assertFails(setDoc(doc(as('caregiverA'), 'musicLibrary', 'late'), entry));
+    await assertFails(setDoc(doc(as('caregiverA'), 'movieLibrary', 'late'), entry));
+  });
+
+  it('an administrator cannot mark or unmark it themselves', async () => {
+    await assertFails(updateDoc(doc(as('adminA'), 'organizations', 'orgA'), { status: 'active' }));
   });
 });
 

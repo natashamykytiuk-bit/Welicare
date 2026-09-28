@@ -422,6 +422,38 @@ async function requireOrgOwner(db, orgId, uid) {
   return org;
 }
 
+// The same ownership check as requireOrgOwner, but inside a transaction:
+// the org and caller are read through `tx`, so if either changes before the
+// transaction commits (say, ownership moved to someone else a moment ago),
+// Firestore retries it and the check runs again against the fresh data. That
+// closes the gap where a check done *before* the writes could act on stale
+// ownership. Also refuses an org that's being deleted (see
+// deleteOrganization). Returns the org's data.
+async function requireOrgOwnerTx(tx, db, orgId, uid, { allowDeleting = false } = {}) {
+  if (typeof orgId !== 'string' || !orgId) {
+    throw new HttpsError('invalid-argument', 'orgId is required.');
+  }
+  const [orgSnap, userSnap] = await Promise.all([
+    tx.get(db.doc(`organizations/${orgId}`)),
+    tx.get(db.doc(`users/${uid}`)),
+  ]);
+  if (!orgSnap.exists) throw new HttpsError('not-found', 'Organization not found.');
+  const org = orgSnap.data();
+  if (
+    !(org.createdBy === uid || org.adminId === uid) ||
+    userSnap.data()?.role !== 'Administrator'
+  ) {
+    throw new HttpsError(
+      'permission-denied',
+      "Only this organization's administrator can do this."
+    );
+  }
+  if (org.status === 'deleting' && !allowDeleting) {
+    throw new HttpsError('failed-precondition', 'This organization is being deleted.');
+  }
+  return org;
+}
+
 // Members of the caller's organization, for OrganizationalSettingsScreen's
 // "Transfer administrator" picker. A function rather than a client query
 // because firestore.rules only let a user read their own users doc. Returns
@@ -459,18 +491,22 @@ exports.transferOrgAdmin = onCall(async (request) => {
   requireRecentLogin(request);
   const db = getAdmin().firestore();
   const { orgId, newAdminUid } = request.data ?? {};
-  await requireOrgOwner(db, orgId, request.auth.uid);
-  const target =
-    typeof newAdminUid === 'string' && newAdminUid
-      ? await db.doc(`users/${newAdminUid}`).get()
-      : null;
-  if (!target?.exists || target.data().orgId !== orgId || newAdminUid === request.auth.uid) {
+  if (typeof newAdminUid !== 'string' || !newAdminUid || newAdminUid === request.auth.uid) {
     throw new HttpsError('invalid-argument', 'That person is not a member of this organization.');
   }
-  const batch = db.batch();
-  batch.update(db.doc(`organizations/${orgId}`), { createdBy: newAdminUid, adminId: newAdminUid });
-  batch.update(target.ref, { role: 'Administrator' });
-  await batch.commit();
+  // One transaction: the ownership and membership checks read the same
+  // data the writes depend on, so two admins acting at once can't both win
+  // — whichever commits second is retried and fails the ownership check.
+  await db.runTransaction(async (tx) => {
+    await requireOrgOwnerTx(tx, db, orgId, request.auth.uid);
+    const targetRef = db.doc(`users/${newAdminUid}`);
+    const target = await tx.get(targetRef);
+    if (!target.exists || target.data().orgId !== orgId) {
+      throw new HttpsError('invalid-argument', 'That person is not a member of this organization.');
+    }
+    tx.update(db.doc(`organizations/${orgId}`), { createdBy: newAdminUid, adminId: newAdminUid });
+    tx.update(targetRef, { role: 'Administrator' });
+  });
   return { ok: true };
 });
 
@@ -503,37 +539,66 @@ exports.deleteOrganization = onCall(async (request) => {
   // Imported from the firestore subpath — admin.firestore.FieldValue is
   // undefined in firebase-admin v12's namespace export.
   const { FieldValue } = require('firebase-admin/firestore');
-  await requireOrgOwner(db, orgId, request.auth.uid);
+  const orgRef = db.doc(`organizations/${orgId}`);
 
-  const [residents, music, movies, members] = await Promise.all([
-    db.collection('residents').where('facilityId', '==', orgId).get(),
-    db.collection('musicLibrary').where('facilityId', '==', orgId).get(),
-    db.collection('movieLibrary').where('facilityId', '==', orgId).get(),
-    db.collection('users').where('orgId', '==', orgId).get(),
-  ]);
+  // Step 1 — mark the org as deleting, re-checking ownership inside the
+  // same transaction (so it can't act on stale ownership). From this moment
+  // firestore.rules refuse new residents and library entries for it, and
+  // joinOrganization / regenerateInviteCode refuse it too, so nothing new
+  // can appear while it's being cleaned up. Re-running on an org that's
+  // already marked is fine: that's how a failed deletion is resumed.
+  await db.runTransaction(async (tx) => {
+    await requireOrgOwnerTx(tx, db, orgId, request.auth.uid, { allowDeleting: true });
+    tx.update(orgRef, { status: 'deleting', deletingAt: FieldValue.serverTimestamp() });
+  });
 
-  // Every cleanup write is checked (see trackedBulkWriter); the org doc is
-  // only deleted after all of them succeeded, so a failed run can be retried.
-  const writer = trackedBulkWriter(db, 'deleteOrganization');
-  for (const snap of residents.docs) {
-    // Each resident's private life story too (subcollections aren't
-    // removed automatically with their parent doc).
-    writer.delete(snap.ref.collection('private').doc('lifeStory'));
-    writer.delete(snap.ref);
+  // Step 2 — clean up in passes. A pass finds everything still pointing at
+  // the org and removes it, checking every write (trackedBulkWriter). A
+  // write that was already in flight when the org was marked could still
+  // land just after the first pass looked, so it keeps going until a pass
+  // finds nothing — normally the second pass.
+  let residentsDeleted = 0;
+  let membersRemoved = 0;
+  for (let pass = 1; ; pass += 1) {
+    const [residents, music, movies, members, codes] = await Promise.all([
+      db.collection('residents').where('facilityId', '==', orgId).get(),
+      db.collection('musicLibrary').where('facilityId', '==', orgId).get(),
+      db.collection('movieLibrary').where('facilityId', '==', orgId).get(),
+      db.collection('users').where('orgId', '==', orgId).get(),
+      db.collection('inviteCodes').where('orgId', '==', orgId).get(),
+    ]);
+    const found = residents.size + music.size + movies.size + members.size + codes.size;
+    if (found === 0) break;
+    if (pass > 5) {
+      throw new HttpsError(
+        'aborted',
+        'The organization kept changing while it was being deleted. Please try again.'
+      );
+    }
+    const writer = trackedBulkWriter(db, 'deleteOrganization');
+    for (const snap of residents.docs) {
+      // Each resident's private life story too (subcollections aren't
+      // removed automatically with their parent doc).
+      writer.delete(snap.ref.collection('private').doc('lifeStory'));
+      writer.delete(snap.ref);
+    }
+    for (const snap of music.docs) writer.delete(snap.ref);
+    for (const snap of movies.docs) writer.delete(snap.ref);
+    for (const snap of members.docs) writer.update(snap.ref, { orgId: FieldValue.delete() });
+    // Its invite codes go too, so an old code can't point at a deleted org.
+    for (const snap of codes.docs) writer.delete(snap.ref);
+    await writer.finish();
+    residentsDeleted += residents.size;
+    membersRemoved += members.size;
   }
-  for (const snap of music.docs) writer.delete(snap.ref);
-  for (const snap of movies.docs) writer.delete(snap.ref);
-  for (const snap of members.docs) writer.update(snap.ref, { orgId: FieldValue.delete() });
-  // Its invite codes go too, so an old code can't point at a deleted org
-  // (joinOrganization also checks the org exists, as a second guard).
-  const codes = await db.collection('inviteCodes').where('orgId', '==', orgId).get();
-  for (const snap of codes.docs) writer.delete(snap.ref);
-  writer.delete(db.doc(`organizations/${orgId}/private/invite`));
-  // Org doc last, so a failure partway leaves it in place for a retry.
-  await writer.finish();
-  await db.doc(`organizations/${orgId}`).delete();
 
-  return { ok: true, residentsDeleted: residents.size, membersRemoved: members.size };
+  // Step 3 — only once nothing points at it: the private invite doc, then
+  // the org itself. Until here the org stays in place (marked deleting), so
+  // a failure at any point can be resumed by calling this again.
+  await db.doc(`organizations/${orgId}/private/invite`).delete();
+  await orgRef.delete();
+
+  return { ok: true, residentsDeleted, membersRemoved };
 });
 
 // ---------------------------------------------------------------------------
@@ -732,11 +797,16 @@ exports.regenerateInviteCode = onCall(async (request) => {
   requireVerified(request);
   const db = getAdmin().firestore();
   const orgId = request.data?.orgId;
-  const org = await requireOrgOwner(db, orgId, request.auth.uid);
-  if (org.isPersonal === true) {
-    throw new HttpsError('failed-precondition', 'Personal organizations do not have invite codes.');
-  }
   const code = await db.runTransaction(async (tx) => {
+    // Ownership re-checked inside the transaction (and refused while the
+    // org is being deleted) — see requireOrgOwnerTx.
+    const org = await requireOrgOwnerTx(tx, db, orgId, request.auth.uid);
+    if (org.isPersonal === true) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Personal organizations do not have invite codes.'
+      );
+    }
     const previous = (await tx.get(db.doc(`organizations/${orgId}/private/invite`))).data()?.code;
     const newCode = await pickFreeInviteCode(tx, db);
     writeInviteCode(tx, db, { orgId, code: newCode, uid: request.auth.uid, previous });
@@ -872,7 +942,9 @@ exports.joinOrganization = onCall(async (request) => {
     if (typeof invite.maxUses === 'number' && (invite.uses ?? 0) >= invite.maxUses) {
       throw notFound;
     }
-    if (!(await tx.get(db.doc(`organizations/${invite.orgId}`))).exists) throw notFound;
+    // A deleted org, or one being deleted right now, can't be joined.
+    const targetOrg = await tx.get(db.doc(`organizations/${invite.orgId}`));
+    if (!targetOrg.exists || targetOrg.data().status === 'deleting') throw notFound;
     // Writes
     tx.set(db.doc(`users/${uid}`), { orgId: invite.orgId }, { merge: true });
     tx.update(codeRef, { uses: FieldValue.increment(1) });

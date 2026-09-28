@@ -27,6 +27,15 @@ service cloud.firestore {
         (r.facilityId != null && me().orgId == r.facilityId);
     }
 
+    // False while an organization is being deleted (the deleteOrganization
+    // Cloud Function marks it status: 'deleting' first). New residents and
+    // library entries are refused for it then, so nothing new can appear
+    // while it's being cleaned up. A missing org counts as not accepting.
+    function orgAcceptingNewData(facilityId) {
+      return exists(/databases/$(database)/documents/organizations/$(facilityId)) &&
+        get(/databases/$(database)/documents/organizations/$(facilityId)).data.get('status', 'active') != 'deleting';
+    }
+
     // The per-organization "Manage Volunteer Permissions" switch (stored on
     // the org doc as volunteerPermissions.canViewLifeStories). Off unless an
     // administrator turned it on.
@@ -172,7 +181,10 @@ service cloud.firestore {
         request.resource.data.assignedCaregivers == [request.auth.uid] &&
         (
           request.resource.data.get('facilityId', null) == null ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == request.resource.data.facilityId
+          (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == request.resource.data.facilityId &&
+            orgAcceptingNewData(request.resource.data.facilityId)
+          )
         );
 
       allow update: if verified() && (
@@ -346,6 +358,7 @@ service cloud.firestore {
         me().role in ['Caregiver', 'Administrator'] &&
         request.resource.data.facilityId != 'global' &&
         request.resource.data.facilityId == me().orgId &&
+        orgAcceptingNewData(request.resource.data.facilityId) &&
         request.resource.data.keys().hasOnly(['videoId', 'title', 'channelTitle', 'thumbnailUrl', 'genres', 'decade', 'facilityId', 'addedAt', 'addedByUid']);
 
       allow update: if verified() &&
@@ -413,7 +426,8 @@ service cloud.firestore {
       allow create: if verified() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
         request.resource.data.facilityId != 'global' &&
-        request.resource.data.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId;
+        request.resource.data.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId &&
+        orgAcceptingNewData(request.resource.data.facilityId);
 
       // Update checks the entry as it is now AND as it will be: facilityId
       // and videoId can never change (so an entry can't be moved into
