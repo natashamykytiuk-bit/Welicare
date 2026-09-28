@@ -4,11 +4,18 @@ export const colors = {
   surface: '#FAFAF7',
   primary: '#1E5C47',
   primaryDark: '#163D30',
-  secondary: '#C17F5A',
+  // Darkened from #C17F5A (same hue) for readability: 5.2:1 on background
+  // and 6.1:1 for white text on it — was 2.8:1 and 3.3:1, below the 4.5:1
+  // WCAG minimum for normal text. Matters doubly for older users.
+  secondary: '#8D5435',
   mist: '#B5CEBE',
   mistBackground: '#DDE8E2',
   textPrimary: '#1A2E25',
-  textMuted: '#6B7E74',
+  // Darkened from #6B7E74 (same hue) so secondary text reads clearly: now
+  // 5.5:1 on background, 6.1:1 on surface, 5.1:1 on mistBackground (was
+  // 3.7 / 4.1 / 3.4:1). Still clearly lighter than textPrimary (12.3:1),
+  // so the visual hierarchy is unchanged.
+  textMuted: '#54625B',
   border: 'rgba(26,46,37,0.14)',
   destructive: '#A03020',
   white: '#FFFFFF',
