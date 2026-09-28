@@ -122,21 +122,45 @@ function buildFactLines(lifeStory) {
   return lines;
 }
 
-// `lifeStory` must already have been through sanitizeLifeStory.
-function buildPrompt(kind, lifeStory) {
+// Longest "topics to avoid" text passed on — the same cap firestore.rules
+// put on the safety notes.
+const MAX_AVOID_LENGTH = 2000;
+
+// The caregiver's safety notes ("topics to avoid", ResidentSafetyScreen),
+// cleaned the same way as the life story: a string, trimmed and capped, or
+// null if there's nothing usable.
+function sanitizeTopicsToAvoid(raw) {
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  return raw.trim().slice(0, MAX_AVOID_LENGTH);
+}
+
+// `lifeStory` must already have been through sanitizeLifeStory, and
+// `topicsToAvoid` through sanitizeTopicsToAvoid.
+function buildPrompt(kind, lifeStory, topicsToAvoid = null) {
   const phrase = KIND_PHRASES[kind] ?? 'suggestions';
   const factLines = lifeStory ? buildFactLines(lifeStory) : [];
 
-  if (factLines.length === 0) {
-    return `Please generate warm, general ${phrase} suggestions appropriate for an elderly person in a care setting. No specific personal information is available for this person.`;
-  }
+  const request =
+    factLines.length === 0
+      ? `Please generate warm, general ${phrase} suggestions appropriate for an elderly person in a care setting. No specific personal information is available for this person.`
+      : [
+          'Here is what we know about this person:',
+          ...factLines,
+          '',
+          `Based on this, please generate ${phrase} that are specifically tailored to this person. If limited information is available, use what is provided and make warm, general suggestions appropriate for an elderly person in a care setting.`,
+        ].join('\n');
 
+  if (!topicsToAvoid) return request;
+  // Framed as a firm rule rather than as another fact about the person, and
+  // placed last so it's the final instruction the model reads. It applies
+  // even when the life story is empty.
   return [
-    'Here is what we know about this person:',
-    ...factLines,
+    request,
     '',
-    `Based on this, please generate ${phrase} that are specifically tailored to this person. If limited information is available, use what is provided and make warm, general suggestions appropriate for an elderly person in a care setting.`,
+    "Important — the person's caregivers have asked that suggestions never include, mention or lead to the following, even indirectly:",
+    topicsToAvoid,
+    'Leave out any idea that touches on these, rather than softening it.',
   ].join('\n');
 }
 
-module.exports = { KIND_PHRASES, sanitizeLifeStory, buildPrompt };
+module.exports = { KIND_PHRASES, sanitizeLifeStory, sanitizeTopicsToAvoid, buildPrompt };

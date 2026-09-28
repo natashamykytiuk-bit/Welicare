@@ -19,6 +19,7 @@ import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { withTimeout } from '../utils/withTimeout';
 import { lifeStoryRef } from '../utils/residentLifeStory';
+import { safetyRef } from '../utils/residentSafety';
 
 const LOAD_TIMEOUT_MS = 10000;
 
@@ -153,12 +154,13 @@ export default function ResidentModeScreen({ navigation }) {
     if (!confirmTarget) return;
     setRemoving(true);
     try {
-      // The resident and its private life story go together in one batch,
-      // so deleting never leaves a life story behind (see
-      // utils/residentLifeStory.js). The rules check both against the
+      // The resident and its private docs (life story, safety notes) go
+      // together in one batch, so deleting never leaves either behind (see
+      // utils/residentLifeStory.js, utils/residentSafety.js). The rules check both against the
       // resident as it is before the batch.
       const batch = writeBatch(db);
       batch.delete(lifeStoryRef(confirmTarget.id));
+      batch.delete(safetyRef(confirmTarget.id));
       batch.delete(doc(db, 'residents', confirmTarget.id));
       await batch.commit();
       setResidents((prev) => prev.filter((r) => r.id !== confirmTarget.id));

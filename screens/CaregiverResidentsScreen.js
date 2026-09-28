@@ -157,6 +157,18 @@ export default function CaregiverResidentsScreen({ navigation }) {
                       {profileStarted ? 'Life story started' : 'Life story not started'}
                     </Text>
                   </View>
+                  {/* Safety notes (topics to avoid) — its own button, since
+                      tapping the row opens the life-story form. */}
+                  <TouchableOpacity
+                    style={styles.safetyButton}
+                    onPress={() => navigation.navigate('ResidentSafety', { residentId: item.id })}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Safety notes for ${item.name || 'resident'}`}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="shield-checkmark-outline" size={22} color={colors.primary} />
+                  </TouchableOpacity>
                   <Ionicons name="create-outline" size={22} color={colors.primary} />
                 </TouchableOpacity>
               );
@@ -169,6 +181,7 @@ export default function CaregiverResidentsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  safetyButton: { paddingHorizontal: 10, marginRight: 4 },
   flex: { flex: 1, backgroundColor: colors.background },
   content: { flex: 1, padding: 28, paddingTop: 24 },
   headerRow: {

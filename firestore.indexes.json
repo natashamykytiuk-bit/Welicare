@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "auditLog",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "at", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "musicLibrary",
       "queryScope": "COLLECTION",
       "fields": [

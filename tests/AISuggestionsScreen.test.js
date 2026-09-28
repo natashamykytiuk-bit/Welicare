@@ -11,7 +11,7 @@
 //   loading" (invisible to users) and the test looks it up with
 //   queryByTestId. render/fireEvent are async in RNTL v14, so they're awaited.
 
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import AISuggestionsScreen from '../components/AISuggestionsScreen';
 import { callable, docSnap, firestore } from './mocks/firebase';
 
@@ -41,11 +41,25 @@ describe('AISuggestionsScreen', () => {
     spy.mockRestore();
   });
 
+  // The screen reads four docs (resident, the signed-in user, the life
+  // story, the safety notes), partly in parallel — so reads are answered by
+  // path rather than by call order. A value that's an Error is thrown.
+  function mockReads({ role = 'Caregiver', lifeStory, safety } = {}) {
+    const byPath = {
+      'residents/resident-1': { name: 'Ann', hasLifeStory: true },
+      'users/test-uid': { role },
+      'residents/resident-1/private/lifeStory': lifeStory,
+      'residents/resident-1/private/safety': safety,
+    };
+    firestore.getDoc.mockImplementation(async (ref) => {
+      const value = byPath[ref.path];
+      if (value instanceof Error) throw value;
+      return docSnap(value);
+    });
+  }
+
   it('shows the suggestions when everything succeeds', async () => {
-    // Two reads: the resident, then its private life story doc.
-    firestore.getDoc
-      .mockResolvedValueOnce(docSnap({ name: 'Ann', hasLifeStory: true }))
-      .mockResolvedValueOnce(docSnap({ career: 'Farmer' }));
+    mockReads({ lifeStory: { career: 'Farmer' } });
     callable('generateSuggestions').mockResolvedValueOnce({ data: { text: '1. Visit a farm' } });
 
     await render(<AISuggestionsScreen {...props} />);
@@ -56,13 +70,15 @@ describe('AISuggestionsScreen', () => {
     expect(callable('generateSuggestions')).toHaveBeenCalledWith({
       kind: 'activityIdeas',
       lifeStory: { career: 'Farmer' },
+      topicsToAvoid: null,
     });
   });
 
   it('gives general suggestions when the life story is off-limits (e.g. a volunteer)', async () => {
-    firestore.getDoc
-      .mockResolvedValueOnce(docSnap({ name: 'Ann', hasLifeStory: true }))
-      .mockRejectedValueOnce(Object.assign(new Error('denied'), { code: 'permission-denied' }));
+    mockReads({
+      role: 'Volunteer',
+      lifeStory: Object.assign(new Error('denied'), { code: 'permission-denied' }),
+    });
     callable('generateSuggestions').mockResolvedValueOnce({ data: { text: '1. Sing-along' } });
 
     await render(<AISuggestionsScreen {...props} />);
@@ -72,6 +88,54 @@ describe('AISuggestionsScreen', () => {
     expect(callable('generateSuggestions')).toHaveBeenCalledWith({
       kind: 'activityIdeas',
       lifeStory: null,
+      topicsToAvoid: null,
     });
+    // Volunteers can't change safety notes, so no "Not for Ann" button.
+    expect(screen.queryByLabelText('Not for Ann')).toBeNull();
+  });
+
+  it("sends the resident's topics to avoid with the request", async () => {
+    mockReads({ safety: { topicsToAvoid: 'No water activities' } });
+    callable('generateSuggestions').mockResolvedValueOnce({ data: { text: '1. Garden walk' } });
+
+    await render(<AISuggestionsScreen {...props} />);
+
+    expect(await screen.findByText('1. Garden walk')).toBeTruthy();
+    expect(callable('generateSuggestions')).toHaveBeenCalledWith(
+      expect.objectContaining({ topicsToAvoid: 'No water activities' })
+    );
+  });
+
+  it('lets staff mark a suggestion "Not for" the resident, adding it to topics to avoid', async () => {
+    mockReads({ safety: { topicsToAvoid: 'No peanuts' } });
+    callable('generateSuggestions').mockResolvedValueOnce({
+      data: { text: '1. **Swimming** at the pool\n\n2. Garden walk' },
+    });
+
+    await render(<AISuggestionsScreen {...props} />);
+    await screen.findByText('2. Garden walk');
+    await fireEvent.press(screen.getAllByLabelText('Not for Ann')[0]);
+
+    expect(await screen.findByText(/added to Ann's topics to avoid/)).toBeTruthy();
+    // Existing notes kept; the flagged suggestion added as a plain line.
+    expect(firestore.setDoc.mock.calls[0][0].path).toBe('residents/resident-1/private/safety');
+    expect(firestore.setDoc.mock.calls[0][1].topicsToAvoid).toBe(
+      'No peanuts\nNot a good fit (from AI suggestions): Swimming at the pool'
+    );
+  });
+
+  it('never offers "Not for" in Resident Mode', async () => {
+    mockReads();
+    callable('generateSuggestions').mockResolvedValueOnce({ data: { text: '1. Chat about pets' } });
+
+    await render(
+      <AISuggestionsScreen
+        {...props}
+        route={{ params: { residentId: 'resident-1', fromResidentMode: true } }}
+      />
+    );
+
+    expect(await screen.findByText('1. Chat about pets')).toBeTruthy();
+    expect(screen.queryByLabelText('Not for Ann')).toBeNull();
   });
 });

@@ -12,7 +12,13 @@ setGlobalOptions({ region: 'northamerica-northeast1' });
 const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
 const youtubeApiKey = defineSecret('YOUTUBE_API_KEY');
 
-const { KIND_PHRASES, sanitizeLifeStory, buildPrompt } = require('./suggestionPrompt');
+const {
+  KIND_PHRASES,
+  sanitizeLifeStory,
+  sanitizeTopicsToAvoid,
+  buildPrompt,
+} = require('./suggestionPrompt');
+const { ACTIONS, logAudit, orgIsLogged, auditTriggers } = require('./auditLog');
 
 // Refuses callers whose email address hasn't been verified yet (the
 // email_verified claim in their ID token, set by Firebase Auth). The app
@@ -47,7 +53,13 @@ exports.generateSuggestions = onCall({ secrets: [anthropicApiKey] }, async (requ
     );
   }
 
-  const prompt = buildPrompt(kind, sanitizeLifeStory(request.data?.lifeStory));
+  // topicsToAvoid: the resident's caregiver-written safety notes
+  // (utils/residentSafety.js), sent by the app alongside the life story.
+  const prompt = buildPrompt(
+    kind,
+    sanitizeLifeStory(request.data?.lifeStory),
+    sanitizeTopicsToAvoid(request.data?.topicsToAvoid)
+  );
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -68,10 +80,18 @@ exports.generateSuggestions = onCall({ secrets: [anthropicApiKey] }, async (requ
   // so nothing about the resident or our account setup reaches the client.
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('[generateSuggestions] Anthropic error', response.status, errorText.slice(0, 500));
-    throw new HttpsError('unavailable', 'Suggestions are unavailable right now. Please try again.', {
-      reason: 'ai-provider-error',
-    });
+    console.error(
+      '[generateSuggestions] Anthropic error',
+      response.status,
+      errorText.slice(0, 500)
+    );
+    throw new HttpsError(
+      'unavailable',
+      'Suggestions are unavailable right now. Please try again.',
+      {
+        reason: 'ai-provider-error',
+      }
+    );
   }
 
   const data = await response.json();
@@ -212,6 +232,12 @@ function getAdmin() {
   return admin;
 }
 
+// Activity-log triggers for changes the app makes directly (a resident
+// deleted, the volunteer permission changed) — see auditLog.js.
+const triggers = auditTriggers(getAdmin);
+exports.auditResidentDeleted = triggers.auditResidentDeleted;
+exports.auditVolunteerPermissions = triggers.auditVolunteerPermissions;
+
 // Other Administrators in `orgId`, excluding `uid`. "Administrator" means
 // the role on each member's users doc — the same field ModeSelectionScreen
 // branches on — not the org doc's createdBy/adminId, which is just the one
@@ -306,7 +332,9 @@ exports.deleteAccount = onCall(async (request) => {
       // The life story lives in its own private doc under the resident
       // (see utils/residentLifeStory.js); deleting a doc doesn't delete its
       // subcollections, so remove it explicitly.
+      // Both private docs: the life story and the safety notes.
       writer.delete(snap.ref.collection('private').doc('lifeStory'));
+      writer.delete(snap.ref.collection('private').doc('safety'));
       writer.delete(snap.ref);
     } else if (assignedList.includes(uid)) {
       writer.update(snap.ref, { assignedCaregivers: FieldValue.arrayRemove(uid) });
@@ -323,6 +351,16 @@ exports.deleteAccount = onCall(async (request) => {
 
   // Step 2: only now remove the profile, then (below) the login itself.
   await db.doc(`users/${uid}`).delete();
+  // Logged for a real organization only (a personal one is gone by now).
+  // The name comes from the profile read earlier, since it was just deleted.
+  if (org && !personalOrgId && (await orgIsLogged(db, orgId))) {
+    await logAudit(db, {
+      orgId,
+      action: ACTIONS.memberLeft,
+      actorUid: uid,
+      actorName: user.fullName || user.username || null,
+    });
+  }
 
   // Last, so if anything above fails the person can still sign in and try
   // again rather than being left with half-cleaned data and no account.
@@ -487,6 +525,12 @@ exports.removeOrgMember = onCall(async (request) => {
 
   // Last: clear their organization link.
   await memberRef.update({ orgId: FieldValue.delete() });
+  await logAudit(db, {
+    orgId,
+    action: ACTIONS.memberRemoved,
+    actorUid: ownerUid,
+    targetUid: memberUid,
+  });
   return { ok: true, residentsUpdated: touched.length };
 });
 
@@ -518,6 +562,12 @@ exports.transferOrgAdmin = onCall(async (request) => {
     }
     tx.update(db.doc(`organizations/${orgId}`), { createdBy: newAdminUid, adminId: newAdminUid });
     tx.update(targetRef, { role: 'Administrator' });
+  });
+  await logAudit(db, {
+    orgId,
+    action: ACTIONS.adminTransferred,
+    actorUid: request.auth.uid,
+    targetUid: newAdminUid,
   });
   return { ok: true };
 });
@@ -572,14 +622,16 @@ exports.deleteOrganization = onCall(async (request) => {
   let residentsDeleted = 0;
   let membersRemoved = 0;
   for (let pass = 1; ; pass += 1) {
-    const [residents, music, movies, members, codes] = await Promise.all([
+    const [residents, music, movies, members, codes, audit] = await Promise.all([
       db.collection('residents').where('facilityId', '==', orgId).get(),
       db.collection('musicLibrary').where('facilityId', '==', orgId).get(),
       db.collection('movieLibrary').where('facilityId', '==', orgId).get(),
       db.collection('users').where('orgId', '==', orgId).get(),
       db.collection('inviteCodes').where('orgId', '==', orgId).get(),
+      db.collection('auditLog').where('orgId', '==', orgId).get(),
     ]);
-    const found = residents.size + music.size + movies.size + members.size + codes.size;
+    const found =
+      residents.size + music.size + movies.size + members.size + codes.size + audit.size;
     if (found === 0) break;
     if (pass > 5) {
       throw new HttpsError(
@@ -591,7 +643,9 @@ exports.deleteOrganization = onCall(async (request) => {
     for (const snap of residents.docs) {
       // Each resident's private life story too (subcollections aren't
       // removed automatically with their parent doc).
+      // Both private docs: the life story and the safety notes.
       writer.delete(snap.ref.collection('private').doc('lifeStory'));
+      writer.delete(snap.ref.collection('private').doc('safety'));
       writer.delete(snap.ref);
     }
     for (const snap of music.docs) writer.delete(snap.ref);
@@ -599,6 +653,8 @@ exports.deleteOrganization = onCall(async (request) => {
     for (const snap of members.docs) writer.update(snap.ref, { orgId: FieldValue.delete() });
     // Its invite codes go too, so an old code can't point at a deleted org.
     for (const snap of codes.docs) writer.delete(snap.ref);
+    // Its activity log too — nobody could read it once the org is gone.
+    for (const snap of audit.docs) writer.delete(snap.ref);
     await writer.finish();
     residentsDeleted += residents.size;
     membersRemoved += members.size;
@@ -825,6 +881,13 @@ exports.regenerateInviteCode = onCall(async (request) => {
     writeInviteCode(tx, db, { orgId, code: newCode, uid: request.auth.uid, previous });
     return newCode;
   });
+  // The code itself is never logged — the log is readable by every
+  // administrator, and an old code is still a secret until it expires.
+  await logAudit(db, {
+    orgId,
+    action: ACTIONS.inviteCodeRegenerated,
+    actorUid: request.auth.uid,
+  });
   return { inviteCode: code };
 });
 
@@ -966,5 +1029,6 @@ exports.joinOrganization = onCall(async (request) => {
 
   // A successful join clears the counter, so honest typos don't pile up.
   await limitRef.delete();
+  await logAudit(db, { orgId, action: ACTIONS.memberJoined, actorUid: uid });
   return { orgId };
 });

@@ -41,7 +41,9 @@ import HourTrackerScreen from './screens/HourTrackerScreen';
 import JoinCreateOrganizationScreen from './screens/JoinCreateOrganizationScreen';
 import JoinOrganizationScreen from './screens/JoinOrganizationScreen';
 import ManageMusicScreen from './screens/ManageMusicScreen';
+import ActivityLogScreen from './screens/ActivityLogScreen';
 import ManageUsersScreen from './screens/ManageUsersScreen';
+import ResidentSafetyScreen from './screens/ResidentSafetyScreen';
 import ModeSelectionScreen from './screens/ModeSelectionScreen';
 import MolehuntScreen from './screens/MolehuntScreen';
 import MovieLibraryScreen from './screens/MovieLibraryScreen';
@@ -250,6 +252,8 @@ export default function App() {
               {/* Administrator Mode */}
               <Stack.Screen name="AdministratorMode" component={AdministratorModeScreen} />
               <Stack.Screen name="ManageUsers" component={ManageUsersScreen} />
+              <Stack.Screen name="ActivityLog" component={ActivityLogScreen} />
+              <Stack.Screen name="ResidentSafety" component={ResidentSafetyScreen} />
               <Stack.Screen
                 name="OrganizationalSettings"
                 component={OrganizationalSettingsScreen}

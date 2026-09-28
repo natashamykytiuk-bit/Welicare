@@ -39,6 +39,18 @@ export default function AdministratorModeScreen({ navigation }) {
           <Text style={styles.cardTitle}>Organizational Settings</Text>
           <Text style={styles.cardSubtitle}>Preferences, branding, and policies</Text>
         </TouchableOpacity>
+
+        {/* Read-only record of sensitive changes (functions/auditLog.js). */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate('ActivityLog')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Activity log"
+        >
+          <Text style={styles.cardTitle}>Activity log</Text>
+          <Text style={styles.cardSubtitle}>Who changed members, residents and permissions</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );

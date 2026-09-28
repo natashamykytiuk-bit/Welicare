@@ -11,11 +11,12 @@ import {
   View,
 } from 'react-native';
 import { useResidentLock } from '../contexts/ResidentLockContext';
-import { db } from '../firebaseConfig';
+import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { generateSuggestions } from '../utils/aiSuggestions';
 import { hasAnyLifeStoryData } from '../utils/lifeStory';
 import { loadLifeStory } from '../utils/residentLifeStory';
+import { appendTopicToAvoid, loadTopicsToAvoid } from '../utils/residentSafety';
 import BackButton from './BackButton';
 
 // Shared shell for the three AI-generated suggestion screens (Activity
@@ -46,6 +47,13 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
   const [suggestions, setSuggestions] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [residentName, setResidentName] = useState('');
+  // "Not for this resident" is staff-only: never in Resident Mode, and only
+  // for the roles firestore.rules let write safety notes.
+  const [canFlag, setCanFlag] = useState(false);
+  // Suggestions flagged in this visit — hidden, and shown as "Noted".
+  const [flagged, setFlagged] = useState(() => new Set());
+  const [flagError, setFlagError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -60,13 +68,27 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
         // general suggestions — loadLifeStory reports that as denied, not
         // as an error.
         let lifeStory = null;
+        let topicsToAvoid = '';
         if (residentId) {
-          const snapshot = await getDoc(doc(db, 'residents', residentId));
+          const [snapshot, userSnap] = await Promise.all([
+            getDoc(doc(db, 'residents', residentId)),
+            getDoc(doc(db, 'users', auth.currentUser?.uid ?? '-')),
+          ]);
           ({ lifeStory } = await loadLifeStory(residentId, snapshot.data()));
+          // Safety notes are readable by everyone linked to the resident.
+          // If they can't be loaded, this fails like any other load error
+          // rather than generating suggestions that might ignore them.
+          topicsToAvoid = await loadTopicsToAvoid(residentId);
+          if (cancelled) return;
+          setResidentName(snapshot.data()?.name ?? '');
+          setCanFlag(
+            !route?.params?.fromResidentMode &&
+              ['Caregiver', 'Administrator'].includes(userSnap.data()?.role)
+          );
         }
         if (cancelled) return;
         setHasProfile(hasAnyLifeStoryData(lifeStory));
-        const text = await generateSuggestions(kind, lifeStory);
+        const text = await generateSuggestions(kind, lifeStory, topicsToAvoid);
         if (!cancelled) setSuggestions(text);
       } catch (e) {
         // httpsCallable errors carry `.code` (e.g. "unauthenticated",
@@ -82,7 +104,26 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
     return () => {
       cancelled = true;
     };
-  }, [residentId, kind]);
+  }, [residentId, kind, route?.params?.fromResidentMode]);
+
+  // "Not for {name}": adds a short note about this suggestion to the
+  // resident's topics to avoid, so future suggestions steer clear of it,
+  // and hides it here.
+  async function handleFlag(item, index) {
+    setFlagError('');
+    try {
+      await appendTopicToAvoid(
+        residentId,
+        `Not a good fit (from AI suggestions): ${summarize(item)}`
+      );
+      setFlagged((prev) => new Set(prev).add(index));
+    } catch (e) {
+      console.error('[AISuggestions] failed to save flag:', e.code, e.message);
+      setFlagError('Could not save that. Please try again.');
+    }
+  }
+
+  const items = splitSuggestions(suggestions);
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -124,15 +165,90 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
           />
         ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        {!loading && !error && suggestions ? (
-          <Text style={styles.suggestions}>{suggestions}</Text>
-        ) : null}
+        {flagError ? <Text style={styles.error}>{flagError}</Text> : null}
+        {!loading && !error
+          ? items.map((item, index) =>
+              flagged.has(index) ? (
+                <Text key={index} style={styles.flaggedNote}>
+                  Noted — added to {residentName || 'this resident'}&apos;s topics to avoid.
+                </Text>
+              ) : (
+                <View key={index} style={styles.item}>
+                  <Text style={styles.suggestions}>{item}</Text>
+                  {canFlag ? (
+                    <TouchableOpacity
+                      style={styles.flagButton}
+                      onPress={() => handleFlag(item, index)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Not for ${residentName || 'this resident'}`}
+                    >
+                      <Ionicons name="close-circle-outline" size={18} color={colors.textMuted} />
+                      <Text style={styles.flagButtonText}>
+                        Not for {residentName || 'this resident'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              )
+            )
+          : null}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+// Splits the model's reply into separate suggestions so each can get its own
+// "Not for …" button: by blank lines when the reply has paragraphs, or by
+// line otherwise. Exported for tests.
+export function splitSuggestions(text) {
+  if (!text?.trim()) return [];
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (paragraphs.length > 1) return paragraphs;
+  return text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+// A short, plain version of one suggestion for the topics-to-avoid note:
+// its first line without list numbers or markdown, at most 150 characters.
+export function summarize(item) {
+  const first = item.split('\n')[0];
+  return first
+    .replace(/^\s*(\d+[.)]|[-*•])\s*/, '')
+    .replace(/[*_#`]/g, '')
+    .trim()
+    .slice(0, 150);
+}
+
 const styles = StyleSheet.create({
+  item: {
+    marginBottom: 16,
+  },
+  flagButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingVertical: 4,
+  },
+  flagButtonText: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 14,
+    color: colors.textMuted,
+    marginLeft: 4,
+  },
+  flaggedNote: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 14,
+    fontStyle: 'italic',
+    color: colors.textMuted,
+    marginBottom: 16,
+  },
   flex: { flex: 1, backgroundColor: colors.background },
   content: { padding: 28, paddingTop: 24, paddingBottom: 48 },
   headerRow: {

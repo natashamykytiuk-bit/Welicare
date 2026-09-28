@@ -416,3 +416,62 @@ describe('removeOrgMember (Manage Users)', () => {
     );
   });
 });
+
+// Review item: the organization activity log (functions/auditLog.js).
+describe('activity log', () => {
+  // Entries for an org, oldest first (only a handful exist per test).
+  const entriesFor = async (orgId) =>
+    (await adminDb.collection('auditLog').where('orgId', '==', orgId).get()).docs
+      .map((d) => d.data())
+      .sort((a, b) => (a.at?.toMillis() ?? 0) - (b.at?.toMillis() ?? 0));
+
+  // Triggers run asynchronously after the write, so poll briefly for them.
+  async function waitForEntry(orgId, action) {
+    for (let i = 0; i < 40; i++) {
+      const found = (await entriesFor(orgId)).find((e) => e.action === action);
+      if (found) return found;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    return null;
+  }
+
+  it('records member removal and invite-code changes, without the code itself', async () => {
+    const ownerUid = await newUser({ role: 'Administrator', fullName: 'Olive' });
+    const { orgId, inviteCode } = (await call('createOrganization', { name: 'Elm' })).data;
+    const member = adminDb.collection('users').doc();
+    await member.set({ role: 'Volunteer', orgId, fullName: 'Vic' });
+
+    await call('removeOrgMember', { orgId, memberUid: member.id });
+    await call('regenerateInviteCode', { orgId });
+
+    const entries = await entriesFor(orgId);
+    expect(entries.map((e) => e.action)).toEqual(['member.removed', 'inviteCode.regenerated']);
+    expect(entries[0]).toMatchObject({
+      actorUid: ownerUid,
+      actorName: 'Olive',
+      targetUid: member.id,
+      targetName: 'Vic',
+    });
+    expect(JSON.stringify(entries)).not.toContain(inviteCode);
+  });
+
+  it('records a resident deleted from the app (trigger)', async () => {
+    await newUser({ role: 'Administrator' });
+    const { orgId } = (await call('createOrganization', { name: 'Ash' })).data;
+    await adminDb.doc('residents/gone').set({ name: 'Gus', facilityId: orgId });
+    await adminDb.doc('residents/gone').delete();
+
+    const entry = await waitForEntry(orgId, 'resident.deleted');
+    expect(entry).toMatchObject({ targetName: 'Gus' });
+  });
+
+  it('deleting the organization removes its activity log too', async () => {
+    await newUser({ role: 'Administrator' });
+    const { orgId } = (await call('createOrganization', { name: 'Yew' })).data;
+    await call('regenerateInviteCode', { orgId });
+    expect((await entriesFor(orgId)).length).toBe(1);
+
+    await call('deleteOrganization', { orgId });
+    expect(await entriesFor(orgId)).toEqual([]);
+  });
+});

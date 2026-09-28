@@ -2,11 +2,7 @@
 // Function (security review #5: runtime input validation). The function is
 // callable directly, so these feed it the kinds of malformed input a direct
 // caller could send.
-const {
-  KIND_PHRASES,
-  sanitizeLifeStory,
-  buildPrompt,
-} = require('../functions/suggestionPrompt');
+const { KIND_PHRASES, sanitizeLifeStory, buildPrompt } = require('../functions/suggestionPrompt');
 
 describe('sanitizeLifeStory', () => {
   it('keeps the fields BuildProfileScreen saves', () => {
@@ -74,5 +70,27 @@ describe('KIND_PHRASES', () => {
   it('does not own inherited property names', () => {
     expect(Object.hasOwn(KIND_PHRASES, 'toString')).toBe(false);
     expect(Object.hasOwn(KIND_PHRASES, 'activityIdeas')).toBe(true);
+  });
+});
+
+describe('topics to avoid', () => {
+  const { sanitizeTopicsToAvoid } = require('../functions/suggestionPrompt');
+
+  it('adds the caregiver notes as a final instruction, even with no life story', () => {
+    const prompt = buildPrompt(
+      'activityIdeas',
+      null,
+      sanitizeTopicsToAvoid(' No water activities ')
+    );
+    expect(prompt).toMatch(/never include, mention or lead to the following/);
+    expect(prompt.trim().split('\n').slice(-2)[0]).toBe('No water activities');
+  });
+
+  it('ignores missing or non-text notes and caps long ones', () => {
+    expect(sanitizeTopicsToAvoid(undefined)).toBeNull();
+    expect(sanitizeTopicsToAvoid(42)).toBeNull();
+    expect(sanitizeTopicsToAvoid('   ')).toBeNull();
+    expect(sanitizeTopicsToAvoid('x'.repeat(3000))).toHaveLength(2000);
+    expect(buildPrompt('activityIdeas', null, null)).not.toMatch(/never include/);
   });
 });

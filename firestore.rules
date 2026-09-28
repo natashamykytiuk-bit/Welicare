@@ -354,17 +354,34 @@ service cloud.firestore {
       // stricter rules than the resident's name and activity info (Firestore
       // rules can't hide individual fields). See utils/residentLifeStory.js.
       match /private/{docId} {
-        // Readable by anyone linked to the resident, except volunteers — they
-        // only see it when their organization turned on "Volunteers can view
-        // life stories" in Organizational Settings.
-        allow get: if verified() &&
+        // Life story: readable by anyone linked to the resident, except
+        // volunteers — they only see it when their organization turned on
+        // "Volunteers can view life stories" in Organizational Settings.
+        allow get: if verified() && docId == 'lifeStory' &&
           linkedToResident(get(/databases/$(database)/documents/residents/$(residentId)).data) &&
           (me().role != 'Volunteer' ||
             volunteersMayViewLifeStories(get(/databases/$(database)/documents/residents/$(residentId)).data.facilityId));
 
-        // Writing (BuildProfile's save) follows the same people who may edit
-        // the resident's profile, but never volunteers.
-        allow create, update: if verified() && me().role != 'Volunteer' &&
+        // Safety notes ("topics to avoid", utils/residentSafety.js):
+        // readable by EVERYONE linked to the resident, volunteers included —
+        // anyone running a session needs to know what to avoid.
+        allow get: if verified() && docId == 'safety' &&
+          linkedToResident(get(/databases/$(database)/documents/residents/$(residentId)).data);
+
+        // Written only by Caregivers and Administrators linked to the
+        // resident (or in its facility) — not family members or volunteers —
+        // with exactly the fields ResidentSafetyScreen writes.
+        allow create, update: if verified() && docId == 'safety' &&
+          me().role in ['Caregiver', 'Administrator'] &&
+          linkedToResident(get(/databases/$(database)/documents/residents/$(residentId)).data) &&
+          request.resource.data.keys().hasOnly(['topicsToAvoid', 'updatedAt', 'updatedBy']) &&
+          request.resource.data.topicsToAvoid is string &&
+          request.resource.data.topicsToAvoid.size() <= 2000 &&
+          request.resource.data.get('updatedBy', null) == request.auth.uid;
+
+        // Writing the life story (BuildProfile's save) follows the same
+        // people who may edit the resident's profile, but never volunteers.
+        allow create, update: if verified() && docId == 'lifeStory' && me().role != 'Volunteer' &&
           validLifeStory(request.resource.data) && (
           get(/databases/$(database)/documents/residents/$(residentId)).data.caregiverId == request.auth.uid ||
           get(/databases/$(database)/documents/residents/$(residentId)).data.createdBy == request.auth.uid ||
@@ -491,6 +508,17 @@ service cloud.firestore {
     // codes can't be enumerated and limits can't be reset from the app.
     match /inviteCodes/{code} {
       allow read, write: if false;
+    }
+
+    // The organization activity log (functions/auditLog.js). Written only by
+    // Cloud Functions, so entries can't be forged or erased from the app.
+    // Readable only by Administrators of that organization — which is also
+    // what makes ActivityLogScreen's where('orgId', '==', myOrg) query pass.
+    match /auditLog/{entryId} {
+      allow get, list: if verified() &&
+        me().role == 'Administrator' &&
+        resource.data.orgId == me().orgId;
+      allow write: if false;
     }
     match /rateLimits/{id} {
       allow read, write: if false;

@@ -312,7 +312,9 @@ describe('music library add (MusicLibraryScreen)', () => {
   });
 
   it('first save to a new id is allowed', async () => {
-    await assertSucceeds(setDoc(doc(as('caregiverA'), 'musicLibrary', 'orgA_abc123'), entry('Crazy')));
+    await assertSucceeds(
+      setDoc(doc(as('caregiverA'), 'musicLibrary', 'orgA_abc123'), entry('Crazy'))
+    );
   });
 
   it('a repeat save to the same id overwrites it (no duplicate)', async () => {
@@ -603,7 +605,9 @@ describe('movie library (its own collection and rules)', () => {
 
   it('caregivers and admins can add movies to their own organization', async () => {
     await assertSucceeds(setDoc(ref('caregiverA'), movie()));
-    await assertSucceeds(setDoc(ref('adminA', 'orgA_raininginX1'), movie({ videoId: 'raininginX1' })));
+    await assertSucceeds(
+      setDoc(ref('adminA', 'orgA_raininginX1'), movie({ videoId: 'raininginX1' }))
+    );
   });
 
   it('volunteers and family members cannot add movies', async () => {
@@ -920,7 +924,13 @@ describe('field validation (security fix)', () => {
 // Security review #6: new library entries use the fixed id
 // {facilityId}_{videoId}, so the same video can't be added twice.
 describe('library entries have one fixed id per video (security fix)', () => {
-  const song = { videoId: 'abc123', title: 'Crazy', genres: [], decade: '1960s', facilityId: 'orgA' };
+  const song = {
+    videoId: 'abc123',
+    title: 'Crazy',
+    genres: [],
+    decade: '1960s',
+    facilityId: 'orgA',
+  };
 
   it('refuses a new entry under any other id', async () => {
     const db = as('caregiverA');
@@ -949,5 +959,80 @@ describe('FLAG: role escalation by recreating your profile (open issue)', () => 
     await assertFails(updateDoc(doc(db, 'users', 'volunteerA'), { role: 'Administrator' }));
     await assertSucceeds(deleteDoc(doc(db, 'users', 'volunteerA')));
     await assertSucceeds(setDoc(doc(db, 'users', 'volunteerA'), { role: 'Administrator' }));
+  });
+});
+
+// Review item: caregiver-controlled safety notes ("topics to avoid"),
+// residents/{id}/private/safety. Everyone linked may read them (volunteers
+// included — they run sessions); only Caregivers/Administrators may write.
+describe('safety notes (topics to avoid)', () => {
+  const notes = (uid, text = 'No water activities') => ({
+    topicsToAvoid: text,
+    updatedBy: uid,
+  });
+  const ref = (uid, residentId = 'residentA') =>
+    doc(as(uid), 'residents', residentId, 'private', 'safety');
+
+  it('caregivers and admins in the facility can write them', async () => {
+    await assertSucceeds(setDoc(ref('caregiverA'), notes('caregiverA')));
+    await assertSucceeds(setDoc(ref('adminA'), notes('adminA')));
+  });
+
+  it('volunteers and family members cannot write them', async () => {
+    await assertFails(setDoc(ref('volunteerA'), notes('volunteerA')));
+    await assertFails(setDoc(ref('familyA', 'residentFamily'), notes('familyA')));
+  });
+
+  it('volunteers can read them even without life-story access', async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), 'residents', 'residentA', 'private', 'safety'), notes('adminA'))
+    );
+    await assertSucceeds(getDoc(ref('volunteerA')));
+    await assertFails(getDoc(ref('caregiverB')));
+  });
+
+  it('refuses other fields, over-long notes, or a forged author', async () => {
+    await assertFails(setDoc(ref('caregiverA'), { ...notes('caregiverA'), extra: 1 }));
+    await assertFails(setDoc(ref('caregiverA'), notes('caregiverA', 'x'.repeat(2001))));
+    await assertFails(setDoc(ref('caregiverA'), notes('adminA')));
+  });
+
+  it('life-story rules no longer apply to the safety doc, or vice versa', async () => {
+    // A life-story-shaped write to "safety" is refused (wrong fields)…
+    await assertFails(setDoc(ref('caregiverA'), { career: 'Teacher' }));
+    // …and safety-shaped fields can't be written into the life story.
+    await assertFails(
+      setDoc(
+        doc(as('caregiverA'), 'residents', 'residentA', 'private', 'lifeStory'),
+        notes('caregiverA')
+      )
+    );
+  });
+});
+
+// Review item: activity log. Only that organization's Administrators may
+// read it, and nobody may write it from the app.
+describe('activity log (auditLog)', () => {
+  beforeEach(() =>
+    env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), 'auditLog', 'e1'), { orgId: 'orgA', action: 'member.joined' })
+    )
+  );
+
+  it('administrators of the organization can read it', async () => {
+    await assertSucceeds(getDoc(doc(as('adminA'), 'auditLog', 'e1')));
+    await assertSucceeds(
+      getDocs(query(collection(as('adminA'), 'auditLog'), where('orgId', '==', 'orgA')))
+    );
+  });
+
+  it('other roles and other organizations cannot', async () => {
+    await assertFails(getDoc(doc(as('caregiverA'), 'auditLog', 'e1')));
+    await assertFails(getDoc(doc(as('caregiverB'), 'auditLog', 'e1')));
+  });
+
+  it('nobody can write or delete entries from the app', async () => {
+    await assertFails(setDoc(doc(as('adminA'), 'auditLog', 'e2'), { orgId: 'orgA' }));
+    await assertFails(deleteDoc(doc(as('adminA'), 'auditLog', 'e1')));
   });
 });

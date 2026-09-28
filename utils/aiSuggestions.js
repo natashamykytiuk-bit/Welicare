@@ -18,9 +18,16 @@ const callGenerateSuggestions =
 /**
  * @param {import('../types/models').SuggestionKind} kind
  * @param {import('../types/models').LifeStory | null | undefined} lifeStory
+ * @param {string} [topicsToAvoid] The resident's safety notes
+ *   (utils/residentSafety.js); the function tells the model never to suggest
+ *   anything involving them.
  * @returns {Promise<string>}
  */
-export async function generateSuggestions(kind, lifeStory) {
-  const result = await callGenerateSuggestions({ kind, lifeStory: lifeStory ?? null });
+export async function generateSuggestions(kind, lifeStory, topicsToAvoid = '') {
+  const result = await callGenerateSuggestions({
+    kind,
+    lifeStory: lifeStory ?? null,
+    topicsToAvoid: topicsToAvoid || null,
+  });
   return result.data.text;
 }

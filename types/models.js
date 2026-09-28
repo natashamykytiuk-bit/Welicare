@@ -108,6 +108,8 @@
  * @property {SuggestionKind} kind
  * @property {LifeStory | null} lifeStory null → general, non-personal
  *   suggestions.
+ * @property {string | null} [topicsToAvoid] Caregiver safety notes
+ *   (residents/{id}/private/safety); never suggested.
  */
 
 /**

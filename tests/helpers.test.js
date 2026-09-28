@@ -196,3 +196,20 @@ describe('runWithConcurrency', () => {
     expect(await runWithConcurrency([], 4)).toEqual([]);
   });
 });
+
+// Activity log sentences (ActivityLogScreen).
+describe('describeEntry', () => {
+  const { describeEntry } = require('../screens/ActivityLogScreen');
+
+  it('reads naturally for each action, with fallbacks for missing names', () => {
+    expect(describeEntry({ action: 'member.removed', actorName: 'Olive', targetName: 'Vic' })).toBe(
+      'Olive removed Vic from the organization.'
+    );
+    expect(describeEntry({ action: 'resident.deleted', actorName: null, targetName: 'Gus' })).toBe(
+      'Someone deleted the resident Gus.'
+    );
+    expect(describeEntry({ action: 'inviteCode.regenerated', actorName: 'Olive' })).toBe(
+      'Olive replaced the invite code.'
+    );
+  });
+});
