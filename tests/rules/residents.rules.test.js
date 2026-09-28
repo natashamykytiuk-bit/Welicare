@@ -563,6 +563,60 @@ describe('usernames hold no email and match your profile (security fix)', () => 
   });
 });
 
+describe('movie library (its own collection and rules)', () => {
+  const movie = (overrides = {}) => ({
+    videoId: 'casa',
+    title: 'Casablanca',
+    channelTitle: 'Classic Movies',
+    thumbnailUrl: 'https://img.youtube.com/vi/casa/mqdefault.jpg',
+    genres: ['Drama'],
+    decade: '1940s',
+    facilityId: 'orgA',
+    ...overrides,
+  });
+  const ref = (uid, id = 'mv1') => doc(as(uid), 'movieLibrary', id);
+
+  it('caregivers and admins can add movies to their own organization', async () => {
+    await assertSucceeds(setDoc(ref('caregiverA'), movie()));
+    await assertSucceeds(setDoc(ref('adminA', 'mv2'), movie({ videoId: 'rain' })));
+  });
+
+  it('volunteers and family members cannot add movies', async () => {
+    await assertFails(setDoc(ref('volunteerA'), movie()));
+    await assertFails(setDoc(ref('familyA'), movie()));
+  });
+
+  it("can't add to another organization or the global list, or add an artist", async () => {
+    await assertFails(setDoc(ref('caregiverA'), movie({ facilityId: 'orgB' })));
+    await assertFails(setDoc(ref('caregiverA'), movie({ facilityId: 'global' })));
+    await assertFails(setDoc(ref('caregiverA'), movie({ artist: 'Humphrey Bogart' })));
+  });
+
+  it('editing may change title/genres/decade, never the organization or video', async () => {
+    await assertSucceeds(setDoc(ref('caregiverA'), movie()));
+    await assertSucceeds(
+      updateDoc(ref('caregiverA'), { title: 'Casablanca (1942)', decade: '1940s' })
+    );
+    await assertFails(updateDoc(ref('caregiverA'), { facilityId: 'global' }));
+    await assertFails(updateDoc(ref('caregiverA'), { videoId: 'other' }));
+  });
+
+  it('members of the organization can read it; other organizations cannot', async () => {
+    await assertSucceeds(setDoc(ref('caregiverA'), movie()));
+    await assertSucceeds(getDoc(ref('volunteerA')));
+    await assertFails(getDoc(ref('caregiverB')));
+  });
+
+  it('a resident’s movie approvals and favourites can be saved', async () => {
+    await assertSucceeds(
+      updateDoc(doc(as('caregiverA'), 'residents', 'residentA'), {
+        selectedMovieVideoIds: ['casa'],
+        favouriteMovieVideoIds: ['casa'],
+      })
+    );
+  });
+});
+
 describe('other facility', () => {
   it('cannot read a resident from another facility', async () => {
     await assertFails(getDoc(doc(as('caregiverB'), 'residents', 'residentA')));

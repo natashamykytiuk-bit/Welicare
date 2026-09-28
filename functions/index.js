@@ -505,9 +505,10 @@ exports.deleteOrganization = onCall(async (request) => {
   const { FieldValue } = require('firebase-admin/firestore');
   await requireOrgOwner(db, orgId, request.auth.uid);
 
-  const [residents, music, members] = await Promise.all([
+  const [residents, music, movies, members] = await Promise.all([
     db.collection('residents').where('facilityId', '==', orgId).get(),
     db.collection('musicLibrary').where('facilityId', '==', orgId).get(),
+    db.collection('movieLibrary').where('facilityId', '==', orgId).get(),
     db.collection('users').where('orgId', '==', orgId).get(),
   ]);
 
@@ -521,6 +522,7 @@ exports.deleteOrganization = onCall(async (request) => {
     writer.delete(snap.ref);
   }
   for (const snap of music.docs) writer.delete(snap.ref);
+  for (const snap of movies.docs) writer.delete(snap.ref);
   for (const snap of members.docs) writer.update(snap.ref, { orgId: FieldValue.delete() });
   // Its invite codes go too, so an old code can't point at a deleted org
   // (joinOrganization also checks the org exists, as a second guard).

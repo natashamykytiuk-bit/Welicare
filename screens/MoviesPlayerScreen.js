@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { arrayRemove, arrayUnion, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import YoutubePlayer from 'react-native-youtube-iframe';
+import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 
 // Real YouTube-backed playback via react-native-youtube-iframe — the
@@ -9,9 +11,50 @@ import { colors, fonts, radii } from '../theme';
 // videoId/title come from. Playback itself (play/pause/seek/progress) is
 // entirely YouTube's own embedded controls — controls defaults to true on
 // YoutubePlayer, so it's left unset rather than passed explicitly.
+//
+// Only ever opened from MoviesSelectionScreen with a movie from the curated
+// movieLibrary. The heart saves to the resident's favouriteMovieVideoIds
+// (separate from their music favourites).
 export default function MoviesPlayerScreen({ navigation, route }) {
   const videoId = route?.params?.videoId;
   const title = route?.params?.title ?? 'Untitled';
+  const residentId = route?.params?.residentId;
+  // Only shown when there's a resident to save a favourite for (not Guest
+  // Mode).
+  const [isFavourite, setIsFavourite] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadFavourite() {
+      if (!residentId || !videoId) return;
+      // The heart is a nicety — if this fails the movie still plays and the
+      // heart just shows as not favourited.
+      try {
+        const ids = (await getDoc(doc(db, 'residents', residentId))).data()?.favouriteMovieVideoIds;
+        if (!cancelled) setIsFavourite(Array.isArray(ids) && ids.includes(videoId));
+      } catch (e) {
+        console.error('[MoviesPlayer] failed to load favourite status:', e.code, e.message, e);
+      }
+    }
+    loadFavourite();
+    return () => {
+      cancelled = true;
+    };
+  }, [residentId, videoId]);
+
+  // Optimistic: flip the heart immediately, revert if the save fails.
+  async function handleToggleFavourite() {
+    const next = !isFavourite;
+    setIsFavourite(next);
+    try {
+      await updateDoc(doc(db, 'residents', residentId), {
+        favouriteMovieVideoIds: next ? arrayUnion(videoId) : arrayRemove(videoId),
+      });
+    } catch (e) {
+      console.error('[MoviesPlayer] failed to update favourite:', e.code, e.message, e);
+      setIsFavourite(!next);
+    }
+  }
   // The player fills its wrapper, but YoutubePlayer needs explicit pixel
   // dimensions (no flex/percentage sizing), so this measures the wrapper
   // via onLayout instead of hardcoding a fixed height.
@@ -40,11 +83,32 @@ export default function MoviesPlayerScreen({ navigation, route }) {
         {videoId ? (
           <View style={styles.playerWrap} onLayout={handlePlayerLayout}>
             {playerLayout.width > 0 && playerLayout.height > 0 ? (
+              // rel: false keeps YouTube's end-of-video suggestions to the
+              // same channel instead of any video on the site, so a resident
+              // isn't led off to unvetted content when a movie finishes.
               <YoutubePlayer
                 height={playerLayout.height}
                 width={playerLayout.width}
                 videoId={videoId}
+                initialPlayerParams={{ rel: false }}
               />
+            ) : null}
+            {residentId ? (
+              <TouchableOpacity
+                style={styles.favouriteButton}
+                onPress={handleToggleFavourite}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={isFavourite ? 'Remove from favourites' : 'Add to favourites'}
+                accessibilityState={{ selected: isFavourite }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons
+                  name={isFavourite ? 'heart' : 'heart-outline'}
+                  size={24}
+                  color={isFavourite ? colors.destructive : colors.textMuted}
+                />
+              </TouchableOpacity>
             ) : null}
           </View>
         ) : (
@@ -83,6 +147,19 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: 'hidden',
     backgroundColor: colors.mistBackground,
+  },
+  // Same corner and size as MusicPlayerScreen's heart: a 44pt target with
+  // a translucent backdrop so it stays visible over the video.
+  favouriteButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 44,
+    height: 44,
+    borderRadius: radii.circular,
+    backgroundColor: 'rgba(250,250,247,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   artPlaceholder: {
     flex: 1,

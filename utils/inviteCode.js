@@ -44,7 +44,10 @@ const callRegenerateInviteCode =
  * @returns {string} e.g. 'MGK', 'MGK7-4', 'MGK7-4TXR'
  */
 export function formatOrgCode(raw) {
-  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+  const cleaned = raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 8);
   return cleaned.length > 4 ? `${cleaned.slice(0, 4)}-${cleaned.slice(4)}` : cleaned;
 }
 

@@ -26,6 +26,7 @@ import ChangeUsernameScreen from './screens/ChangeUsernameScreen';
 import DeleteAccountScreen from './screens/DeleteAccountScreen';
 import ConversationStartersScreen from './screens/ConversationStartersScreen';
 import CreateOrganizationScreen from './screens/CreateOrganizationScreen';
+import CurateResidentMoviesScreen from './screens/CurateResidentMoviesScreen';
 import CurateResidentMusicScreen from './screens/CurateResidentMusicScreen';
 import EmailVerificationScreen from './screens/EmailVerificationScreen';
 import FamilyFeedScreen from './screens/FamilyFeedScreen';
@@ -42,6 +43,7 @@ import ManageMusicScreen from './screens/ManageMusicScreen';
 import ManageUsersScreen from './screens/ManageUsersScreen';
 import ModeSelectionScreen from './screens/ModeSelectionScreen';
 import MolehuntScreen from './screens/MolehuntScreen';
+import MovieLibraryScreen from './screens/MovieLibraryScreen';
 import MoviesPlayerScreen from './screens/MoviesPlayerScreen';
 import MoviesSelectionScreen from './screens/MoviesSelectionScreen';
 import MusicLibraryScreen from './screens/MusicLibraryScreen';
@@ -230,6 +232,10 @@ export default function App() {
               <Stack.Screen name="ManageMusic" component={ManageMusicScreen} />
               <Stack.Screen name="MusicLibrary" component={MusicLibraryScreen} />
               <Stack.Screen name="CurateResidentMusic" component={CurateResidentMusicScreen} />
+              {/* The movie library's staff screens — the resident-facing side
+                  is MoviesSelection, which only shows this curated list. */}
+              <Stack.Screen name="MovieLibrary" component={MovieLibraryScreen} />
+              <Stack.Screen name="CurateResidentMovies" component={CurateResidentMoviesScreen} />
 
               {/* Administrator Mode */}
               <Stack.Screen name="AdministratorMode" component={AdministratorModeScreen} />

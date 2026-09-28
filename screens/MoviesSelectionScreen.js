@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { doc, getDoc } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -8,175 +8,213 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import BackButton from '../components/BackButton';
+import ChipSelector from '../components/ChipSelector';
+import LoadError from '../components/LoadError';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
-import { buildMovieQueries } from '../utils/movieQueries';
-import { loadLifeStory } from '../utils/residentLifeStory';
-import { searchMovies } from '../utils/youtube';
+import {
+  MOVIE_DECADE_OPTIONS,
+  MOVIE_GENRE_OPTIONS,
+  filterMovies,
+  filterToApprovedMovies,
+  queryMovieLibrary,
+  sortMovies,
+} from '../utils/movieLibrary';
+import { thumbnailForVideoId } from '../utils/musicLibrary';
+import { getCurrentUserFacilityId } from '../utils/musicLibraryQuery';
 
-// Browse screen shown before MoviesPlayerScreen. Mirrors
-// MusicSelectionScreen exactly, swapping in buildMovieQueries/searchMovies:
-// on mount this loads the resident's lifeStory and searches YouTube for the
-// first query buildMovieQueries derives from it (favourite movies, then a
-// safe fallback). Staff can also search anything manually via the field
-// above the results.
+const VIEW_MODE_OPTIONS = ['All Movies', 'Favourites'];
+
+// Resident-facing Movies & Videos browser (reached from the Activity Menu).
+// Shows ONLY the facility's curated movieLibrary — there's deliberately no
+// search box here: open YouTube search lives in staff-only
+// MovieLibraryScreen, so every video a resident can reach has been added by
+// staff, and CurateResidentMoviesScreen can narrow it further per resident
+// (filterToApprovedMovies — the same rule for both views, so an
+// un-approved favourite can't slip through).
+//
+// Filters are genre and decade only (no actors or credits), and the list
+// is sorted by decade then title. The whole library is loaded once and
+// filtered on screen, since movie libraries are small.
 export default function MoviesSelectionScreen({ navigation, route }) {
   const residentId = route?.params?.residentId;
 
-  const [searchText, setSearchText] = useState('');
-  const [results, setResults] = useState([]);
+  const [viewMode, setViewMode] = useState('All Movies');
+  const [library, setLibrary] = useState([]);
+  const [resident, setResident] = useState(null);
+  const [favouriteIds, setFavouriteIds] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [searched, setSearched] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  async function runSearch(query) {
-    setLoading(true);
-    setError('');
-    try {
-      const found = await searchMovies(query);
-      setResults(found);
-    } catch (e) {
-      // httpsCallable errors carry `.code` (e.g. "unauthenticated",
-      // "internal") and `.details` — both hidden by the generic message
-      // below, so log them for debugging.
-      console.error('searchYouTube error:', e.code, e.message, e.details, e);
-      setError('Something went wrong searching for movies. Please try again.');
-      setResults([]);
-    } finally {
-      setLoading(false);
-      setSearched(true);
-    }
-  }
+  const [filterGenre, setFilterGenre] = useState('');
+  const [filterDecade, setFilterDecade] = useState('');
 
   useEffect(() => {
+    // Guards setState after the awaits if the resident backs out first.
     let cancelled = false;
-    async function run() {
+    async function load() {
       setLoading(true);
-      setError('');
-      // The life story only personalises the search. If it can't be read,
-      // fall back to general suggestions (lifeStory null) rather than
-      // leaving the spinner stuck, which is what an uncaught error did.
-      let lifeStory = null;
-      if (residentId) {
-        try {
-          const snapshot = await getDoc(doc(db, 'residents', residentId));
-          // Denied (e.g. a volunteer) also means general suggestions.
-          ({ lifeStory } = await loadLifeStory(residentId, snapshot.data()));
-        } catch (e) {
-          console.error(
-            '[MoviesSelection] failed to load resident; using general suggestions:',
-            e.code,
-            e.message,
-            e
-          );
-        }
-      }
-      if (cancelled) return;
-      const [firstQuery] = buildMovieQueries(lifeStory);
+      setLoadError(false);
       try {
-        const found = await searchMovies(firstQuery);
-        if (!cancelled) setResults(found);
+        const [facilityId, residentData] = await Promise.all([
+          getCurrentUserFacilityId(),
+          residentId
+            ? getDoc(doc(db, 'residents', residentId)).then((s) => s.data() ?? null)
+            : Promise.resolve(null),
+        ]);
+        const entries = await queryMovieLibrary(facilityId);
+        if (cancelled) return;
+        setResident(residentData);
+        setFavouriteIds(residentData?.favouriteMovieVideoIds ?? []);
+        setLibrary(entries);
       } catch (e) {
-        console.error('searchYouTube error:', e.code, e.message, e.details, e);
-        if (!cancelled) {
-          setError('Something went wrong searching for movies. Please try again.');
-          setResults([]);
-        }
+        console.error('[MoviesSelection] failed to load movies:', e.code, e.message, e);
+        if (!cancelled) setLoadError(true);
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-          setSearched(true);
-        }
+        if (!cancelled) setLoading(false);
       }
     }
-    run();
+    load();
     return () => {
       cancelled = true;
     };
-  }, [residentId]);
+  }, [residentId, reloadKey]);
 
-  function handleManualSearch() {
-    const trimmed = searchText.trim();
-    if (!trimmed) return;
-    runSearch(trimmed);
+  // Approved for this resident → (Favourites only, if chosen) → genre and
+  // decade → sorted.
+  const approved = filterToApprovedMovies(library, resident);
+  const inView =
+    viewMode === 'Favourites' ? approved.filter((m) => favouriteIds.includes(m.videoId)) : approved;
+  const movies = sortMovies(filterMovies(inView, { genre: filterGenre, decade: filterDecade }));
+  const showFavouritesEmptyState = viewMode === 'Favourites' && favouriteIds.length === 0;
+
+  // Hearts a movie straight from the list — same optimistic
+  // update-then-revert-on-failure shape as MusicSelectionScreen, stored in
+  // the resident's own favouriteMovieVideoIds (separate from music).
+  async function handleToggleFavourite(movie) {
+    if (!residentId) return;
+    const { videoId } = movie;
+    const wasFavourite = favouriteIds.includes(videoId);
+    setFavouriteIds((prev) =>
+      wasFavourite ? prev.filter((id) => id !== videoId) : [...prev, videoId]
+    );
+    try {
+      await updateDoc(doc(db, 'residents', residentId), {
+        favouriteMovieVideoIds: wasFavourite ? arrayRemove(videoId) : arrayUnion(videoId),
+      });
+    } catch (e) {
+      console.error('[MoviesSelection] failed to update favourite:', e.code, e.message, e);
+      setFavouriteIds((prev) =>
+        wasFavourite ? [...prev, videoId] : prev.filter((id) => id !== videoId)
+      );
+    }
   }
-
-  const showEmptyState = !loading && !error && searched && results.length === 0;
 
   return (
     <SafeAreaView style={styles.flex}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content}>
         <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Movies & Videos</Text>
+        <Text style={styles.heading}>Movies &amp; Videos</Text>
         <Text style={styles.body}>Choose something to watch.</Text>
 
-        <View style={styles.searchRow}>
-          <TextInput
-            style={styles.searchInput}
-            value={searchText}
-            onChangeText={setSearchText}
-            placeholder="Search for any movie or show"
-            placeholderTextColor={colors.textMuted}
-            onSubmitEditing={handleManualSearch}
-            returnKeyType="search"
-          />
-          <TouchableOpacity
-            style={styles.searchButton}
-            onPress={handleManualSearch}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Search"
-          >
-            <Ionicons name="search" size={20} color={colors.white} />
-          </TouchableOpacity>
-        </View>
-
-        {loading ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        {showEmptyState ? (
-          <Text style={styles.note}>No results found — try a different search.</Text>
+        {residentId ? (
+          <>
+            <ChipSelector options={VIEW_MODE_OPTIONS} value={viewMode} onChange={setViewMode} />
+            <View style={styles.chipSpacer} />
+          </>
         ) : null}
 
-        {!loading && !error
-          ? results.map((video) => (
-              <TouchableOpacity
-                key={video.videoId}
-                style={styles.card}
-                onPress={() =>
-                  navigation.navigate('MoviesPlayer', {
-                    videoId: video.videoId,
-                    title: video.title,
-                    residentId,
-                  })
-                }
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={video.title}
-              >
-                {video.thumbnailUrl ? (
-                  <Image source={{ uri: video.thumbnailUrl }} style={styles.thumbnail} />
-                ) : (
-                  <View style={styles.artPlaceholder}>
-                    <Ionicons name="film-outline" size={22} color={colors.primary} />
+        <Text style={styles.filterLabel}>Genre</Text>
+        <ChipSelector
+          options={MOVIE_GENRE_OPTIONS}
+          value={filterGenre}
+          onChange={setFilterGenre}
+          includeAll
+        />
+        <View style={styles.chipSpacer} />
+        <Text style={styles.filterLabel}>Decade</Text>
+        <ChipSelector
+          options={MOVIE_DECADE_OPTIONS}
+          value={filterDecade}
+          onChange={setFilterDecade}
+          includeAll
+        />
+
+        {loadError ? <LoadError onRetry={() => setReloadKey((k) => k + 1)} /> : null}
+        {loading ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
+
+        {!loading && !loadError && showFavouritesEmptyState ? (
+          <Text style={styles.note}>
+            No favourites yet — tap the heart next to a movie to add one here.
+          </Text>
+        ) : null}
+        {!loading && !loadError && !showFavouritesEmptyState && movies.length === 0 ? (
+          <Text style={styles.note}>
+            {library.length === 0
+              ? 'No movies have been added yet. A caregiver can add some from Manage Music & Videos.'
+              : 'No movies match these filters.'}
+          </Text>
+        ) : null}
+
+        {!loading && !loadError
+          ? movies.map((movie) => {
+              const isFavourite = favouriteIds.includes(movie.videoId);
+              return (
+                <TouchableOpacity
+                  key={movie.id}
+                  style={styles.card}
+                  onPress={() =>
+                    navigation.navigate('MoviesPlayer', {
+                      videoId: movie.videoId,
+                      title: movie.title,
+                      residentId,
+                    })
+                  }
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={movie.title}
+                >
+                  <Image
+                    source={{ uri: movie.thumbnailUrl || thumbnailForVideoId(movie.videoId) }}
+                    style={styles.thumbnail}
+                  />
+                  <View style={styles.cardText}>
+                    <Text style={styles.cardTitle} numberOfLines={2}>
+                      {movie.title}
+                    </Text>
+                    <Text style={styles.cardSubtitle} numberOfLines={1}>
+                      {[(movie.genres ?? []).join(', '), movie.decade].filter(Boolean).join(' · ')}
+                    </Text>
                   </View>
-                )}
-                <View style={styles.cardText}>
-                  <Text style={styles.cardTitle} numberOfLines={1}>
-                    {video.title}
-                  </Text>
-                  <Text style={styles.cardSubtitle} numberOfLines={1}>
-                    {video.channelTitle}
-                  </Text>
-                </View>
-                <Ionicons name="play-circle-outline" size={26} color={colors.primary} />
-              </TouchableOpacity>
-            ))
+                  <View style={styles.cardActions}>
+                    {residentId ? (
+                      <TouchableOpacity
+                        onPress={() => handleToggleFavourite(movie)}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          isFavourite ? 'Remove from favourites' : 'Add to favourites'
+                        }
+                        accessibilityState={{ selected: isFavourite }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons
+                          name={isFavourite ? 'heart' : 'heart-outline'}
+                          size={22}
+                          color={isFavourite ? colors.destructive : colors.textMuted}
+                        />
+                      </TouchableOpacity>
+                    ) : null}
+                    <Ionicons name="play-circle-outline" size={26} color={colors.primary} />
+                  </View>
+                </TouchableOpacity>
+              );
+            })
           : null}
       </ScrollView>
     </SafeAreaView>
@@ -199,38 +237,16 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginBottom: 20,
   },
-  searchRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
+  filterLabel: {
+    fontFamily: fonts.sansBold,
+    fontSize: 13,
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 8,
   },
-  searchInput: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.sm,
-    fontFamily: fonts.sansRegular,
-    fontSize: 16,
-    color: colors.textPrimary,
-    paddingHorizontal: 16,
-    minHeight: 52,
-  },
-  searchButton: {
-    width: 52,
-    height: 52,
-    borderRadius: radii.sm,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  spinner: { marginBottom: 16 },
-  error: {
-    fontFamily: fonts.sansRegular,
-    fontSize: 15,
-    color: colors.destructive,
-    marginBottom: 16,
-  },
+  chipSpacer: { height: 12 },
+  spinner: { marginTop: 16 },
   note: {
     fontFamily: fonts.sansBold,
     fontSize: 14,
@@ -238,7 +254,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.mistBackground,
     borderRadius: radii.sm,
     padding: 12,
-    marginBottom: 16,
+    marginTop: 16,
   },
   card: {
     flexDirection: 'row',
@@ -249,18 +265,10 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 12,
-  },
-  artPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: radii.sm,
-    backgroundColor: colors.mistBackground,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: 16,
   },
   thumbnail: {
-    width: 48,
+    width: 80,
     height: 48,
     borderRadius: radii.sm,
     backgroundColor: colors.mistBackground,
@@ -275,5 +283,10 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansRegular,
     fontSize: 14,
     color: colors.textMuted,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
   },
 });

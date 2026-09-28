@@ -14,6 +14,7 @@ import { createPersonalOrganization, formatOrgCode } from '../utils/inviteCode';
 import { batches, firestore } from './mocks/firebase';
 import { hasAnyLifeStoryData } from '../utils/lifeStory';
 import { filterToApprovedMusic, isMusicCurated } from '../utils/musicLibrary';
+import { filterMovies, filterToApprovedMovies, sortMovies } from '../utils/movieLibrary';
 import { nextOnboardingRoute } from '../utils/onboarding';
 import { rankBySimilarity, similarityScore } from '../utils/songSimilarity';
 
@@ -141,5 +142,33 @@ describe('music approval (filterToApprovedMusic)', () => {
   it('a favourite that was un-approved no longer shows', () => {
     const favourites = [{ videoId: 'a' }, { videoId: 'c' }];
     expect(ids(filterToApprovedMusic(favourites, { selectedMusicVideoIds: ['a'] }))).toEqual(['a']);
+  });
+});
+
+describe('movie library helpers', () => {
+  const movies = [
+    { videoId: 'm1', title: 'Singin in the Rain', genres: ['Musical'], decade: '1950s' },
+    { videoId: 'm2', title: 'Casablanca', genres: ['Drama', 'Romance'], decade: '1940s' },
+    { videoId: 'm3', title: 'The Sound of Music', genres: ['Musical', 'Family'], decade: '1960s' },
+    { videoId: 'm4', title: 'An Affair to Remember', genres: ['Romance'], decade: '1950s' },
+  ];
+  const ids = (list) => list.map((m) => m.videoId);
+
+  it('sorts by decade, oldest first, then title', () => {
+    expect(ids(sortMovies(movies))).toEqual(['m2', 'm4', 'm1', 'm3']);
+  });
+
+  it('filters by genre and decade', () => {
+    expect(ids(filterMovies(movies, { genre: 'Musical' }))).toEqual(['m1', 'm3']);
+    expect(ids(filterMovies(movies, { genre: 'Romance', decade: '1950s' }))).toEqual(['m4']);
+    expect(filterMovies(movies, {})).toHaveLength(4);
+  });
+
+  it('uses the same approval rule as music, but its own list', () => {
+    expect(filterToApprovedMovies(movies, {})).toHaveLength(4); // not curated
+    expect(ids(filterToApprovedMovies(movies, { selectedMovieVideoIds: ['m3'] }))).toEqual(['m3']);
+    expect(filterToApprovedMovies(movies, { selectedMovieVideoIds: [] })).toEqual([]);
+    // A music approval list has no effect on movies.
+    expect(filterToApprovedMovies(movies, { selectedMusicVideoIds: [] })).toHaveLength(4);
   });
 });

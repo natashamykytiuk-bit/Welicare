@@ -188,7 +188,7 @@ service cloud.firestore {
             resource.data.createdBy == request.auth.uid ||
             (resource.data.assignedCaregivers is list && request.auth.uid in resource.data.assignedCaregivers)
           ) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'preferredName', 'hasLifeStory', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'preferredName', 'hasLifeStory', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds', 'selectedMovieVideoIds', 'favouriteMovieVideoIds']) &&
           // The life story itself now lives in private/lifeStory; the old
           // field may only be removed (by a save), never written. Leaving it
           // untouched is fine — residents not migrated yet still have it.
@@ -216,7 +216,7 @@ service cloud.firestore {
           resource.data.facilityId != null &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'preferredName', 'hasLifeStory', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'preferredName', 'hasLifeStory', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds', 'selectedMovieVideoIds', 'favouriteMovieVideoIds']) &&
           // The life story itself now lives in private/lifeStory; the old
           // field may only be removed (by a save), never written. Leaving it
           // untouched is fine — residents not migrated yet still have it.
@@ -319,6 +319,49 @@ service cloud.firestore {
         allow get: if verified() &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == orgId;
       }
+    }
+
+    // Curated movie library (MovieLibraryScreen, CurateResidentMoviesScreen,
+    // MoviesSelectionScreen) — its own collection, independent of music, but
+    // with the same rules as musicLibrary: readable within your own
+    // organization (plus a shared "global" list, which only the Admin SDK
+    // can write); written only by Caregivers/Administrators, only in their
+    // own organization; an entry's facilityId and videoId can never change,
+    // and only the form's fields may be edited. No artist field — movies are
+    // tagged by genre and decade only.
+    match /movieLibrary/{entryId} {
+      allow get: if verified() && (
+        resource.data.facilityId == 'global' ||
+        (resource.data.facilityId != null && me().orgId == resource.data.facilityId)
+      );
+
+      // Two list rules for the same reason as musicLibrary: each query
+      // (facilityId == 'global', facilityId == your org) must match one
+      // branch on its own.
+      allow list: if verified() && resource.data.facilityId == 'global';
+      allow list: if verified() && resource.data.facilityId != null &&
+        me().orgId == resource.data.facilityId;
+
+      allow create: if verified() &&
+        me().role in ['Caregiver', 'Administrator'] &&
+        request.resource.data.facilityId != 'global' &&
+        request.resource.data.facilityId == me().orgId &&
+        request.resource.data.keys().hasOnly(['videoId', 'title', 'channelTitle', 'thumbnailUrl', 'genres', 'decade', 'facilityId', 'addedAt', 'addedByUid']);
+
+      allow update: if verified() &&
+        me().role in ['Caregiver', 'Administrator'] &&
+        resource.data.facilityId != 'global' &&
+        resource.data.facilityId == me().orgId &&
+        request.resource.data.facilityId == resource.data.facilityId &&
+        request.resource.data.videoId == resource.data.videoId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'channelTitle', 'genres', 'decade', 'thumbnailUrl', 'addedAt', 'addedByUid']) &&
+        (request.resource.data.get('addedByUid', null) == resource.data.get('addedByUid', null) ||
+          request.resource.data.addedByUid == request.auth.uid);
+
+      allow delete: if verified() &&
+        me().role in ['Caregiver', 'Administrator'] &&
+        resource.data.facilityId != 'global' &&
+        resource.data.facilityId == me().orgId;
     }
 
     // Invite-code lookup table and join rate-limit counters. Server-only —
