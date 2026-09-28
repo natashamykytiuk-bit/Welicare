@@ -5,14 +5,18 @@ import NumberPad from '../components/NumberPad';
 import PinDots from '../components/PinDots';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import { nextOnboardingRoute } from '../utils/onboarding';
 import { hashPin } from '../utils/pin';
 
-// Shown once, right after sign-up (App.js routes here via the
-// justSignedUp flag). Collects a 4-digit PIN twice via a tap-driven
+// Shown whenever a signed-in account has no pinHash saved yet — App.js
+// routes here from persisted state (utils/onboarding.js), so it comes back
+// after a restart, a later email verification or a new device, not only
+// straight after sign-up. Collects a 4-digit PIN twice via a tap-driven
 // number pad (to catch typos), hashes it, and saves it to this user's
 // Firestore doc — PINEntryScreen later reads that same field to verify
-// PIN attempts. Every role continues to JoinCreateOrganization next; the
-// "Skip this step" option lives on that screen instead.
+// PIN attempts. The next step is decided by the same nextOnboardingRoute
+// as App.js, so e.g. a Family Caregiver who already has a personal org
+// goes straight to ModeSelection instead of the organization step.
 //
 // Also reused for PIN reset: ForgotPinScreen navigates here with
 // `mode: 'reset'` and a `destination` after re-verifying the user's
@@ -61,7 +65,10 @@ export default function PINSetupScreen({ navigation, route }) {
       if (mode === 'reset' && destination) {
         navigation.reset({ index: 0, routes: [{ name: destination }] });
       } else {
-        navigation.reset({ index: 0, routes: [{ name: 'JoinCreateOrganization' }] });
+        // Re-read the doc rather than assuming what's on it, so the next
+        // step matches what App.js would pick on a fresh start.
+        const snap = await getDoc(doc(db, 'users', uid));
+        navigation.reset({ index: 0, routes: [{ name: nextOnboardingRoute(snap.data()) }] });
       }
     } catch (e) {
       console.log('PIN setup error:', e);

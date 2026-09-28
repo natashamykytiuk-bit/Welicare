@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { auth, db } from './firebaseConfig';
 import { ResidentLockProvider } from './contexts/ResidentLockContext';
+import { nextOnboardingRoute } from './utils/onboarding';
 
 import ActivityIdeasScreen from './screens/ActivityIdeasScreen';
 import ActivityMenuScreen from './screens/ActivityMenuScreen';
@@ -69,8 +70,8 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   // undefined = still resolving, null = signed out, object = signed in
   const [user, setUser] = useState(undefined);
-  // undefined while this user's onboarding doc is loading, then an object
-  // of { needsPin, needsOrg } computed from what's actually saved in
+  // undefined while this user's onboarding doc is loading, then { route }
+  // computed by nextOnboardingRoute from what's actually saved in
   // Firestore — this is what initialRouteName below reads, instead of a
   // one-shot "just signed up" flag, so the routing decision survives app
   // restarts and sign-out/sign-in cycles.
@@ -96,9 +97,8 @@ export default function App() {
   }, []);
 
   // Reads this user's own Firestore doc once per sign-in to figure out
-  // what onboarding, if any, is still outstanding. Administrators can't
-  // skip connecting to an org, so orgStepSkipped only excuses everyone
-  // else from needing one.
+  // what onboarding, if any, is still outstanding (see utils/onboarding.js
+  // for the rules, including why Administrators can't skip the org step).
   useEffect(() => {
     if (!user) {
       setOnboardingStatus(undefined);
@@ -108,12 +108,7 @@ export default function App() {
     async function loadOnboardingStatus() {
       const snap = await getDoc(doc(db, 'users', user.uid));
       if (cancelled) return;
-      const data = snap.data() ?? {};
-      const needsPin = !data.pinHash;
-      const needsOrg = data.role === 'Administrator'
-        ? !data.orgId
-        : !data.orgId && !data.orgStepSkipped;
-      setOnboardingStatus({ needsPin, needsOrg });
+      setOnboardingStatus({ route: nextOnboardingRoute(snap.data()) });
     }
     loadOnboardingStatus();
     return () => {
@@ -129,13 +124,7 @@ export default function App() {
     );
   }
 
-  const initialRouteName = !user
-    ? 'Welcome'
-    : onboardingStatus.needsPin
-    ? 'PINSetup'
-    : onboardingStatus.needsOrg
-    ? 'JoinCreateOrganization'
-    : 'ModeSelection';
+  const initialRouteName = !user ? 'Welcome' : onboardingStatus.route;
 
   return (
     // Wraps the whole navigator (not just Resident Mode's screens) because
@@ -158,7 +147,9 @@ export default function App() {
       >
         {user ? (
           <>
-            {/* Onboarding, shown only right after sign-up */}
+            {/* Onboarding — reached whenever the saved account state says a
+                step is still missing (see utils/onboarding.js), not only
+                right after sign-up */}
             <Stack.Screen name="PINSetup" component={PINSetupScreen} />
             <Stack.Screen name="JoinCreateOrganization" component={JoinCreateOrganizationScreen} />
             <Stack.Screen name="JoinOrganization" component={JoinOrganizationScreen} />
