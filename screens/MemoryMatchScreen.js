@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
 import GameShell from '../components/games/GameShell';
+import gentleHaptic from '../components/games/gentleHaptic';
 import { buildDeck, canFlip, isMatch, isRoundComplete } from '../games/memoryMatch/logic';
 import { colors, radii } from '../theme';
 
@@ -168,12 +168,6 @@ function Card({ card, size, faceUp, matched, onPress }) {
       </Animated.View>
     </TouchableOpacity>
   );
-}
-
-// A light tap on devices that support it. Never allowed to break the game:
-// unsupported devices or browsers just skip it.
-function gentleHaptic() {
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 }
 
 const styles = StyleSheet.create({

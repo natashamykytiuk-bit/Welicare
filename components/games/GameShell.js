@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, fonts, radii } from '../../theme';
@@ -22,8 +23,10 @@ import HomeButton from '../HomeButton';
 //
 // How a game plugs in: pass a function as the child. The shell calls it
 // while a round is being played with
-//   { difficulty, onComplete }
+//   { difficulty, options, onComplete }
 // - difficulty: 'gentle' | 'medium' | 'challenge', as picked in setup;
+// - options: the on/off state of the game's extra switches, e.g.
+//   { twoMoles: true } (see the `switches` prop below; {} if none);
 // - onComplete: the game calls this once when the round is finished, and
 //   the shell switches to the completion view.
 // Each round is rendered with a fresh React key, so "Play again" always
@@ -35,6 +38,11 @@ import HomeButton from '../HomeButton';
 //       <MemoryMatchBoard difficulty={difficulty} onComplete={onComplete} />
 //     )}
 //   </GameShell>
+//
+// Extra switches: a game can offer caregiver-chosen on/off settings shown
+// under the difficulty picker, e.g. Molehunt's "Two moles at once":
+//   switches={[{ key: 'twoMoles', label: 'Two moles at once' }]}
+// Each starts off; like the difficulty, the choice is kept for Play again.
 
 export const DIFFICULTIES = [
   { key: 'gentle', label: 'Gentle' },
@@ -47,10 +55,14 @@ export default function GameShell({
   title,
   description,
   completionMessage = 'Wonderful! You found them all.',
+  switches = [],
   children,
 }) {
   const [phase, setPhase] = useState('setup');
   const [difficulty, setDifficulty] = useState('gentle');
+  // The game's extra switches, by key; all off until the caregiver turns
+  // one on.
+  const [options, setOptions] = useState({});
   // Bumped for every new round; used as the game's key so it remounts.
   const [round, setRound] = useState(0);
 
@@ -70,7 +82,7 @@ export default function GameShell({
         // The game fills the rest of the screen and sizes itself to fit —
         // no scrolling while playing.
         <View key={round} style={styles.playArea}>
-          {children({ difficulty, onComplete: () => setPhase('complete') })}
+          {children({ difficulty, options, onComplete: () => setPhase('complete') })}
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.centred}>
@@ -100,6 +112,30 @@ export default function GameShell({
                   );
                 })}
               </View>
+              {switches.map((option) => {
+                const on = !!options[option.key];
+                return (
+                  // A large tap-anywhere toggle rather than a small native
+                  // Switch, which is fiddly to hit. The tick icon and the
+                  // filled style both show "on", not colour alone.
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[styles.switchButton, on && styles.difficultySelected]}
+                    onPress={() => setOptions((o) => ({ ...o, [option.key]: !on }))}
+                    activeOpacity={0.8}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: on }}
+                    accessibilityLabel={option.label}
+                  >
+                    <Ionicons
+                      name={on ? 'checkbox' : 'square-outline'}
+                      size={36}
+                      color={accent.icon}
+                    />
+                    <Text style={styles.difficultyText}>{option.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
               <BigButton label="Start" onPress={startRound} />
             </>
           ) : (
@@ -202,6 +238,18 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   difficultyTextSelected: { color: colors.textPrimary },
+  switchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    minHeight: 88,
+    paddingHorizontal: 28,
+    marginBottom: 32,
+    borderRadius: radii.lg,
+    borderWidth: 3,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
   completeButtons: { gap: 16, alignItems: 'center', marginTop: 16 },
   bigButton: {
     minWidth: 320,
