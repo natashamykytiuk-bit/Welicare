@@ -1,3 +1,4 @@
+// @ts-check
 import { addDoc, collection, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from '../firebaseConfig';
@@ -10,10 +11,24 @@ import { auth, db, functions } from '../firebaseConfig';
 // server-only lookup table rather than on the (widely readable)
 // organization doc. The functions' error messages are user-facing, and
 // callers show e.message.
-const callCreateOrganization = httpsCallable(functions, 'createOrganization');
-const callUpgradePersonalOrganization = httpsCallable(functions, 'upgradePersonalOrganization');
-const callJoinOrganization = httpsCallable(functions, 'joinOrganization');
-const callRegenerateInviteCode = httpsCallable(functions, 'regenerateInviteCode');
+// Each callable is typed with its request and response shape (matching
+// functions/index.js), so `npm run typecheck` flags a renamed field.
+/** @template Req, Res @typedef {import('firebase/functions').HttpsCallable<Req, Res>} Callable */
+const callCreateOrganization =
+  /** @type {Callable<{ name: string, type?: string, province?: string, city?: string }, { orgId: string, inviteCode: string }>} */ (
+    httpsCallable(functions, 'createOrganization')
+  );
+const callUpgradePersonalOrganization =
+  /** @type {Callable<{ name: string }, { orgId: string, inviteCode: string }>} */ (
+    httpsCallable(functions, 'upgradePersonalOrganization')
+  );
+const callJoinOrganization = /** @type {Callable<{ code: string }, { orgId: string }>} */ (
+  httpsCallable(functions, 'joinOrganization')
+);
+const callRegenerateInviteCode =
+  /** @type {Callable<{ orgId: string }, { inviteCode: string }>} */ (
+    httpsCallable(functions, 'regenerateInviteCode')
+  );
 
 // Invite codes are always 2 letters + 4 digits, e.g. "MG-4821" (minted by
 // the server) — this mirrors that shape as the user types so they never
@@ -24,6 +39,10 @@ const callRegenerateInviteCode = httpsCallable(functions, 'regenerateInviteCode'
 // digit has actually been entered. Shared by JoinOrganizationScreen
 // (onboarding) and OrganizationSettingsScreen (joining later from a
 // personal org).
+/**
+ * @param {string} raw What the user has typed so far.
+ * @returns {string} e.g. 'MG', 'MG-48', 'MG-4821'
+ */
 export function formatOrgCode(raw) {
   const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
   const letters = cleaned.slice(0, 2);

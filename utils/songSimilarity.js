@@ -1,3 +1,4 @@
+// @ts-check
 // Tag-based "what should play next" ranking for MusicPlayerScreen's Up next
 // queue. Deliberately simple and local — no AI call, no Firestore reads —
 // since every song in the queue is already a caregiver-vetted musicLibrary
@@ -15,12 +16,31 @@ const SAME_ARTIST_WEIGHT = 2;
 
 // '1950s' -> 1950. Returns null for anything unparseable so it simply
 // doesn't contribute to the score.
+/**
+ * @param {string | null | undefined} decade
+ * @returns {number | null}
+ */
 function decadeYear(decade) {
   const year = parseInt(decade, 10);
   return Number.isFinite(year) ? year : null;
 }
 
 // How similar `candidate` is to `anchor` — higher is more similar.
+/**
+ * A song as the player's queue carries it (see MusicSelectionScreen).
+ * @typedef {object} QueueSong
+ * @property {string} videoId
+ * @property {string} [title]
+ * @property {string[]} [genres]
+ * @property {string | null} [decade] e.g. '1950s'
+ * @property {string | null} [artist]
+ */
+
+/**
+ * @param {QueueSong | null | undefined} anchor
+ * @param {QueueSong | null | undefined} candidate
+ * @returns {number}
+ */
 export function similarityScore(anchor, candidate) {
   if (!anchor || !candidate) return 0;
   let score = 0;
@@ -51,6 +71,12 @@ export function similarityScore(anchor, candidate) {
 // Returns a new array of `songs` ordered most-similar-to-`anchor` first.
 // Array.prototype.sort is stable, so equal scores keep their incoming order
 // — i.e. the order the resident was browsing in — as the tie-break.
+/**
+ * @template {QueueSong} T
+ * @param {QueueSong | null | undefined} anchor
+ * @param {T[]} songs
+ * @returns {T[]}
+ */
 export function rankBySimilarity(anchor, songs) {
   return songs
     .map((song) => ({ song, score: similarityScore(anchor, song) }))

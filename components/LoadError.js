@@ -1,3 +1,4 @@
+// @ts-check
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, fonts, radii } from '../theme';
@@ -15,6 +16,12 @@ import { colors, fonts, radii } from '../theme';
 //              whole point of the component.
 //   message  — optional override for the default sentence.
 //   style    — optional extra container style (e.g. spacing).
+/**
+ * @param {object} props
+ * @param {() => void} props.onRetry
+ * @param {string} [props.message]
+ * @param {import('react-native').StyleProp<import('react-native').ViewStyle>} [props.style]
+ */
 export default function LoadError({ onRetry, message, style }) {
   return (
     <View style={[styles.container, style]} accessibilityRole="alert">

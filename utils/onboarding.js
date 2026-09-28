@@ -1,3 +1,4 @@
+// @ts-check
 // Single source of truth for "where should this signed-in user go next",
 // decided from what's saved on their users/{uid} doc rather than anything
 // in memory — so closing the app mid-onboarding, verifying email later,
@@ -14,6 +15,11 @@
 // Administrators can't, since an admin without an organization has nothing
 // to administer — and App.js ignores orgStepSkipped for them, so writing
 // it to their own doc doesn't get them past this step either.
+/**
+ * @param {Partial<import('../types/models').User> | null | undefined} userData
+ *   The signed-in user's users/{uid} doc (undefined if it doesn't exist yet).
+ * @returns {'PINSetup' | 'JoinCreateOrganization' | 'ModeSelection'}
+ */
 export function nextOnboardingRoute(userData) {
   const data = userData ?? {};
   if (!data.pinHash) return 'PINSetup';
