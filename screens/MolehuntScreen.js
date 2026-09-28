@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
 import GameShell from '../components/games/GameShell';
 import gentleHaptic from '../components/games/gentleHaptic';
+import ProgressDots from '../components/games/ProgressDots';
 import {
   isRoundComplete,
   levelFor,
@@ -130,7 +131,7 @@ export function MolehuntBoard({ difficulty, twoMoles, onComplete }) {
               />
             ))}
           </View>
-          <Progress found={found} total={moles} />
+          <ProgressDots done={found} total={moles} label={`${found} of ${moles} moles found`} />
         </>
       ) : null}
     </View>
@@ -184,18 +185,6 @@ function Molehill({ size, up, onPress }) {
   );
 }
 
-// A row of dots that fill in as moles are found. It only counts up, so
-// there's nothing to "run out" of.
-function Progress({ found, total }) {
-  return (
-    <View style={styles.progress} accessible accessibilityLabel={`${found} of ${total} moles found`}>
-      {Array.from({ length: total }, (_, i) => (
-        <View key={i} style={[styles.dot, i < found && styles.dotFound]} />
-      ))}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   area: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
@@ -214,13 +203,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  progress: { flexDirection: 'row', gap: 12, marginTop: 28 },
-  dot: {
-    width: 24,
-    height: 24,
-    borderRadius: radii.circular,
-    borderWidth: 3,
-    borderColor: accent.icon,
-  },
-  dotFound: { backgroundColor: accent.icon },
 });
