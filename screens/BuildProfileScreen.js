@@ -16,6 +16,7 @@ import LoadError from '../components/LoadError';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { hasAnyLifeStoryData } from '../utils/lifeStory';
+import { MUSIC_GENRE_OPTIONS } from '../utils/musicLibrary';
 import { loadLifeStory, saveResidentProfile } from '../utils/residentLifeStory';
 
 const EMPTY_LIFE_STORY = {
@@ -75,24 +76,6 @@ const CREATIVE_HOBBY_OPTIONS = [
   'None',
   'Other',
 ];
-// Exported so MusicLibraryScreen/CurateResidentMusicScreen can reuse the
-// same genre vocabulary when curating musicLibrary — keeps filter chips
-// there consistent with what a resident's lifeStory.musicGenres can hold.
-export const MUSIC_GENRE_OPTIONS = [
-  'Classic Rock',
-  'Country',
-  'Jazz',
-  'Classical',
-  'Folk',
-  'Big Band',
-  'Oldies/50s-60s',
-  'Gospel',
-  'Pop',
-  'Blues',
-  'Opera',
-  'Other',
-];
-
 // The questionnaire's own fields — the only keys ever saved
 // (firestore.rules' validLifeStory refuses any other).
 const LIFE_STORY_FIELDS = Object.keys(EMPTY_LIFE_STORY);

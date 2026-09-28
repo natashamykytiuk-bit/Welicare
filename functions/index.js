@@ -1,6 +1,5 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { setGlobalOptions } = require('firebase-functions/v2');
-const { defineSecret } = require('firebase-functions/params');
 
 // Every function runs in Montréal, the same region as the Firestore
 // database, so resident data is processed in Canada rather than the default
@@ -9,182 +8,14 @@ const { defineSecret } = require('firebase-functions/params');
 // (The AI request itself still goes to Anthropic's API in the US.)
 setGlobalOptions({ region: 'northamerica-northeast1' });
 
-const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
-const youtubeApiKey = defineSecret('YOUTUBE_API_KEY');
-
-const {
-  KIND_PHRASES,
-  sanitizeLifeStory,
-  sanitizeTopicsToAvoid,
-  buildPrompt,
-} = require('./suggestionPrompt');
+const { requireVerified, requireRecentLogin } = require('./authChecks');
 const { ACTIONS, logAudit, orgIsLogged, auditTriggers } = require('./auditLog');
 
-// Refuses callers whose email address hasn't been verified yet (the
-// email_verified claim in their ID token, set by Firebase Auth). The app
-// already signs unverified users out, but that's only the interface — this
-// is what stops an unverified account calling these functions directly,
-// including the paid ones (AI suggestions, YouTube search). deleteAccount
-// deliberately doesn't use it, so someone who never verified can still
-// remove their account.
-function requireVerified(request) {
-  if (request.auth?.token?.email_verified !== true) {
-    throw new HttpsError('permission-denied', 'Please verify your email address first.', {
-      reason: 'email-not-verified',
-    });
-  }
-}
-
-// Redeployed to repair a missing public-invoker IAM binding on the
-// underlying Cloud Run service, left over from a failed first deploy.
-exports.generateSuggestions = onCall({ secrets: [anthropicApiKey] }, async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'You must be signed in.');
-  }
-  requireVerified(request);
-
-  const { kind } = request.data ?? {};
-  // Object.hasOwn, not KIND_PHRASES[kind]: a plain lookup also accepts
-  // inherited names like "toString" or "constructor".
-  if (typeof kind !== 'string' || !Object.hasOwn(KIND_PHRASES, kind)) {
-    throw new HttpsError(
-      'invalid-argument',
-      'kind must be one of activityIdeas, conversationStarters, musicMovieRecs.'
-    );
-  }
-
-  // topicsToAvoid: the resident's caregiver-written safety notes
-  // (utils/residentSafety.js), sent by the app alongside the life story.
-  const prompt = buildPrompt(
-    kind,
-    sanitizeLifeStory(request.data?.lifeStory),
-    sanitizeTopicsToAvoid(request.data?.topicsToAvoid)
-  );
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': anthropicApiKey.value(),
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-5',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
-
-  // The provider's error body stays in the server logs (truncated — it can
-  // echo parts of the request) and the app only gets a stable reason code,
-  // so nothing about the resident or our account setup reaches the client.
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(
-      '[generateSuggestions] Anthropic error',
-      response.status,
-      errorText.slice(0, 500)
-    );
-    throw new HttpsError(
-      'unavailable',
-      'Suggestions are unavailable right now. Please try again.',
-      {
-        reason: 'ai-provider-error',
-      }
-    );
-  }
-
-  const data = await response.json();
-  const text = data.content?.map((block) => block.text).join('\n') ?? '';
-  return { text };
-});
-
-// Server-side YouTube search so the API key never ships in the app — same
-// reasoning as generateSuggestions and Anthropic. Shared by both Music and
-// Movies & Videos; category picks the filtering behavior for each.
-exports.searchYouTube = onCall({ secrets: [youtubeApiKey] }, async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'You must be signed in.');
-  }
-  requireVerified(request);
-
-  const query = typeof request.data?.query === 'string' ? request.data.query.trim() : '';
-  if (!query) {
-    throw new HttpsError('invalid-argument', 'query must be a non-empty string.');
-  }
-
-  const category = request.data?.category === 'video' ? 'video' : 'music';
-
-  const params = new URLSearchParams({
-    part: 'snippet',
-    type: 'video',
-    maxResults: '10',
-    q: query,
-    key: youtubeApiKey.value(),
-  });
-  // videoCategoryId=10 scopes Music results so an artist's name doesn't
-  // surface interviews, news clips, etc. There's no equivalently reliable
-  // category for older films/TV clips — videoCategoryId=1 (Film &
-  // Animation) is inconsistently tagged and would exclude a lot of
-  // legitimate results — so 'video' search omits the category filter
-  // entirely for better coverage.
-  if (category === 'music') {
-    params.set('videoCategoryId', '10');
-  }
-
-  const response = await fetch(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`);
-
-  // Same as generateSuggestions: details to the server log, a stable
-  // reason code to the app.
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('[searchYouTube] YouTube error', response.status, errorText.slice(0, 500));
-    throw new HttpsError('unavailable', 'Search is unavailable right now. Please try again.', {
-      reason: 'search-provider-error',
-    });
-  }
-
-  const data = await response.json();
-  const results = (data.items ?? [])
-    .filter((item) => item.id?.videoId)
-    .slice(0, 10)
-    .map((item) => ({
-      videoId: item.id.videoId,
-      title: item.snippet?.title ?? '',
-      channelTitle: item.snippet?.channelTitle ?? '',
-      thumbnailUrl:
-        item.snippet?.thumbnails?.medium?.url ?? item.snippet?.thumbnails?.default?.url ?? '',
-    }));
-
-  return { results };
-});
-
-// Lazily initialised so the existing functions (which never touch the Admin
-// SDK) don't pay for it on cold start.
-// How recently someone must have entered their password for a destructive
-// action (delete account, delete organization, transfer administrator).
-const RECENT_LOGIN_SECONDS = 5 * 60;
-
-// Refuses unless the caller actually signed in (typed their password) in
-// the last RECENT_LOGIN_SECONDS. auth_time is set by Firebase Auth inside
-// the signed ID token — it's the time of the last real sign-in or
-// re-authentication, not of the last token refresh, and the app can't
-// change it. So a device that's merely still signed in can't skip the
-// password step by calling these functions directly; the app's password
-// prompts (reauthenticateWithCredential) are what refresh it.
-// The error code "failed-precondition" + details.reason lets the app tell
-// this apart and ask for the password again.
-function requireRecentLogin(request) {
-  const authTime = request.auth?.token?.auth_time;
-  const ageSeconds = Math.floor(Date.now() / 1000) - (authTime ?? 0);
-  if (!authTime || ageSeconds > RECENT_LOGIN_SECONDS) {
-    throw new HttpsError(
-      'failed-precondition',
-      'For your security, please enter your password again and retry.',
-      { reason: 'requires-recent-login' }
-    );
-  }
-}
+// AI suggestions and YouTube search live in their own files; exported here
+// so Firebase deploys them. They're required AFTER setGlobalOptions above,
+// so they pick up the Montréal region too.
+exports.generateSuggestions = require('./ai').generateSuggestions;
+exports.searchYouTube = require('./youtube').searchYouTube;
 
 // A BulkWriter that remembers the outcome of every write it's given.
 //
@@ -225,6 +56,9 @@ function trackedBulkWriter(db, label) {
   };
 }
 
+// The Admin SDK, initialised on first use rather than at load, so functions
+// that never touch it (AI suggestions, YouTube search) don't pay for it on
+// cold start.
 let adminApp = null;
 function getAdmin() {
   const admin = require('firebase-admin');

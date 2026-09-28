@@ -14,12 +14,12 @@ import {
 import BackButton from '../components/BackButton';
 import ChipSelector from '../components/ChipSelector';
 import { db } from '../firebaseConfig';
-import { MUSIC_GENRE_OPTIONS } from './BuildProfileScreen';
 import { colors, fonts, radii } from '../theme';
 import {
   MUSIC_DECADE_OPTIONS,
   thumbnailForVideoId,
   filterToApprovedMusic,
+  MUSIC_GENRE_OPTIONS,
 } from '../utils/musicLibrary';
 import {
   distinctArtists,

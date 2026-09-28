@@ -11,34 +11,7 @@ import BackButton from '../components/BackButton';
 import Dropdown from '../components/Dropdown';
 import { colors, fonts, radii } from '../theme';
 import { createOrganization } from '../utils/inviteCode';
-
-// Exported so OrganizationalSettingsScreen's edit form offers the exact
-// same choices as creation.
-export const ORG_TYPES = [
-  'Long-term care home',
-  'Assisted living',
-  'Memory care unit',
-  'Adult day program',
-  'Home care agency',
-  'Other',
-];
-
-export const PROVINCES = [
-  'Alberta',
-  'British Columbia',
-  'Manitoba',
-  'New Brunswick',
-  'Newfoundland and Labrador',
-  'Northwest Territories',
-  'Nova Scotia',
-  'Nunavut',
-  'Ontario',
-  'Prince Edward Island',
-  'Quebec',
-  'Saskatchewan',
-  'Yukon',
-  'Other',
-];
+import { ORG_TYPES, PROVINCES } from '../utils/organizationOptions';
 
 // Reached from JoinCreateOrganizationScreen's "Create" card. On success,
 // createOrganization() writes the org doc and merges orgId onto the user's

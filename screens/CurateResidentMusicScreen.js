@@ -15,10 +15,14 @@ import {
 import BackButton from '../components/BackButton';
 import ChipSelector from '../components/ChipSelector';
 import { auth, db } from '../firebaseConfig';
-import { MUSIC_GENRE_OPTIONS } from './BuildProfileScreen';
 import { colors, fonts, radii } from '../theme';
 import { saveApprovedIds } from '../utils/approvedVideos';
-import { MUSIC_DECADE_OPTIONS, thumbnailForVideoId, isMusicCurated } from '../utils/musicLibrary';
+import {
+  MUSIC_DECADE_OPTIONS,
+  thumbnailForVideoId,
+  isMusicCurated,
+  MUSIC_GENRE_OPTIONS,
+} from '../utils/musicLibrary';
 import {
   distinctArtists,
   getCurrentUserFacilityId,

@@ -21,12 +21,12 @@ import {
 import BackButton from '../components/BackButton';
 import ChipSelector from '../components/ChipSelector';
 import { auth, db } from '../firebaseConfig';
-import { MUSIC_GENRE_OPTIONS } from './BuildProfileScreen';
 import { colors, fonts, radii } from '../theme';
 import {
   MUSIC_DECADE_OPTIONS,
   extractYouTubeVideoId,
   thumbnailForVideoId,
+  MUSIC_GENRE_OPTIONS,
 } from '../utils/musicLibrary';
 import {
   findLibraryEntryByVideoId,

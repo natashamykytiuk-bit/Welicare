@@ -22,6 +22,25 @@ export function filterToApprovedMusic(entries, resident) {
   return entries.filter((entry) => approved.has(entry.videoId));
 }
 
+// The music genre vocabulary, shared by the life-story questionnaire
+// (BuildProfileScreen: lifeStory.musicGenres) and the library screens
+// (MusicLibraryScreen, CurateResidentMusicScreen, MusicSelectionScreen), so
+// library tags and filter chips always match what a resident can pick.
+export const MUSIC_GENRE_OPTIONS = [
+  'Classic Rock',
+  'Country',
+  'Jazz',
+  'Classical',
+  'Folk',
+  'Big Band',
+  'Oldies/50s-60s',
+  'Gospel',
+  'Pop',
+  'Blues',
+  'Opera',
+  'Other',
+];
+
 export const MUSIC_DECADE_OPTIONS = [
   '1940s',
   '1950s',

@@ -21,7 +21,7 @@ import Dropdown from '../components/Dropdown';
 import { auth, db, functions } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { fetchInviteCode, regenerateInviteCode } from '../utils/inviteCode';
-import { ORG_TYPES, PROVINCES } from './CreateOrganizationScreen';
+import { ORG_TYPES, PROVINCES } from '../utils/organizationOptions';
 
 const callDeleteOrganization = httpsCallable(functions, 'deleteOrganization');
 const callListOrgMembers = httpsCallable(functions, 'listOrgMembers');

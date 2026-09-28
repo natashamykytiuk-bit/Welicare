@@ -70,6 +70,22 @@ Welicare takes this information and puts it somewhere it can actually be useful 
 | Media | YouTube Data API + `react-native-youtube-iframe` | Staff search YouTube through a Cloud Function and curate what residents can see; residents only browse staff-approved videos. Playback uses YouTube's embedded player. |
 | Fonts | Lora + Atkinson Hyperlegible | Fonts chosen specifically for visual accessibility. |
 
+### Data flow
+
+Where information goes, as currently configured. This describes the setup, not a compliance claim.
+
+**Stored in Canada (Firestore, Montréal):** residents (name, preferred name), their life stories and caregiver safety notes (private documents with stricter access rules), user profiles, organizations, the music and movie libraries, and the administrator activity log.
+
+**Processed in Canada (Cloud Functions, Montréal):** AI prompt building, YouTube search, and organization and account management.
+
+**Leaves Canada:**
+- **Anthropic (AI suggestions).** When someone opens Activity Ideas, Conversation Starters or Music & Movie Recs, the resident's life story answers and safety notes are sent to Anthropic's API in the US. Account ids and emails are not sent. Names are sent only if they appear in the answers themselves (e.g. preferred name, important people).
+- **Firebase Authentication.** Account emails and passwords are handled by Google's global Auth service, which isn't tied to a region.
+- **YouTube.** Staff search terms go to the YouTube Data API. When a video plays, the device loads it straight from YouTube's embedded player, so YouTube sees the device's connection and which video it played (no resident information).
+- **Logs.** Cloud Functions logs (errors, with provider details truncated; no resident names) go to Google Cloud Logging's default storage location, which hasn't been set to Canada.
+
+**Not yet verified:** Anthropic's data-retention settings for this account, the Cloud Logging region, and whether the embedded player's external links (e.g. "Watch on YouTube") can take a resident out of the app on a real device.
+
 ## Development
 
 ### Prerequisites
