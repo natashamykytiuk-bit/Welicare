@@ -88,7 +88,7 @@ export default function OrganizationSettingsScreen({ navigation }) {
     try {
       await joinOrganizationByCode(joinCode);
       setJoinNote(
-        "You've joined the organization. Note: any residents or library entries from your personal organization won't be visible under it."
+        "You've joined the organization. Residents you added before are still in your list, and staff there can link you to others."
       );
       setJoinCode('');
       await loadOrgState();

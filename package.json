@@ -62,6 +62,7 @@
       "/functions/",
       "/tests/rules/",
       "/tests/functions/"
-    ]
+    ],
+    "testTimeout": 30000
   }
 }

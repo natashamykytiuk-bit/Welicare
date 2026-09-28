@@ -760,11 +760,13 @@ describe('role restrictions the rules enforce today', () => {
     await assertFails(updateDoc(doc(as('familyA'), 'residents', 'residentA'), { name: 'x' }));
   });
 
-  // Documents current behaviour, which may not match what the app assumes:
-  // Family Mode is described as read-only ("View resident stats"), but the
-  // rules let an *assigned* Family Caregiver edit that resident's profile
-  // fields. Flagged for a decision — not changed here.
-  it('FLAG: an assigned Family Caregiver CAN edit profile fields (rules are not read-only for Family)', async () => {
+  // Intended (owner decision, Sept 2026): family members may edit the
+  // profiles of residents they're assigned to — they often know the life
+  // story best. Unassigned residents stay off-limits (test above).
+  it("an assigned Family Caregiver can edit that resident's profile", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as('familyA'), 'residents', 'residentFamily'), { preferredName: 'Fay' })
+    );
     await assertSucceeds(
       setDoc(doc(as('familyA'), 'residents', 'residentFamily', 'private', 'lifeStory'), {
         career: 'Teacher',
