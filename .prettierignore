@@ -1,0 +1,12 @@
+# Prettier formats app, functions and script source. Leave generated output,
+# dependencies, lockfiles, docs and local AI-assistant folders alone.
+node_modules/
+functions/node_modules/
+dist/
+web-build/
+.expo/
+.agents/
+Claude outputs/
+package-lock.json
+functions/package-lock.json
+*.md
