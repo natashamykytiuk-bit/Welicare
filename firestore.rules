@@ -11,15 +11,30 @@ service cloud.firestore {
       // Role is picked once at sign-up (SignUpScreen) and must be one of
       // the four real roles — the same values ModeSelectionScreen and the
       // rules below branch on.
+      // No orgId at sign-up either — it's set afterwards through one of the
+      // controlled paths below.
       allow create: if request.auth != null && request.auth.uid == userId &&
-        request.resource.data.role in ['Family Caregiver', 'Caregiver', 'Volunteer', 'Administrator'];
+        request.resource.data.role in ['Family Caregiver', 'Caregiver', 'Volunteer', 'Administrator'] &&
+        !('orgId' in request.resource.data);
 
-      // Everything else on your own doc (username, orgId, pinHash, …) stays
+      // Everything else on your own doc (username, pinHash, …) stays
       // self-editable, but never `role` — otherwise anyone could make
       // themselves an Administrator. Role changes only happen server-side
       // via the Admin SDK (transferOrgAdmin), which bypasses these rules.
+      //
+      // orgId is what every org-scoped rule trusts (residents, musicLibrary),
+      // so it can't be set to an arbitrary organization either. The client
+      // may only point it at an org the user created themselves
+      // (createOrganization / createPersonalOrganization) or clear it.
+      // Joining someone else's org by invite code goes through the
+      // joinOrganization Cloud Function instead, which checks the code.
       allow update: if request.auth != null && request.auth.uid == userId &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) &&
+        (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['orgId']) ||
+          !('orgId' in request.resource.data) ||
+          get(/databases/$(database)/documents/organizations/$(request.resource.data.orgId)).data.createdBy == request.auth.uid
+        );
     }
 
     // Public lookup collection keyed by lowercased username, used to
@@ -95,7 +110,12 @@ service cloud.firestore {
 
       // A new resident must be self-attributed — the creator's own uid has
       // to be the caregiverId being written.
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.caregiverId;
+      // It also has to land in the creator's own organization (or none) —
+      // otherwise anyone could plant residents in another facility.
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.caregiverId && (
+        request.resource.data.get('facilityId', null) == null ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == request.resource.data.facilityId
+      );
 
       allow update: if request.auth != null && (
         // Full write access: the creator or an already-assigned caregiver
@@ -128,18 +148,27 @@ service cloud.firestore {
 
       // Deleting removes the resident for every caregiver it's shared
       // with, so it's restricted to Administrators rather than the
-      // creator — role is read from the requester's own user doc, the
-      // same field ModeSelectionScreen and JoinCreateOrganizationScreen
-      // already branch on.
+      // creator — and only Administrators of the resident's own facility,
+      // never another organization's. Both role and orgId are read from
+      // the requester's own user doc, which they can't forge (see the
+      // users rules above).
       allow delete: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Administrator';
+        resource.data.facilityId != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Administrator' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId;
     }
 
-    // Any signed-in user can read an organization (needed to look up an
-    // invite code or display a facility name) or create one; only the
-    // creator can edit or remove it.
+    // Any signed-in user can fetch a single organization by id (to display
+    // a facility name) or create one as themselves; only the creator can
+    // edit or remove it.
+    //
+    // No `list`: that would let anyone query every organization and read
+    // off all the invite codes, then join any facility. Looking an org up
+    // by code happens server-side instead (joinOrganization,
+    // generateInviteCode Cloud Functions).
     match /organizations/{orgId} {
-      allow read, create: if request.auth != null;
+      allow get: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.createdBy == request.auth.uid;
       allow update, delete: if request.auth != null && resource.data.createdBy == request.auth.uid;
     }
 

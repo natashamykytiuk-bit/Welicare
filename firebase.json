@@ -10,7 +10,9 @@
       "gcloud run services add-iam-policy-binding deleteaccount --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
       "gcloud run services add-iam-policy-binding deleteorganization --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
       "gcloud run services add-iam-policy-binding listorgmembers --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding transferorgadmin --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare"
+      "gcloud run services add-iam-policy-binding transferorgadmin --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding generateinvitecode --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding joinorganization --region=us-central1 --member=allUsers --role=roles/run.invoker --project=welicare"
     ]
   },
   "emulators": {

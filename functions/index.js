@@ -396,3 +396,71 @@ exports.deleteOrganization = onCall(async (request) => {
 
   return { ok: true, residentsDeleted: residents.size, membersRemoved: members.size };
 });
+
+// Invite codes are 2 letters + 4 digits (e.g. "MG-4821"); mirrors
+// generateInviteCode in utils/inviteCode.js, which the app no longer uses
+// to mint real codes — uniqueness can only be checked here, since
+// firestore.rules don't let the app list organizations.
+const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I/O, easy to misread
+function randomInviteCode() {
+  const letters = Array.from({ length: 2 }, () => CODE_LETTERS[Math.floor(Math.random() * CODE_LETTERS.length)]).join('');
+  return `${letters}-${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+// Returns an invite code not used by any existing organization, for
+// createOrganization / upgradePersonalOrganization to write onto the org
+// doc. There's a tiny window where two orgs could draw the same code at
+// once; joinOrganization refuses ambiguous codes rather than guessing.
+exports.generateInviteCode = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  const db = getAdmin().firestore();
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const code = randomInviteCode();
+    const taken = await db.collection('organizations').where('inviteCode', '==', code).limit(1).get();
+    if (taken.empty) return { code };
+  }
+  throw new HttpsError('resource-exhausted', 'Could not generate an invite code. Please try again.');
+});
+
+// Links the caller to an organization by its invite code — the only way a
+// user can set orgId to an organization they didn't create, because
+// firestore.rules refuse that write from the app (orgId is what every
+// org-scoped rule trusts). Same restriction as before this moved
+// server-side: someone already in a real (non-personal) organization can't
+// hop to another one this way.
+exports.joinOrganization = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  const uid = request.auth.uid;
+  const code = typeof request.data?.code === 'string' ? request.data.code.trim().toUpperCase() : '';
+  if (!code) {
+    throw new HttpsError('invalid-argument', 'Please enter an organization code.');
+  }
+  const db = getAdmin().firestore();
+
+  const userRef = db.doc(`users/${uid}`);
+  const currentOrgId = (await userRef.get()).data()?.orgId;
+  if (currentOrgId) {
+    const current = await db.doc(`organizations/${currentOrgId}`).get();
+    if (current.exists && current.data().isPersonal !== true) {
+      throw new HttpsError(
+        'failed-precondition',
+        "You're already part of an organization. Contact an administrator if you need to switch."
+      );
+    }
+  }
+
+  const matches = await db.collection('organizations').where('inviteCode', '==', code).limit(2).get();
+  if (matches.empty) {
+    throw new HttpsError('not-found', 'No organization found with that code. Please check it and try again.');
+  }
+  if (matches.size > 1) {
+    throw new HttpsError('failed-precondition', 'That code matches more than one organization. Please ask your administrator for help.');
+  }
+  const orgId = matches.docs[0].id;
+  await userRef.set({ orgId }, { merge: true });
+  return { orgId };
+});

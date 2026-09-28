@@ -3,16 +3,13 @@ import {
   collection,
   doc,
   getDoc,
-  getDocs,
-  query,
   serverTimestamp,
   setDoc,
-  where,
 } from 'firebase/firestore';
-import { auth, db } from '../firebaseConfig';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from '../firebaseConfig';
 
 const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I/O, easy to misread
-const MAX_ATTEMPTS = 5;
 
 export function generateInviteCode() {
   const letters = Array.from({ length: 2 }, () => LETTERS[Math.floor(Math.random() * LETTERS.length)]).join('');
@@ -36,15 +33,22 @@ export function formatOrgCode(raw) {
   return digits ? `${letters}-${digits}` : letters;
 }
 
-async function codeExists(code) {
-  const snapshot = await getDocs(query(collection(db, 'organizations'), where('inviteCode', '==', code)));
-  return !snapshot.empty;
+const callGenerateInviteCode = httpsCallable(functions, 'generateInviteCode');
+const callJoinOrganization = httpsCallable(functions, 'joinOrganization');
+
+// A fresh invite code that no other organization is using. Minted by the
+// generateInviteCode Cloud Function, not locally with generateInviteCode()
+// above, because firestore.rules don't let the app list organizations —
+// so only the server can check a code isn't already taken.
+async function uniqueInviteCode() {
+  const result = await callGenerateInviteCode();
+  return result.data.code;
 }
 
 // Creates a new organization with a unique invite/join code (2 letters + 4
 // digits — 6 alphanumeric characters, e.g. "XY-4829"), then links the
-// current user to it. Collisions are rare but we retry a few times rather
-// than trusting a single random draw. adminId mirrors createdBy: whoever
+// current user to it — the code comes from the server (uniqueInviteCode),
+// which checks nobody else has it. adminId mirrors createdBy: whoever
 // creates an org is its administrator, regardless of their platform role
 // (createdBy stays the field firestore.rules checks for edit/delete, so it
 // isn't renamed — adminId is purely additive for admin-facing screens).
@@ -52,10 +56,7 @@ async function codeExists(code) {
 // "organization email" to collect, so CreateOrganizationScreen doesn't ask
 // for one.
 export async function createOrganization({ name, type, province, city }) {
-  let code = generateInviteCode();
-  for (let attempt = 0; attempt < MAX_ATTEMPTS && (await codeExists(code)); attempt += 1) {
-    code = generateInviteCode();
-  }
+  const code = await uniqueInviteCode();
 
   const uid = auth.currentUser?.uid;
   const orgRef = await addDoc(collection(db, 'organizations'), {
@@ -85,26 +86,15 @@ export async function createOrganization({ name, type, province, city }) {
 // Anyone already settled into a real (non-personal) org is blocked from
 // switching this way, so this can't be used to accidentally hop between
 // facilities.
+//
+// Runs in the joinOrganization Cloud Function rather than here, because
+// firestore.rules only let the app set orgId to an org the user created
+// themselves (and don't let it look orgs up by code at all) — so the code
+// check and the orgId write both have to happen server-side. The
+// function's error messages are user-facing, and callers show e.message.
 export async function joinOrganizationByCode(code) {
-  const uid = auth.currentUser?.uid;
-  const userSnap = await getDoc(doc(db, 'users', uid));
-  const currentOrgId = userSnap.data()?.orgId;
-  if (currentOrgId) {
-    const currentOrgSnap = await getDoc(doc(db, 'organizations', currentOrgId));
-    if (currentOrgSnap.exists() && currentOrgSnap.data().isPersonal !== true) {
-      throw new Error("You're already part of an organization. Contact an administrator if you need to switch.");
-    }
-  }
-
-  const snapshot = await getDocs(
-    query(collection(db, 'organizations'), where('inviteCode', '==', code.trim().toUpperCase()))
-  );
-  if (snapshot.empty) {
-    throw new Error('No organization found with that code. Please check it and try again.');
-  }
-  const orgId = snapshot.docs[0].id;
-  await setDoc(doc(db, 'users', uid), { orgId }, { merge: true });
-  return orgId;
+  const result = await callJoinOrganization({ code });
+  return result.data.orgId;
 }
 
 // Creates a lightweight organization scoped to just one person — used for
@@ -150,10 +140,7 @@ export async function upgradePersonalOrganization({ name }) {
     throw new Error('Your organization has already been upgraded.');
   }
 
-  let code = generateInviteCode();
-  for (let attempt = 0; attempt < MAX_ATTEMPTS && (await codeExists(code)); attempt += 1) {
-    code = generateInviteCode();
-  }
+  const code = await uniqueInviteCode();
 
   await setDoc(doc(db, 'organizations', orgId), { name, inviteCode: code, isPersonal: false }, { merge: true });
   return { orgId, inviteCode: code };
