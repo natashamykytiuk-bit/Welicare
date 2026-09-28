@@ -220,6 +220,52 @@ describe('changing a username (ChangeUsernameScreen batch)', () => {
   });
 });
 
+describe('personal organization batch (createPersonalOrganization)', () => {
+  // Creating a personal org and pointing your orgId at it happen in one
+  // writeBatch. The users rule checks the org with getAfter, which sees the
+  // org the same batch creates — these confirm that works, and that the
+  // batch still can't be used to link yourself to someone else's org.
+  function personalOrgBatch(db, uid, orgId, orgData) {
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'organizations', orgId), orgData);
+    batch.set(doc(db, 'users', uid), { orgId }, { merge: true });
+    return batch.commit();
+  }
+  const personal = (uid) => ({ name: null, isPersonal: true, createdBy: uid, adminId: uid });
+
+  it('creating your personal org and linking to it in one batch is allowed', async () => {
+    await assertSucceeds(
+      personalOrgBatch(as('familyA'), 'familyA', 'newPersonal', personal('familyA'))
+    );
+  });
+
+  it("can't create an org in someone else's name and link to it", async () => {
+    await assertFails(
+      personalOrgBatch(as('familyA'), 'familyA', 'fakeOrg', personal('caregiverB'))
+    );
+  });
+
+  it('a failed batch writes neither the org nor the link', async () => {
+    // A real (non-personal) org can't be created from the app, so this
+    // batch is refused — and the user's orgId must be untouched.
+    await assertFails(
+      personalOrgBatch(as('familyA'), 'familyA', 'realOrg', {
+        ...personal('familyA'),
+        isPersonal: false,
+      })
+    );
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      expect((await getDoc(doc(db, 'organizations', 'realOrg'))).exists()).toBe(false);
+      expect((await getDoc(doc(db, 'users', 'familyA'))).data().orgId).toBe('orgA');
+    });
+  });
+
+  it('still refuses linking to an existing org you did not create', async () => {
+    await assertFails(updateDoc(doc(as('familyA'), 'users', 'familyA'), { orgId: 'orgB' }));
+  });
+});
+
 describe('other facility', () => {
   it('cannot read a resident from another facility', async () => {
     await assertFails(getDoc(doc(as('caregiverB'), 'residents', 'residentA')));

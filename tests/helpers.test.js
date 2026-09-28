@@ -10,7 +10,8 @@
 //   });
 // Run with `npm test` (all) or `npm run test:watch` (re-runs on save).
 
-import { formatOrgCode } from '../utils/inviteCode';
+import { createPersonalOrganization, formatOrgCode } from '../utils/inviteCode';
+import { batches, firestore } from './mocks/firebase';
 import { hasAnyLifeStoryData } from '../utils/lifeStory';
 import { nextOnboardingRoute } from '../utils/onboarding';
 import { rankBySimilarity, similarityScore } from '../utils/songSimilarity';
@@ -92,5 +93,25 @@ describe('song similarity', () => {
       'rock',
       'untagged',
     ]);
+  });
+});
+
+describe('createPersonalOrganization', () => {
+  // Uses the shared Firebase mock's batch recorder: both writes must go in
+  // one batch, committed once, with nothing written separately.
+  it('creates the org and links the user in a single batch', async () => {
+    const orgId = await createPersonalOrganization();
+
+    expect(batches).toHaveLength(1);
+    const [orgWrite, userWrite] = batches[0].ops;
+    expect(orgWrite).toEqual([
+      'set',
+      `organizations/${orgId}`,
+      expect.objectContaining({ isPersonal: true, createdBy: 'test-uid', adminId: 'test-uid' }),
+    ]);
+    expect(userWrite).toEqual(['set', 'users/test-uid', { orgId }]);
+    expect(batches[0].commit).toHaveBeenCalledTimes(1);
+    expect(firestore.addDoc).not.toHaveBeenCalled();
+    expect(firestore.setDoc).not.toHaveBeenCalled();
   });
 });

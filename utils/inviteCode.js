@@ -1,5 +1,5 @@
 // @ts-check
-import { addDoc, collection, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from '../firebaseConfig';
 
@@ -98,9 +98,17 @@ export async function regenerateInviteCode(orgId) {
 // the one kind of org the app may create directly: firestore.rules require
 // it to be personal and owned by its creator. It has no invite code until
 // upgradePersonalOrganization turns it into a real one.
+//
+// Creating the org and linking the user go in one writeBatch, so a failure
+// can't leave a personal org that nobody is linked to. The org's id is
+// picked up front (doc() with no id — nothing is written yet) so the batch
+// can use it in both writes. firestore.rules check the orgId link with
+// getAfter, which sees the org this same batch creates.
 export async function createPersonalOrganization() {
   const uid = auth.currentUser?.uid;
-  const orgRef = await addDoc(collection(db, 'organizations'), {
+  const orgRef = doc(collection(db, 'organizations'));
+  const batch = writeBatch(db);
+  batch.set(orgRef, {
     name: null,
     type: null,
     province: null,
@@ -111,7 +119,8 @@ export async function createPersonalOrganization() {
     adminId: uid,
     createdAt: serverTimestamp(),
   });
-  await setDoc(doc(db, 'users', uid), { orgId: orgRef.id }, { merge: true });
+  batch.set(doc(db, 'users', uid), { orgId: orgRef.id }, { merge: true });
+  await batch.commit();
   return orgRef.id;
 }
 

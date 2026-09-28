@@ -28,12 +28,17 @@ service cloud.firestore {
       // (createOrganization / createPersonalOrganization) or clear it.
       // Joining someone else's org by invite code goes through the
       // joinOrganization Cloud Function instead, which checks the code.
+      //
+      // getAfter (not get) reads the org as it will be once this request
+      // finishes. That lets createPersonalOrganization create the org and
+      // point orgId at it in ONE batch — get() would still see the org as
+      // missing mid-batch. For a single write it's the same as get().
       allow update: if request.auth != null && request.auth.uid == userId &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) &&
         (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['orgId']) ||
           !('orgId' in request.resource.data) ||
-          get(/databases/$(database)/documents/organizations/$(request.resource.data.orgId)).data.createdBy == request.auth.uid
+          getAfter(/databases/$(database)/documents/organizations/$(request.resource.data.orgId)).data.createdBy == request.auth.uid
         );
     }
 
