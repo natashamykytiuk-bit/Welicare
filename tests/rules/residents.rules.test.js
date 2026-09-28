@@ -152,6 +152,33 @@ describe('own facility', () => {
   });
 });
 
+describe('idempotent resident creation (AddResidentScreen)', () => {
+  const newResident = (createdAt) => ({
+    name: 'New',
+    caregiverId: 'caregiverA',
+    createdBy: 'caregiverA',
+    facilityId: 'orgA',
+    assignedCaregivers: ['caregiverA'],
+    lifeStory: null,
+    musicProvider: 'youtube',
+    createdAt,
+  });
+
+  it('setDoc to a new pre-generated id is allowed (a create)', async () => {
+    await assertSucceeds(setDoc(doc(as('caregiverA'), 'residents', 'pregen1'), newResident(1)));
+  });
+
+  // Why the screen checks the server before retrying: if the first attempt
+  // already landed, a second full setDoc is an *update* that rewrites
+  // non-profile fields (createdAt etc.), which the rules refuse. The screen
+  // treats "already exists" as success instead of writing again.
+  it('a second full setDoc on the same id is refused once it exists', async () => {
+    const db = as('caregiverA');
+    await assertSucceeds(setDoc(doc(db, 'residents', 'pregen2'), newResident(1)));
+    await assertFails(setDoc(doc(db, 'residents', 'pregen2'), newResident(2)));
+  });
+});
+
 describe('other facility', () => {
   it('cannot read a resident from another facility', async () => {
     await assertFails(getDoc(doc(as('caregiverB'), 'residents', 'residentA')));

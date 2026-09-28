@@ -27,11 +27,19 @@ function docSnap(data, id = 'doc-id') {
 const firestore = {
   // Reference builders just return a description of the path, so tests can
   // assert on what was read/written if they want to.
-  doc: jest.fn((_db, ...path) => ({ path: path.join('/') })),
+  // doc(collection(...)) with no id invents one, like the real SDK does.
+  doc: jest.fn((base, ...path) =>
+    path.length
+      ? { path: path.join('/'), id: path[path.length - 1] }
+      : { path: `${base.path}/new-id`, id: 'new-id' }
+  ),
   collection: jest.fn((_db, ...path) => ({ path: path.join('/') })),
   query: jest.fn((ref) => ref),
   where: jest.fn(() => ({})),
   getDoc: jest.fn(),
+  // Server-only read (skips the offline cache) — used to confirm whether a
+  // slow write really landed.
+  getDocFromServer: jest.fn(),
   getDocs: jest.fn(),
   setDoc: jest.fn(),
   updateDoc: jest.fn(),
@@ -89,7 +97,11 @@ function resetFirebaseMocks() {
   }
   // mockReset wipes the default implementations above, so restore the ones
   // that should keep working without per-test setup.
-  firestore.doc.mockImplementation((_db, ...path) => ({ path: path.join('/') }));
+  firestore.doc.mockImplementation((base, ...path) =>
+    path.length
+      ? { path: path.join('/'), id: path[path.length - 1] }
+      : { path: `${base.path}/new-id`, id: 'new-id' }
+  );
   firestore.collection.mockImplementation((_db, ...path) => ({ path: path.join('/') }));
   firestore.query.mockImplementation((ref) => ref);
   firestore.where.mockImplementation(() => ({}));

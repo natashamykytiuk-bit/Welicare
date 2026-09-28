@@ -1,6 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { addDoc, collection, doc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocFromServer,
+  serverTimestamp,
+  setDoc,
+} from 'firebase/firestore';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   SafeAreaView,
@@ -14,9 +21,11 @@ import BackButton from '../components/BackButton';
 import LoadError from '../components/LoadError';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
-import { withTimeout } from '../utils/withTimeout';
+import { isTimeoutError, withTimeout } from '../utils/withTimeout';
 
 const CREATE_TIMEOUT_MS = 10000;
+// How long to wait for the server when double-checking a slow save.
+const CHECK_TIMEOUT_MS = 10000;
 
 // Reached two ways: from Caregiver Mode's quick links, and from
 // ResidentModeScreen's "Add Resident" option. Captures a name and creates a
@@ -78,16 +87,82 @@ export default function AddResidentScreen({ navigation }) {
     };
   }, [reloadKey]);
 
+  // The new resident's document reference, generated ONCE per visit to
+  // this form (doc() with no id just invents a random id locally — nothing
+  // is written yet). Every save attempt, including retries, writes to this
+  // same id with setDoc, so a retry can only ever overwrite the resident
+  // it was trying to create, never add a second one. That's what makes the
+  // save "idempotent": doing it twice has the same effect as doing it once.
+  const residentRef = useRef(null);
+  function getResidentRef() {
+    if (!residentRef.current) residentRef.current = doc(collection(db, 'residents'));
+    return residentRef.current;
+  }
+  // True once a save has been sent, so later attempts check the server
+  // first (see handleCreate).
+  const attemptedRef = useRef(false);
+  // Shown while a slow save is being double-checked ("taking longer…").
+  const [notice, setNotice] = useState('');
+  // Avoids setState after navigation.goBack() has unmounted the screen.
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    []
+  );
+
+  // Asks the SERVER (not the local cache) whether the resident exists.
+  // getDocFromServer matters: while offline, Firestore keeps pending writes
+  // in a local queue, and a plain getDoc would "find" the resident there
+  // even though the server never received it.
+  // A resident that doesn't exist comes back as permission-denied rather
+  // than "missing" (the read rule needs the doc's caregiverId), so that's
+  // treated as "not there". Returns true / false, or null if the server
+  // couldn't be reached to find out.
+  async function existsOnServer(ref) {
+    try {
+      const snap = await withTimeout(getDocFromServer(ref), CHECK_TIMEOUT_MS);
+      return snap.exists();
+    } catch (e) {
+      if (e.code === 'permission-denied') return false;
+      console.error(
+        '[AddResident] could not check whether resident was saved:',
+        e.code,
+        e.message,
+        e
+      );
+      return null;
+    }
+  }
+
+  function finishSuccess(id) {
+    console.log('[AddResident] resident created:', id);
+    navigation.goBack();
+  }
+
   async function handleCreate() {
     const trimmed = name.trim();
     if (!trimmed) return;
     setError('');
+    setNotice('');
     setSaving(true);
     const uid = auth.currentUser?.uid;
-    console.log('[AddResident] creating resident', { name: trimmed, uid, orgId });
+    const ref = getResidentRef();
+    console.log('[AddResident] creating resident', { id: ref.id, name: trimmed, uid, orgId });
     try {
-      const docRef = await withTimeout(
-        addDoc(collection(db, 'residents'), {
+      // A retry after an uncertain save: the first attempt may have landed
+      // since. Check before writing, because writing the whole doc again
+      // counts as an *update*, which firestore.rules only allow for profile
+      // fields — so the retry would be refused rather than harmlessly
+      // overwrite. If it's already there, we're done.
+      if (attemptedRef.current && (await existsOnServer(ref)) === true) {
+        finishSuccess(ref.id);
+        return;
+      }
+      attemptedRef.current = true;
+      await withTimeout(
+        setDoc(ref, {
           name: trimmed,
           // caregiverId is what firestore.rules checks on create; createdBy
           // is kept alongside it so existing delete/edit-permission checks
@@ -104,18 +179,40 @@ export default function AddResidentScreen({ navigation }) {
           // added later as alternate values without restructuring the doc.
           musicProvider: 'youtube',
         }),
-        CREATE_TIMEOUT_MS,
-        'Creating this resident is taking longer than expected. Please check your connection and try again.'
+        CREATE_TIMEOUT_MS
       );
-      console.log('[AddResident] resident created:', docRef.id);
-      navigation.goBack();
+      finishSuccess(ref.id);
     } catch (e) {
-      console.error('[AddResident] resident creation failed:', e.code, e.message, e);
-      setError(
-        e.code ? 'Something went wrong creating this resident. Please try again.' : e.message
-      );
+      if (isTimeoutError(e)) {
+        // Slow, not failed: the write may still land (withTimeout doesn't
+        // cancel it). Say so, then ask the server what actually happened.
+        console.warn('[AddResident] save timed out; checking whether it landed', ref.id);
+        if (mountedRef.current)
+          setNotice('This is taking longer than usual… checking whether the resident was saved.');
+        const exists = await existsOnServer(ref);
+        if (exists === true) {
+          finishSuccess(ref.id);
+          return;
+        }
+        if (mountedRef.current) {
+          setNotice('');
+          setError(
+            "We couldn't confirm the resident was saved. Please check your connection and tap Try again — it won't create a duplicate."
+          );
+        }
+      } else if (e.code === 'permission-denied' && (await existsOnServer(ref)) === true) {
+        // The resident landed between our check and this write, so the
+        // write was refused as an update. It's saved — carry on.
+        finishSuccess(ref.id);
+        return;
+      } else {
+        console.error('[AddResident] resident creation failed:', e.code, e.message, e);
+        if (mountedRef.current) {
+          setError('Something went wrong creating this resident. Please try again.');
+        }
+      }
     } finally {
-      setSaving(false);
+      if (mountedRef.current) setSaving(false);
     }
   }
 
@@ -184,6 +281,7 @@ export default function AddResidentScreen({ navigation }) {
                 {error}
               </Text>
             ) : null}
+            {notice ? <Text style={styles.noticeBanner}>{notice}</Text> : null}
 
             <Text style={styles.label}>Name</Text>
             <TextInput
@@ -201,9 +299,17 @@ export default function AddResidentScreen({ navigation }) {
               disabled={!name.trim() || saving}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Create resident"
+              accessibilityLabel={attemptedRef.current && error ? 'Try again' : 'Create resident'}
             >
-              <Text style={styles.buttonText}>{saving ? 'Creating…' : 'Create resident'}</Text>
+              {/* After an uncertain or failed save the same button retries
+                  (with the same resident id), so it's labelled Try again. */}
+              <Text style={styles.buttonText}>
+                {saving
+                  ? 'Creating…'
+                  : attemptedRef.current && error
+                    ? 'Try again'
+                    : 'Create resident'}
+              </Text>
             </TouchableOpacity>
           </>
         )}
@@ -249,6 +355,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.textMuted,
     lineHeight: 20,
+  },
+  // Calm, non-error styling for the "taking longer than usual" message.
+  noticeBanner: {
+    fontFamily: fonts.sansRegular,
+    backgroundColor: colors.mistBackground,
+    borderColor: colors.primary,
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    color: colors.primary,
+    fontSize: 15,
+    padding: 14,
+    marginBottom: 20,
+    lineHeight: 21,
   },
   errorBanner: {
     fontFamily: fonts.sansRegular,
