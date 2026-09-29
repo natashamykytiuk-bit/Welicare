@@ -69,5 +69,8 @@
       "/tests/functions/"
     ],
     "testTimeout": 30000
+  },
+  "overrides": {
+    "postcss": "^8.5.23"
   }
 }
