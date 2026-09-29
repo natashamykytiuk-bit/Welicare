@@ -1038,3 +1038,81 @@ describe('activity log (auditLog)', () => {
     await assertFails(deleteDoc(doc(as('adminA'), 'auditLog', 'e1')));
   });
 });
+
+describe('family members linked by a family code (familyMembers)', () => {
+  // residentCoded: familyA is on familyMembers only (as redeemFamilyCode
+  // leaves it) — never on assignedCaregivers.
+  beforeEach(() =>
+    env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'residents', 'residentCoded'), {
+        name: 'Cora',
+        caregiverId: 'caregiverA',
+        createdBy: 'caregiverA',
+        facilityId: 'orgA',
+        assignedCaregivers: ['caregiverA'],
+        familyMembers: ['familyA'],
+      });
+      await setDoc(doc(db, 'residents', 'residentCoded', 'private', 'lifeStory'), {
+        grewUpIn: 'Red Deer',
+      });
+      await setDoc(doc(db, 'familyCodes', 'ABCD-2345'), { residentId: 'residentCoded' });
+    })
+  );
+
+  it('can read the resident and its life story', async () => {
+    await assertSucceeds(getDoc(doc(as('familyA'), 'residents', 'residentCoded')));
+    await assertSucceeds(
+      getDoc(doc(as('familyA'), 'residents', 'residentCoded', 'private', 'lifeStory'))
+    );
+  });
+
+  it('can list their linked residents (familyMembers array-contains query)', async () => {
+    const q = query(
+      collection(as('familyA'), 'residents'),
+      where('familyMembers', 'array-contains', 'familyA')
+    );
+    const snap = await assertSucceeds(getDocs(q));
+    expect(snap.docs.map((d) => d.id)).toEqual(['residentCoded']);
+  });
+
+  it('cannot run the query for someone else', async () => {
+    const q = query(
+      collection(as('caregiverB'), 'residents'),
+      where('familyMembers', 'array-contains', 'familyA')
+    );
+    await assertFails(getDocs(q));
+  });
+
+  it('cannot edit the resident or its life story (view-only)', async () => {
+    await assertFails(
+      updateDoc(doc(as('familyA'), 'residents', 'residentCoded'), { name: 'Changed' })
+    );
+    await assertFails(
+      setDoc(doc(as('familyA'), 'residents', 'residentCoded', 'private', 'lifeStory'), {
+        grewUpIn: 'Changed',
+      })
+    );
+  });
+
+  it('nobody can change familyMembers from the app, not even staff', async () => {
+    await assertFails(
+      updateDoc(doc(as('familyA'), 'residents', 'residentA'), { familyMembers: ['familyA'] })
+    );
+    await assertFails(
+      updateDoc(doc(as('caregiverA'), 'residents', 'residentA'), { familyMembers: ['familyA'] })
+    );
+  });
+
+  it('family codes are server-only', async () => {
+    await assertFails(getDoc(doc(as('familyA'), 'familyCodes', 'ABCD-2345')));
+    await assertFails(getDoc(doc(as('adminA'), 'familyCodes', 'ABCD-2345')));
+    await assertFails(
+      setDoc(doc(as('familyA'), 'familyCodes', 'WXYZ-2345'), { residentId: 'residentA' })
+    );
+  });
+
+  it('a family member who is not linked still sees nothing', async () => {
+    await assertFails(getDoc(doc(as('familyA'), 'residents', 'residentA')));
+  });
+});

@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import BackButton from '../components/BackButton';
+import FamilyAccessCard from '../components/FamilyAccessCard';
 import ResidentPhotoEditor from '../components/ResidentPhotoEditor';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
@@ -270,6 +271,13 @@ export default function ResidentProfileScreen({ navigation, route }) {
                   ) : null}
                 </View>
               </View>
+            ) : null}
+
+            {/* --- Family access ---
+                Family codes are for facility residents only, and made by the
+                facility's Caregivers/Administrators (see createFamilyCode). */}
+            {PHOTO_MODERATOR_ROLES.includes(role) && resident?.facilityId ? (
+              <FamilyAccessCard residentId={residentId} />
             ) : null}
 
             {/* --- Engagement --- */}

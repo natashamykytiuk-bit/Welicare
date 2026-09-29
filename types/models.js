@@ -69,6 +69,9 @@
  *   to (an organizations/{orgId} id), or null if created outside one.
  * @property {string[]} assignedCaregivers uids who have this resident on
  *   their own list.
+ * @property {string[]} [familyMembers] Family Caregivers linked by a family
+ *   code (redeemFamilyCode) — view-only access plus photo uploads. Written
+ *   only by Cloud Functions.
  * @property {string | null} [preferredName] Copied from the life story on
  *   save, so everyone who runs sessions (incl. volunteers) can use it.
  * @property {boolean} [hasLifeStory] Whether a life story has been filled

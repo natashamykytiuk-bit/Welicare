@@ -26,13 +26,16 @@ service cloud.firestore {
     }
 
     // True if the signed-in user is linked to this resident directly — its
-    // creator, or on its assignedCaregivers list — or is facility staff in
-    // the same facility (see seesWholeFacility). `r` is the resident doc's
-    // data.
+    // creator, on its assignedCaregivers list, or on its familyMembers list
+    // (a family member who redeemed a family code, see redeemFamilyCode) —
+    // or is facility staff in the same facility (see seesWholeFacility).
+    // `r` is the resident doc's data. familyMembers grants reading (and the
+    // photo album) only: it's in none of the residents update branches.
     function linkedToResident(r) {
       return r.caregiverId == request.auth.uid ||
         r.createdBy == request.auth.uid ||
         (r.assignedCaregivers is list && request.auth.uid in r.assignedCaregivers) ||
+        (r.get('familyMembers', null) is list && request.auth.uid in r.familyMembers) ||
         (r.facilityId != null && me().orgId == r.facilityId && seesWholeFacility());
     }
 
@@ -254,6 +257,7 @@ service cloud.firestore {
         resource.data.caregiverId == request.auth.uid ||
         resource.data.createdBy == request.auth.uid ||
         (resource.data.assignedCaregivers is list && request.auth.uid in resource.data.assignedCaregivers) ||
+        (resource.data.get('familyMembers', null) is list && request.auth.uid in resource.data.familyMembers) ||
         (resource.data.facilityId != null &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId &&
           seesWholeFacility())
@@ -274,6 +278,12 @@ service cloud.firestore {
         resource.data.createdBy == request.auth.uid ||
         request.auth.uid in resource.data.assignedCaregivers
       );
+
+      // Powers the where('familyMembers','array-contains',uid) query in
+      // FamilyResidentsScreen / ResidentModeScreen: residents a family member
+      // is linked to by a family code. Its own rule, in the bare `uid in X`
+      // form, for the same query-matching reason as the rule above.
+      allow list: if verified() && request.auth.uid in resource.data.familyMembers;
 
       // Powers SelectOrganizationResidentScreen's
       // where('facilityId','==',orgId) query. Kept as its own rule (not
@@ -625,6 +635,11 @@ service cloud.firestore {
         me().role == 'Administrator' &&
         resource.data.orgId == me().orgId;
       allow write: if false;
+    }
+    // Family codes (redeemFamilyCode in functions/index.js). Server-only,
+    // like inviteCodes, so codes can't be listed or reused from the app.
+    match /familyCodes/{code} {
+      allow read, write: if false;
     }
     match /rateLimits/{id} {
       allow read, write: if false;

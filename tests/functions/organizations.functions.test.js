@@ -475,3 +475,78 @@ describe('activity log', () => {
     expect(await entriesFor(orgId)).toEqual([]);
   });
 });
+
+describe('family codes (createFamilyCode / redeemFamilyCode)', () => {
+  // A facility with one resident; returns ids. Each newUser() call signs in
+  // as that user, so calls go out as whoever was created last.
+  async function facility() {
+    const orgId = `org-fam-${Date.now()}-${userCount}`;
+    await adminDb.doc(`organizations/${orgId}`).set({ name: 'Maple', isPersonal: false });
+    const residentRef = adminDb.collection('residents').doc();
+    await residentRef.set({ name: 'Margaret', facilityId: orgId, assignedCaregivers: [] });
+    return { orgId, residentId: residentRef.id };
+  }
+
+  it('links a family member once; the code then stops working', async () => {
+    const { orgId, residentId } = await facility();
+    await newUser({ role: 'Caregiver', orgId });
+    const { code, expiresAt } = (await call('createFamilyCode', { residentId })).data;
+    expect(code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+    expect(expiresAt).toBeGreaterThan(Date.now());
+
+    const famUid = await newUser({ role: 'Family Caregiver' });
+    const result = (await call('redeemFamilyCode', { code: code.toLowerCase() })).data;
+    expect(result).toEqual({ residentId, residentName: 'Margaret' });
+    expect((await adminDb.doc(`residents/${residentId}`).get()).data().familyMembers).toEqual([
+      famUid,
+    ]);
+
+    // Single-use: a second family member gets nothing from the same code.
+    const otherFam = await newUser({ role: 'Family Caregiver' });
+    expect(await outcome(call('redeemFamilyCode', { code }))).toBe('functions/not-found');
+    expect((await adminDb.doc(`residents/${residentId}`).get()).data().familyMembers).not.toContain(
+      otherFam
+    );
+  });
+
+  it('a new code cancels an unused old one; expired codes fail', async () => {
+    const { orgId, residentId } = await facility();
+    await newUser({ role: 'Administrator', orgId });
+    const first = (await call('createFamilyCode', { residentId })).data.code;
+    const second = (await call('createFamilyCode', { residentId })).data.code;
+    await adminDb
+      .doc(`familyCodes/${second}`)
+      .update({ expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() - 1000) });
+    await newUser({ role: 'Family Caregiver' });
+    expect(await outcome(call('redeemFamilyCode', { code: first }))).toBe('functions/not-found');
+    expect(await outcome(call('redeemFamilyCode', { code: second }))).toBe('functions/not-found');
+  });
+
+  it('only facility staff make codes, and only family members redeem them', async () => {
+    const { orgId, residentId } = await facility();
+    await newUser({ role: 'Volunteer', orgId });
+    expect(await outcome(call('createFamilyCode', { residentId }))).toBe(
+      'functions/permission-denied'
+    );
+    await newUser({ role: 'Caregiver', orgId: 'some-other-org' });
+    expect(await outcome(call('createFamilyCode', { residentId }))).toBe(
+      'functions/permission-denied'
+    );
+    await newUser({ role: 'Caregiver', orgId });
+    const { code } = (await call('createFamilyCode', { residentId })).data;
+    await newUser({ role: 'Volunteer', orgId });
+    expect(await outcome(call('redeemFamilyCode', { code }))).toBe('functions/permission-denied');
+  });
+
+  it('staff can list and remove linked family members', async () => {
+    const { orgId, residentId } = await facility();
+    const famUid = await newUser({ role: 'Family Caregiver', fullName: 'Susan' });
+    await adminDb.doc(`residents/${residentId}`).update({ familyMembers: [famUid] });
+    await newUser({ role: 'Caregiver', orgId });
+    expect((await call('listFamilyMembers', { residentId })).data.members).toEqual([
+      { uid: famUid, name: 'Susan' },
+    ]);
+    await call('unlinkFamilyMember', { residentId, memberUid: famUid });
+    expect((await adminDb.doc(`residents/${residentId}`).get()).data().familyMembers).toEqual([]);
+  });
+});

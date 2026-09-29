@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -16,6 +17,8 @@ import LoadError from '../components/LoadError';
 import ResidentAvatar from '../components/ResidentAvatar';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import { redeemFamilyCode } from '../utils/familyLinks';
+import { formatOrgCode } from '../utils/inviteCode';
 import { withTimeout } from '../utils/withTimeout';
 
 const LOAD_TIMEOUT_MS = 10000;
@@ -23,36 +26,48 @@ const LOAD_TIMEOUT_MS = 10000;
 // Family Mode's "My Residents" — reached from FamilyModeScreen.
 //
 // For now this only lists the residents the family member is linked to
-// (ones they created, or were added to via assignedCaregivers) with an
-// "Add Photos" button each, for the Resident Mode photo album. The rest of
-// the screen (updates, visit notes, …) is still to be designed, hence the
+// (ones they created, were added to via assignedCaregivers, or linked to
+// themselves with a family code — familyMembers) with an "Add Photos" button
+// each, for the Resident Mode photo album, plus a box to enter a family code
+// from a resident's care team (see utils/familyLinks.js). The rest of the
+// screen (updates, visit notes, …) is still to be designed, hence the
 // "Coming soon" note underneath.
 //
-// Two single-field queries merged client-side, same as ResidentModeScreen:
+// Three single-field queries merged client-side, same as ResidentModeScreen:
 // each has to match its own `allow list` branch in firestore.rules, and a
 // Family Caregiver can't list the whole facility.
 export default function FamilyResidentsScreen({ navigation }) {
   const [residents, setResidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  // The "Have a family code?" box.
+  const [code, setCode] = useState('');
+  const [linking, setLinking] = useState(false);
+  const [linkError, setLinkError] = useState('');
+  const [linkedMessage, setLinkedMessage] = useState('');
 
   const load = useCallback(async () => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
     setFailed(false);
     try {
-      const [owned, assigned] = await withTimeout(
+      const [owned, assigned, family] = await withTimeout(
         Promise.all([
           getDocs(query(collection(db, 'residents'), where('createdBy', '==', uid))),
           getDocs(
             query(collection(db, 'residents'), where('assignedCaregivers', 'array-contains', uid))
+          ),
+          getDocs(
+            query(collection(db, 'residents'), where('familyMembers', 'array-contains', uid))
           ),
         ]),
         LOAD_TIMEOUT_MS,
         'timeout'
       );
       const merged = new Map();
-      [...owned.docs, ...assigned.docs].forEach((d) => merged.set(d.id, { id: d.id, ...d.data() }));
+      [...owned.docs, ...assigned.docs, ...family.docs].forEach((d) =>
+        merged.set(d.id, { id: d.id, ...d.data() })
+      );
       setResidents(
         Array.from(merged.values()).sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
       );
@@ -63,6 +78,24 @@ export default function FamilyResidentsScreen({ navigation }) {
       setLoading(false);
     }
   }, []);
+
+  // Redeems a family code, then reloads so the newly linked resident shows.
+  async function handleLink() {
+    setLinking(true);
+    setLinkError('');
+    setLinkedMessage('');
+    try {
+      const { residentName } = await redeemFamilyCode(code);
+      setCode('');
+      setLinkedMessage(`You're now linked to ${residentName || 'your resident'}.`);
+      await load();
+    } catch (e) {
+      console.error('[FamilyResidents] failed to redeem family code:', e.code, e.message, e);
+      setLinkError(e.message || 'That code did not work. Please try again.');
+    } finally {
+      setLinking(false);
+    }
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -94,7 +127,8 @@ export default function FamilyResidentsScreen({ navigation }) {
           <LoadError onRetry={load} />
         ) : residents.length === 0 ? (
           <Text style={styles.body}>
-            You aren't linked to any residents yet. Ask their care team to add you.
+            You aren't linked to any residents yet. Ask their care team for a family code and
+            enter it below.
           </Text>
         ) : (
           residents.map((r) => (
@@ -126,6 +160,42 @@ export default function FamilyResidentsScreen({ navigation }) {
             </View>
           ))
         )}
+
+        {/* Family code entry — codes come from a resident's care team
+            (Resident Profile → Family access). */}
+        <View style={styles.linkCard}>
+          <Text style={styles.linkTitle}>Have a family code?</Text>
+          <TextInput
+            style={styles.input}
+            value={code}
+            onChangeText={(t) => setCode(formatOrgCode(t))}
+            placeholder="ABCD-1234"
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            accessibilityLabel="Family code"
+          />
+          <TouchableOpacity
+            style={[styles.button, styles.linkButton, code.length < 9 && styles.disabled]}
+            onPress={handleLink}
+            disabled={linking || code.length < 9}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Link resident"
+          >
+            {linking ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.buttonText}>Link resident</Text>
+            )}
+          </TouchableOpacity>
+          {linkError ? (
+            <Text style={styles.errorText} accessibilityRole="alert">
+              {linkError}
+            </Text>
+          ) : null}
+          {linkedMessage ? <Text style={styles.successText}>{linkedMessage}</Text> : null}
+        </View>
 
         <View style={styles.badge}>
           <Text style={styles.badgeText}>More coming soon</Text>
@@ -191,6 +261,46 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   buttonText: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.white },
+  linkCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    marginTop: 8,
+  },
+  linkTitle: {
+    fontFamily: fonts.sansBold,
+    fontSize: 17,
+    color: colors.textPrimary,
+    marginBottom: 10,
+  },
+  input: {
+    fontFamily: fonts.sansBold,
+    fontSize: 20,
+    letterSpacing: 2,
+    color: colors.textPrimary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    backgroundColor: colors.background,
+    paddingHorizontal: 14,
+    minHeight: 52,
+  },
+  linkButton: { alignSelf: 'flex-start', justifyContent: 'center', marginTop: 12 },
+  disabled: { opacity: 0.5 },
+  errorText: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 15,
+    color: colors.destructive,
+    marginTop: 10,
+  },
+  successText: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 15,
+    color: colors.primary,
+    marginTop: 10,
+  },
   badge: {
     alignSelf: 'flex-start',
     backgroundColor: colors.surface,

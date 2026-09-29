@@ -115,6 +115,13 @@ export function describeEntry(entry) {
       return `${who} deleted the resident ${entry.targetName || '(unnamed)'}.`;
     case 'volunteerPermissions.changed':
       return `${who} changed volunteer permissions: ${entry.detail || 'updated'}.`;
+    // Family codes (functions/index.js): `detail` holds the resident's name.
+    case 'familyCode.created':
+      return `${who} created a family code for ${entry.detail || 'a resident'}.`;
+    case 'family.linked':
+      return `${who} used a family code to link to ${entry.detail || 'a resident'}.`;
+    case 'family.unlinked':
+      return `${who} removed ${entry.targetName || 'a family member'}'s access to ${entry.detail || 'a resident'}.`;
     default:
       return `${who}: ${entry.action}`;
   }

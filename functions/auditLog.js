@@ -33,6 +33,11 @@ const ACTIONS = {
   inviteCodeRegenerated: 'inviteCode.regenerated',
   residentDeleted: 'resident.deleted',
   volunteerPermissionsChanged: 'volunteerPermissions.changed',
+  // Family codes (index.js): the resident's name goes in `detail`, since
+  // `target` is reserved for accounts.
+  familyCodeCreated: 'familyCode.created',
+  familyLinked: 'family.linked',
+  familyUnlinked: 'family.unlinked',
 };
 
 // A person's display name for the log, from their users doc: the same

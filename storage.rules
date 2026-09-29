@@ -33,15 +33,16 @@ service firebase.storage {
     }
 
     // Same logic as linkedToResident() in firestore.rules: the resident's
-    // creator or caregiver, anyone on its assignedCaregivers list, or
-    // Caregiver/Administrator/Volunteer staff of its facility. Family
-    // Caregivers only get in through the first three — being in the same
-    // facility isn't enough for them.
+    // creator or caregiver, anyone on its assignedCaregivers or
+    // familyMembers list, or Caregiver/Administrator/Volunteer staff of its
+    // facility. Family Caregivers only get in through the direct links —
+    // being in the same facility isn't enough for them.
     function linkedToResident(residentId) {
       let r = residentDoc(residentId);
       return r.get('caregiverId', null) == request.auth.uid ||
         r.get('createdBy', null) == request.auth.uid ||
         (r.get('assignedCaregivers', null) is list && request.auth.uid in r.assignedCaregivers) ||
+        (r.get('familyMembers', null) is list && request.auth.uid in r.familyMembers) ||
         (r.get('facilityId', null) != null && me().get('orgId', null) == r.facilityId &&
           me().role in ['Caregiver', 'Administrator', 'Volunteer']);
     }

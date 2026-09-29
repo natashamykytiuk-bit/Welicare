@@ -135,6 +135,25 @@ describe('linked family member', () => {
     await assertSucceeds(getDoc(photoRef(fsAs('familyA'), 'existing')));
     await assertSucceeds(stAs('familyA').ref(photoPath('existing')).getDownloadURL());
   });
+
+  // Linked by a family code instead (familyMembers, see redeemFamilyCode):
+  // the same album access, but still no profile-photo changes.
+  it('linked by a family code, can upload and read the album but not change the profile photo', async () => {
+    await env.withSecurityRulesDisabled(async (admin) => {
+      await setDoc(
+        doc(admin.firestore(), 'residents', RESIDENT),
+        { familyMembers: ['familyA2'] },
+        { merge: true }
+      );
+    });
+    await assertSucceeds(put(stAs('familyA2'), photoPath('p2'), JPEG, jpegMeta('familyA2')));
+    await assertSucceeds(setDoc(photoRef(fsAs('familyA2'), 'p2'), photoDoc('familyA2', 'p2')));
+    await assertSucceeds(getDocs(photosCol(fsAs('familyA2'))));
+    await assertSucceeds(stAs('familyA2').ref(photoPath('existing')).getDownloadURL());
+    await assertFails(
+      put(stAs('familyA2'), `residents/${RESIDENT}/profile.jpg`, JPEG, jpegMeta('familyA2'))
+    );
+  });
 });
 
 describe('unlinked family member in the same facility', () => {

@@ -194,6 +194,21 @@ exports.deleteAccount = onCall(async (request) => {
     }
   }
 
+  // Residents they were linked to by a family code (redeemFamilyCode): take
+  // them off familyMembers. Skips residents already deleted above.
+  const linkedAsFamily = await db
+    .collection('residents')
+    .where('familyMembers', 'array-contains', uid)
+    .get();
+  for (const snap of linkedAsFamily.docs) {
+    const removed =
+      inPersonalOrg.has(snap.id) ||
+      (residents.has(snap.id) &&
+        !snap.data().facilityId &&
+        (snap.data().assignedCaregivers ?? []).every((id) => id === uid));
+    if (!removed) writer.update(snap.ref, { familyMembers: FieldValue.arrayRemove(uid) });
+  }
+
   if (personalOrgId) writer.delete(db.doc(`organizations/${personalOrgId}`));
   if (newOwner)
     writer.update(db.doc(`organizations/${orgId}`), { createdBy: newOwner, adminId: newOwner });
@@ -480,16 +495,23 @@ exports.deleteOrganization = onCall(async (request) => {
   let residentsDeleted = 0;
   let membersRemoved = 0;
   for (let pass = 1; ; pass += 1) {
-    const [residents, music, movies, members, codes, audit] = await Promise.all([
+    const [residents, music, movies, members, codes, familyCodes, audit] = await Promise.all([
       db.collection('residents').where('facilityId', '==', orgId).get(),
       db.collection('musicLibrary').where('facilityId', '==', orgId).get(),
       db.collection('movieLibrary').where('facilityId', '==', orgId).get(),
       db.collection('users').where('orgId', '==', orgId).get(),
       db.collection('inviteCodes').where('orgId', '==', orgId).get(),
+      db.collection('familyCodes').where('facilityId', '==', orgId).get(),
       db.collection('auditLog').where('orgId', '==', orgId).get(),
     ]);
     const found =
-      residents.size + music.size + movies.size + members.size + codes.size + audit.size;
+      residents.size +
+      music.size +
+      movies.size +
+      members.size +
+      codes.size +
+      familyCodes.size +
+      audit.size;
     if (found === 0) break;
     if (pass > 5) {
       throw new HttpsError(
@@ -513,6 +535,8 @@ exports.deleteOrganization = onCall(async (request) => {
     for (const snap of members.docs) writer.update(snap.ref, { orgId: FieldValue.delete() });
     // Its invite codes go too, so an old code can't point at a deleted org.
     for (const snap of codes.docs) writer.delete(snap.ref);
+    // And its residents' family codes (familyCodes/*).
+    for (const snap of familyCodes.docs) writer.delete(snap.ref);
     // Its activity log too — nobody could read it once the org is gone.
     for (const snap of audit.docs) writer.delete(snap.ref);
     await writer.finish();
@@ -891,4 +915,239 @@ exports.joinOrganization = onCall(async (request) => {
   await limitRef.delete();
   await logAudit(db, { orgId, action: ACTIONS.memberJoined, actorUid: uid });
   return { orgId };
+});
+
+// ---------------------------------------------------------------------------
+// Family codes — how a Family Caregiver gets linked to a facility resident.
+//
+// A Caregiver/Administrator of the resident's facility creates a code on the
+// resident's profile (FamilyAccessCard) and gives it to the family member,
+// who enters it on Family Mode → My Residents. Redeeming adds them to the
+// resident's `familyMembers` list, which firestore.rules / storage.rules
+// treat as view-only access plus photo uploads — never profile edits (that
+// list is deliberately in none of the residents update branches).
+//
+// Because a code could be passed on to someone else, each one is
+// single-use, expires after FAMILY_CODE_TTL_MS, and making a new code for a
+// resident revokes any unused old one. Staff can see and remove every
+// linked family member (listFamilyMembers / unlinkFamilyMember).
+//
+//   familyCodes/{CODE}  { residentId, facilityId, createdBy, createdAt,
+//                         expiresAt, used, usedBy?, usedAt?, revoked }
+//   — server-only, like inviteCodes (no client access in firestore.rules).
+// ---------------------------------------------------------------------------
+
+const FAMILY_CODE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+// Redeem attempts per user per window — same budget as joinOrganization.
+const FAMILY_REDEEM_MAX_ATTEMPTS = 10;
+const FAMILY_REDEEM_WINDOW_MS = 15 * 60 * 1000;
+
+// Checks the caller is a Caregiver/Administrator in the resident's own
+// facility. The Admin SDK bypasses firestore.rules, so these functions must
+// authorise themselves. Returns the resident's data.
+async function requireResidentStaff(db, residentId, uid) {
+  if (typeof residentId !== 'string' || !residentId || residentId.includes('/')) {
+    throw new HttpsError('invalid-argument', 'residentId is required.');
+  }
+  const [residentSnap, userSnap] = await Promise.all([
+    db.doc(`residents/${residentId}`).get(),
+    db.doc(`users/${uid}`).get(),
+  ]);
+  const resident = residentSnap.data();
+  const user = userSnap.data() ?? {};
+  if (!resident) throw new HttpsError('not-found', 'This resident could not be found.');
+  if (
+    !['Caregiver', 'Administrator'].includes(user.role) ||
+    !resident.facilityId ||
+    user.orgId !== resident.facilityId
+  ) {
+    throw new HttpsError(
+      'permission-denied',
+      "Only caregivers and administrators in this resident's organization can do this."
+    );
+  }
+  return resident;
+}
+
+// Creates a new single-use family code for a resident, revoking any unused
+// earlier one. Returns the code and when it expires (ms since epoch).
+exports.createFamilyCode = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  requireVerified(request);
+  const uid = request.auth.uid;
+  const residentId = request.data?.residentId;
+  const db = getAdmin().firestore();
+  const { FieldValue, Timestamp } = require('firebase-admin/firestore');
+  const resident = await requireResidentStaff(db, residentId, uid);
+  const expiresAt = Timestamp.fromMillis(Date.now() + FAMILY_CODE_TTL_MS);
+
+  const code = await db.runTransaction(async (tx) => {
+    // Reads: the org (refused while being deleted), the resident's earlier
+    // codes to revoke, and a free code. A single-field query, so no
+    // composite index is needed; used/revoked are filtered here.
+    const org = await tx.get(db.doc(`organizations/${resident.facilityId}`));
+    if (!org.exists || org.data().status === 'deleting') {
+      throw new HttpsError('failed-precondition', 'This organization is being deleted.');
+    }
+    const previous = await tx.get(
+      db.collection('familyCodes').where('residentId', '==', residentId)
+    );
+    let newCode = null;
+    for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS && !newCode; attempt += 1) {
+      const candidate = randomInviteCode();
+      if (!(await tx.get(db.doc(`familyCodes/${candidate}`))).exists) newCode = candidate;
+    }
+    if (!newCode) {
+      throw new HttpsError(
+        'resource-exhausted',
+        "We couldn't create a family code just now. Please try again."
+      );
+    }
+    // Writes
+    for (const snap of previous.docs) {
+      const d = snap.data();
+      if (!d.used && !d.revoked) tx.update(snap.ref, { revoked: true });
+    }
+    tx.create(db.doc(`familyCodes/${newCode}`), {
+      residentId,
+      facilityId: resident.facilityId,
+      createdBy: uid,
+      createdAt: FieldValue.serverTimestamp(),
+      expiresAt,
+      used: false,
+      revoked: false,
+    });
+    return newCode;
+  });
+
+  // The code itself is never logged (see regenerateInviteCode).
+  await logAudit(db, {
+    orgId: resident.facilityId,
+    action: ACTIONS.familyCodeCreated,
+    actorUid: uid,
+    detail: resident.name ?? null,
+  });
+  return { code, expiresAt: expiresAt.toMillis() };
+});
+
+// Links the calling Family Caregiver to the resident a family code belongs
+// to. Rate-limited like joinOrganization, and every "doesn't work" case
+// (unknown, used, revoked, expired, resident gone) gets the same message.
+exports.redeemFamilyCode = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  requireVerified(request);
+  const uid = request.auth.uid;
+  const code = normalizeInviteCode(request.data?.code);
+  if (!code) {
+    throw new HttpsError(
+      'invalid-argument',
+      "Please enter the 8-character family code from the resident's care team."
+    );
+  }
+  const db = getAdmin().firestore();
+  const { FieldValue, Timestamp } = require('firebase-admin/firestore');
+
+  // Only Family Caregivers: staff get access through their facility, and a
+  // Volunteer must not be able to give themselves a direct link this way.
+  const role = (await db.doc(`users/${uid}`).get()).data()?.role;
+  if (role !== 'Family Caregiver') {
+    throw new HttpsError('permission-denied', 'Family codes are for family members.');
+  }
+
+  // Rate limit — committed even when the redeem fails (see joinOrganization).
+  const limitRef = db.doc(`rateLimits/family_${uid}`);
+  await db.runTransaction(async (tx) => {
+    const now = Date.now();
+    const data = (await tx.get(limitRef)).data();
+    const inWindow = !!data && now - data.windowStart < FAMILY_REDEEM_WINDOW_MS;
+    const count = inWindow ? data.count : 0;
+    if (count >= FAMILY_REDEEM_MAX_ATTEMPTS) {
+      throw new HttpsError(
+        'resource-exhausted',
+        'Too many attempts. Please wait 15 minutes and try again.'
+      );
+    }
+    tx.set(limitRef, { windowStart: inWindow ? data.windowStart : now, count: count + 1 });
+  });
+
+  const notFound = new HttpsError(
+    'not-found',
+    "That family code didn't work. It may have been used already or expired. Ask the care team for a new one."
+  );
+  const codeRef = db.doc(`familyCodes/${code}`);
+
+  const resident = await db.runTransaction(async (tx) => {
+    // Reads
+    const entry = (await tx.get(codeRef)).data();
+    if (!entry || entry.used || entry.revoked) throw notFound;
+    if (entry.expiresAt.toMillis() < Timestamp.now().toMillis()) throw notFound;
+    const residentRef = db.doc(`residents/${entry.residentId}`);
+    const residentSnap = await tx.get(residentRef);
+    const org = await tx.get(db.doc(`organizations/${entry.facilityId}`));
+    if (!residentSnap.exists || !org.exists || org.data().status === 'deleting') throw notFound;
+    // Writes: link and use up the code, together.
+    tx.update(residentRef, { familyMembers: FieldValue.arrayUnion(uid) });
+    tx.update(codeRef, { used: true, usedBy: uid, usedAt: FieldValue.serverTimestamp() });
+    return { id: residentSnap.id, name: residentSnap.data().name ?? null, orgId: entry.facilityId };
+  });
+
+  await limitRef.delete();
+  await logAudit(db, {
+    orgId: resident.orgId,
+    action: ACTIONS.familyLinked,
+    actorUid: uid,
+    detail: resident.name,
+  });
+  return { residentId: resident.id, residentName: resident.name };
+});
+
+// The family members linked to a resident, for FamilyAccessCard. A function
+// because firestore.rules only let users read their own profile. Names only.
+exports.listFamilyMembers = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  requireVerified(request);
+  const db = getAdmin().firestore();
+  const resident = await requireResidentStaff(db, request.data?.residentId, request.auth.uid);
+  const uids = Array.isArray(resident.familyMembers) ? resident.familyMembers : [];
+  const snaps = uids.length ? await db.getAll(...uids.map((id) => db.doc(`users/${id}`))) : [];
+  return {
+    members: snaps
+      .map((s) => ({
+        uid: s.id,
+        name: (s.exists && (s.data().fullName || s.data().username)) || 'Unnamed family member',
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  };
+});
+
+// Removes a family member's link to a resident (FamilyAccessCard → Remove).
+exports.unlinkFamilyMember = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  requireVerified(request);
+  const { residentId, memberUid } = request.data ?? {};
+  if (typeof memberUid !== 'string' || !memberUid) {
+    throw new HttpsError('invalid-argument', 'memberUid is required.');
+  }
+  const db = getAdmin().firestore();
+  const { FieldValue } = require('firebase-admin/firestore');
+  const resident = await requireResidentStaff(db, residentId, request.auth.uid);
+  await db
+    .doc(`residents/${residentId}`)
+    .update({ familyMembers: FieldValue.arrayRemove(memberUid) });
+  await logAudit(db, {
+    orgId: resident.facilityId,
+    action: ACTIONS.familyUnlinked,
+    actorUid: request.auth.uid,
+    targetUid: memberUid,
+    detail: resident.name ?? null,
+  });
+  return { ok: true };
 });

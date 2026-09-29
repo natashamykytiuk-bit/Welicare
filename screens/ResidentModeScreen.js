@@ -24,11 +24,15 @@ import { safetyRef } from '../utils/residentSafety';
 
 const LOAD_TIMEOUT_MS = 10000;
 
-// Every resident in the signed-in volunteer's facility, as query docs, or []
-// for anyone who isn't a Volunteer with an organization. Reads the user's own
-// doc for role/orgId rather than reusing the screen's `role` state, since the
-// resident load can run before that state has arrived.
-export async function loadVolunteerFacilityResidents(uid) {
+// The residents a role gets on top of the createdBy / assignedCaregivers
+// lists, as query docs:
+//   - Volunteer with an organization: every resident in their facility;
+//   - Family Caregiver: residents they linked to with a family code
+//     (familyMembers — see utils/familyLinks.js);
+//   - anyone else: none.
+// Reads the user's own doc for role/orgId rather than reusing the screen's
+// `role` state, since the resident load can run before that state arrives.
+export async function loadRoleResidents(uid) {
   if (!uid) return [];
   const userSnap = await withTimeout(
     getDoc(doc(db, 'users', uid)),
@@ -36,13 +40,16 @@ export async function loadVolunteerFacilityResidents(uid) {
     'Loading residents is taking longer than expected. Please check your connection and try again.'
   );
   const { role, orgId } = userSnap.data() ?? {};
-  if (role !== 'Volunteer' || !orgId) return [];
+  let clause = null;
+  if (role === 'Volunteer' && orgId) clause = where('facilityId', '==', orgId);
+  else if (role === 'Family Caregiver') clause = where('familyMembers', 'array-contains', uid);
+  if (!clause) return [];
   const snap = await withTimeout(
-    getDocs(query(collection(db, 'residents'), where('facilityId', '==', orgId))),
+    getDocs(query(collection(db, 'residents'), clause)),
     LOAD_TIMEOUT_MS,
     'Loading residents is taking longer than expected. Please check your connection and try again.'
   ).catch((e) => {
-    console.error('[ResidentMode] facilityId query failed:', e.code, e.message, e);
+    console.error('[ResidentMode] role residents query failed:', e.code, e.message, e);
     throw e;
   });
   return snap.docs;
@@ -139,10 +146,11 @@ export default function ResidentModeScreen({ navigation }) {
           // above would leave a facility volunteer with an empty list. They
           // run sessions for anyone in their facility, so they also get the
           // whole-facility query — its own `allow list` rule
-          // (seesWholeFacility) already permits it. Caregivers/Admins keep
-          // seeing only their own list here, as before; Family Caregivers
-          // must never get this query (the rule would refuse it anyway).
-          const facilityDocs = await loadVolunteerFacilityResidents(uid);
+          // (seesWholeFacility) already permits it. Family Caregivers get
+          // the residents they linked to with a family code instead, and
+          // must never get the facility query (the rule refuses it anyway).
+          // Caregivers/Admins keep seeing only their own list, as before.
+          const facilityDocs = await loadRoleResidents(uid);
           if (cancelled) return;
           const merged = new Map();
           [...ownedSnap.docs, ...assignedSnap.docs, ...facilityDocs].forEach((d) =>
