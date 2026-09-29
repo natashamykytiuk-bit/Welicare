@@ -20,7 +20,11 @@
       "gcloud run services add-iam-policy-binding regenerateinvitecode --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
       "gcloud run services add-iam-policy-binding joinorganization --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
       "gcloud run services add-iam-policy-binding resolvesigninemail --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding removeorgmember --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare"
+      "gcloud run services add-iam-policy-binding removeorgmember --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding createfamilycode --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding redeemfamilycode --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding listfamilymembers --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding unlinkfamilymember --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare"
     ]
   },
   "emulators": {
