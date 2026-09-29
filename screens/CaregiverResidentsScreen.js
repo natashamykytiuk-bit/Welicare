@@ -32,8 +32,8 @@ function initialsOf(name) {
 // Shows every resident in the caregiver's organization (facilityId match),
 // not just the ones on their own Resident Mode list, so staff can keep any
 // resident's name and life story up to date. Tapping a resident opens
-// BuildProfileScreen, which already edits both the name and the
-// questionnaire; returnTo brings them back here after saving.
+// ResidentProfileScreen (their profile, with Edit life story / Safety
+// notes, and their engagement time per activity).
 //
 // Saving works for any resident in the org because firestore.rules lets a
 // Caregiver/Administrator in the same facility update `name` and
@@ -108,8 +108,8 @@ export default function CaregiverResidentsScreen({ navigation }) {
         <Text style={styles.heading}>My Residents</Text>
         <Text style={styles.body}>
           {hasOrg
-            ? `Everyone at ${orgName || 'your organization'}. Tap a resident to edit their name or life story.`
-            : 'Residents on your list. Tap a resident to edit their name or life story.'}
+            ? `Everyone at ${orgName || 'your organization'}. Tap a resident to see their profile and activity.`
+            : 'Residents on your list. Tap a resident to see their profile and activity.'}
         </Text>
 
         {error ? (
@@ -134,15 +134,10 @@ export default function CaregiverResidentsScreen({ navigation }) {
               return (
                 <TouchableOpacity
                   style={styles.row}
-                  onPress={() =>
-                    navigation.navigate('BuildProfile', {
-                      residentId: item.id,
-                      returnTo: 'CaregiverResidents',
-                    })
-                  }
+                  onPress={() => navigation.navigate('ResidentProfile', { residentId: item.id })}
                   activeOpacity={0.8}
                   accessibilityRole="button"
-                  accessibilityLabel={`${item.name}, ${profileStarted ? 'profile started' : 'profile not started'}. Edit profile`}
+                  accessibilityLabel={`${item.name}, ${profileStarted ? 'profile started' : 'profile not started'}. Open profile`}
                 >
                   <View style={styles.avatar}>
                     <Text style={styles.avatarText}>{initialsOf(item.name)}</Text>
@@ -169,7 +164,7 @@ export default function CaregiverResidentsScreen({ navigation }) {
                   >
                     <Ionicons name="shield-checkmark-outline" size={22} color={colors.primary} />
                   </TouchableOpacity>
-                  <Ionicons name="create-outline" size={22} color={colors.primary} />
+                  <Ionicons name="chevron-forward" size={22} color={colors.primary} />
                 </TouchableOpacity>
               );
             }}

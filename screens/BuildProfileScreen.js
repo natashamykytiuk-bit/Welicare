@@ -335,12 +335,13 @@ export default function BuildProfileScreen({ navigation, route }) {
         <View style={styles.headerRow}>
           <BackButton navigation={navigation} style={styles.iconNoMargin} />
         </View>
-        {/* From My Residents a caregiver is filling this in on someone's
+        {/* From Caregiver Mode (My Residents, or a resident's profile page)
+            a caregiver is filling this in on someone's
             behalf, so "yourself" would read wrong — name the resident
             instead. Uses the saved name, not the field being edited, so
             the heading doesn't change with every keystroke. */}
         <Text style={styles.heading}>
-          {returnTo === 'CaregiverResidents'
+          {returnTo === 'CaregiverResidents' || returnTo === 'ResidentProfile'
             ? `About ${savedName || 'this resident'}`
             : 'Tell us about yourself'}
         </Text>
