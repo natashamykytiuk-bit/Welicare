@@ -7,6 +7,7 @@ import {
 } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
+import { connectStorageEmulator, getStorage } from 'firebase/storage';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -64,13 +65,20 @@ const db = getFirestore(app);
 const FUNCTIONS_REGION = 'northamerica-northeast1';
 const functions = getFunctions(app, FUNCTIONS_REGION);
 
+// Cloud Storage — resident photo album files (utils/residentPhotos.js).
+// Uses the project's single default bucket (storageBucket above), which
+// lives in northamerica-northeast1 like Firestore. Access is enforced by
+// storage.rules.
+const storage = getStorage(app);
+
 // Ports match the "emulators" section of firebase.json. Each is connected
 // once, right after the service is created and before anything uses it.
 if (USE_EMULATORS) {
   connectAuthEmulator(auth, `http://${EMULATOR_HOST}:9099`, { disableWarnings: true });
   connectFirestoreEmulator(db, EMULATOR_HOST, 8080);
   connectFunctionsEmulator(functions, EMULATOR_HOST, 5001);
+  connectStorageEmulator(storage, EMULATOR_HOST, 9199);
   console.log('[firebaseConfig] using local emulators at', EMULATOR_HOST);
 }
 
-export { app, auth, db, functions };
+export { app, auth, db, functions, storage };

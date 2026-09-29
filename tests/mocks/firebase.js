@@ -53,6 +53,7 @@ const firestore = {
   collection: jest.fn((_db, ...path) => ({ path: path.join('/') })),
   query: jest.fn((ref) => ref),
   where: jest.fn(() => ({})),
+  orderBy: jest.fn(() => ({})),
   getDoc: jest.fn(),
   // Server-only read (skips the offline cache) — used to confirm whether a
   // slow write really landed.
@@ -119,10 +120,22 @@ const functionsModule = {
   httpsCallable: jest.fn((_functions, name) => callable(name)),
 };
 
+// Cloud Storage (utils/residentPhotos.js). ref() describes the path like
+// doc() above; uploads succeed and download URLs are fake unless a test
+// says otherwise.
+const storageModule = {
+  getStorage: jest.fn(() => ({})),
+  ref: jest.fn((_storage, path) => ({ fullPath: path })),
+  uploadBytes: jest.fn(async () => ({})),
+  getDownloadURL: jest.fn(async (r) => `https://example.test/${r.fullPath}`),
+  deleteObject: jest.fn(async () => {}),
+};
+
 function resetFirebaseMocks() {
   for (const fn of [
     ...Object.values(firestore),
     ...Object.values(authModule),
+    ...Object.values(storageModule),
     ...Object.values(callables),
   ]) {
     if (typeof fn?.mockReset === 'function') fn.mockReset();
@@ -137,12 +150,19 @@ function resetFirebaseMocks() {
   firestore.collection.mockImplementation((_db, ...path) => ({ path: path.join('/') }));
   firestore.query.mockImplementation((ref) => ref);
   firestore.where.mockImplementation(() => ({}));
+  firestore.orderBy.mockImplementation(() => ({}));
   firestore.writeBatch.mockImplementation(() => newBatch());
   firestore.runTransaction.mockImplementation(runTransactionImpl);
   batches.length = 0;
   authModule.getAuth.mockImplementation(() => auth);
   authModule.onAuthStateChanged.mockImplementation(() => () => {});
   functionsModule.httpsCallable.mockImplementation((_functions, name) => callable(name));
+  storageModule.ref.mockImplementation((_storage, path) => ({ fullPath: path }));
+  storageModule.uploadBytes.mockImplementation(async () => ({}));
+  storageModule.getDownloadURL.mockImplementation(
+    async (r) => `https://example.test/${r.fullPath}`
+  );
+  storageModule.deleteObject.mockImplementation(async () => {});
   auth.currentUser = defaultUser();
 }
 
@@ -152,6 +172,7 @@ module.exports = {
   auth,
   authModule,
   functionsModule,
+  storageModule,
   callable,
   docSnap,
   resetFirebaseMocks,

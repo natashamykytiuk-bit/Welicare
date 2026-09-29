@@ -398,6 +398,62 @@ service cloud.firestore {
           me().role == 'Administrator' &&
           me().orgId == get(/databases/$(database)/documents/residents/$(residentId)).data.facilityId;
       }
+
+      // The resident's photo album (utils/residentPhotos.js). Each doc is
+      // the metadata for one JPEG in Cloud Storage at the same path + .jpg;
+      // storage.rules mirrors these checks for the file itself. No
+      // download URL is ever stored here — the app asks Storage for one at
+      // view time, so Storage's own read rule always applies.
+      match /photos/{photoId} {
+        // Anyone linked to the resident, volunteers included: any linked
+        // account can run Resident Mode, where the album is shown.
+        allow get, list: if verified() &&
+          linkedToResident(get(/databases/$(database)/documents/residents/$(residentId)).data);
+
+        // Family Caregivers, Caregivers and Administrators linked to the
+        // resident may add photos — not volunteers. Exactly the fields
+        // uploadResidentPhoto writes, stamped as the uploader, pointing at
+        // this photo's own Storage path, and never for an organization
+        // that's being deleted.
+        allow create: if verified() &&
+          linkedToResident(get(/databases/$(database)/documents/residents/$(residentId)).data) &&
+          me().role in ['Family Caregiver', 'Caregiver', 'Administrator'] &&
+          validResidentPhoto(request.resource.data, residentId, photoId) &&
+          (get(/databases/$(database)/documents/residents/$(residentId)).data.get('facilityId', null) == null ||
+            orgAcceptingNewData(get(/databases/$(database)/documents/residents/$(residentId)).data.facilityId));
+
+        // Photos are never edited — to change one, delete and re-upload.
+        allow update: if false;
+
+        // The uploader can remove their own photo; Caregivers and
+        // Administrators of the resident's facility can remove any (for
+        // moderation). Administrators here also cover the resident
+        // cleanup, like the private/ docs above.
+        allow delete: if verified() && (
+          resource.data.uploadedBy == request.auth.uid ||
+          (
+            get(/databases/$(database)/documents/residents/$(residentId)).data.get('facilityId', null) != null &&
+            me().orgId == get(/databases/$(database)/documents/residents/$(residentId)).data.facilityId &&
+            me().role in ['Caregiver', 'Administrator']
+          )
+        );
+      }
+    }
+
+    // residents/{residentId}/photos/{photoId} — exactly the fields
+    // uploadResidentPhoto writes. uploadedAt must be the server time, and
+    // storagePath is fixed by the ids so a doc can't point at another
+    // resident's (or another photo's) file.
+    function validResidentPhoto(d, residentId, photoId) {
+      return d.keys().hasOnly(['storagePath', 'caption', 'uploadedBy', 'uploaderName', 'uploadedAt', 'width', 'height']) &&
+        d.keys().hasAll(['storagePath', 'caption', 'uploadedBy', 'uploaderName', 'uploadedAt', 'width', 'height']) &&
+        d.storagePath == 'residents/' + residentId + '/photos/' + photoId + '.jpg' &&
+        d.caption is string && d.caption.size() <= 200 &&
+        d.uploadedBy == request.auth.uid &&
+        d.uploaderName is string && d.uploaderName.size() <= 100 &&
+        d.uploadedAt == request.time &&
+        d.width is number && d.width > 0 &&
+        d.height is number && d.height > 0;
     }
 
     // Any signed-in user can fetch a single organization by id (to display

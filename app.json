@@ -30,6 +30,14 @@
           "resizeMode": "contain",
           "backgroundColor": "#F1EDE6"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Welicare uses your photo library so you can share photos with a resident.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
       ]
     ]
   }

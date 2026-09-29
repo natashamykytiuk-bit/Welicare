@@ -54,6 +54,11 @@ const LIFE_STORY_FIELDS = [
 // Also reachable without a resident (Caregiver Mode's "Resident Profile"
 // quick link, ActivityMenuScreen's settings gear): then it points the
 // caregiver to My Residents to pick one, rather than guessing.
+// Who may add photos to a resident's album, and who may remove anyone's
+// (mirrors the photos rules in firestore.rules / storage.rules).
+const PHOTO_UPLOAD_ROLES = ['Family Caregiver', 'Caregiver', 'Administrator'];
+const PHOTO_MODERATOR_ROLES = ['Caregiver', 'Administrator'];
+
 export default function ResidentProfileScreen({ navigation, route }) {
   const residentId = route?.params?.residentId;
   const [resident, setResident] = useState(null);
@@ -63,6 +68,8 @@ export default function ResidentProfileScreen({ navigation, route }) {
   // False when the caregiver has no organization: sessions are filed per
   // organization, so there's nothing they're allowed to read.
   const [hasOrg, setHasOrg] = useState(true);
+  // The viewer's role — decides which photo album options to offer.
+  const [role, setRole] = useState(null);
   const [statsError, setStatsError] = useState('');
   const [period, setPeriod] = useState('30d');
   const [loading, setLoading] = useState(!!residentId);
@@ -86,6 +93,7 @@ export default function ResidentProfileScreen({ navigation, route }) {
       setResident(residentData);
       const orgId = userSnap.data()?.orgId;
       setHasOrg(!!orgId);
+      setRole(userSnap.data()?.role ?? null);
 
       // The life story and the engagement log load side by side, and each
       // fails on its own: a problem with one mustn't hide the other.
@@ -215,6 +223,52 @@ export default function ResidentProfileScreen({ navigation, route }) {
                 </TouchableOpacity>
               </View>
             </View>
+
+            {/* --- Photo album ---
+                Uploads happen here, outside Resident Mode; the album itself
+                is only shown to the resident (ResidentPhotoAlbumScreen).
+                Volunteers can't upload (see firestore.rules), so they get
+                no buttons; only Caregivers and Administrators moderate. */}
+            {PHOTO_UPLOAD_ROLES.includes(role) ? (
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Photo album</Text>
+                <Text style={styles.muted}>
+                  Photos shared here appear in the Photo Album in Resident Mode.
+                </Text>
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity
+                    style={styles.primaryButton}
+                    onPress={() =>
+                      navigation.navigate('ResidentPhotoUpload', {
+                        residentId,
+                        residentName: resident?.name,
+                      })
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel="Add photos"
+                  >
+                    <Ionicons name="images-outline" size={20} color={colors.white} />
+                    <Text style={styles.primaryButtonText}>Add photos</Text>
+                  </TouchableOpacity>
+                  {PHOTO_MODERATOR_ROLES.includes(role) ? (
+                    <TouchableOpacity
+                      style={styles.secondaryButton}
+                      onPress={() =>
+                        navigation.navigate('ResidentPhotoManage', {
+                          residentId,
+                          residentName: resident?.name,
+                        })
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel="Manage photos"
+                    >
+                      <Ionicons name="albums-outline" size={20} color={colors.primary} />
+                      <Text style={styles.secondaryButtonText}>Manage photos</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
 
             {/* --- Engagement --- */}
             <View style={styles.card}>

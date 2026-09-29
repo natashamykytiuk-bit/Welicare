@@ -1,0 +1,87 @@
+rules_version = '2';
+
+// Cloud Storage security rules. The only files the app stores are the
+// resident photo album's JPEGs (utils/residentPhotos.js), at
+//   residents/{residentId}/photos/{photoId}.jpg
+// Everything else is denied by default (no rule matches → no access).
+//
+// Storage has no idea who is linked to which resident — that lives in
+// Firestore — so these rules read the resident doc and the requester's
+// users doc with cross-service calls (firestore.get / firestore.exists),
+// mirroring the /residents/{residentId}/photos rules in firestore.rules.
+// Note: every cross-service call is billed as a Firestore document read,
+// so each photo view, upload or delete costs up to two reads (the
+// resident doc and the user's doc).
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Signed in with a verified email address — same as verified() in
+    // firestore.rules.
+    function verified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    // The requester's own users/{uid} doc (role, orgId).
+    function me() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // The resident's doc in Firestore.
+    function residentDoc(residentId) {
+      return firestore.get(/databases/(default)/documents/residents/$(residentId)).data;
+    }
+
+    // Same logic as linkedToResident() in firestore.rules: the resident's
+    // creator or caregiver, anyone on its assignedCaregivers list, or
+    // Caregiver/Administrator/Volunteer staff of its facility. Family
+    // Caregivers only get in through the first three — being in the same
+    // facility isn't enough for them.
+    function linkedToResident(residentId) {
+      let r = residentDoc(residentId);
+      return r.get('caregiverId', null) == request.auth.uid ||
+        r.get('createdBy', null) == request.auth.uid ||
+        (r.get('assignedCaregivers', null) is list && request.auth.uid in r.assignedCaregivers) ||
+        (r.get('facilityId', null) != null && me().get('orgId', null) == r.facilityId &&
+          me().role in ['Caregiver', 'Administrator', 'Volunteer']);
+    }
+
+    match /residents/{residentId}/photos/{fileName} {
+      // Viewing: anyone linked to the resident (volunteers included, since
+      // any linked account can run Resident Mode).
+      allow read: if verified() &&
+        firestore.exists(/databases/(default)/documents/residents/$(residentId)) &&
+        linkedToResident(residentId);
+
+      // Uploading: linked Family Caregivers, Caregivers and Administrators
+      // only, a JPEG under 5 MB (the app sends ~1600px at 80% quality,
+      // well under that), stamped with the uploader's own uid, named like
+      // the app names them. `resource == null`: Storage treats uploading
+      // over an existing file as a create, not an update, so this is what
+      // stops a photo being replaced.
+      allow create: if verified() &&
+        resource == null &&
+        fileName.matches('^[A-Za-z0-9_-]{1,128}[.]jpg$') &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType == 'image/jpeg' &&
+        request.resource.metadata != null &&
+        request.resource.metadata.get('uploadedBy', null) == request.auth.uid &&
+        firestore.exists(/databases/(default)/documents/residents/$(residentId)) &&
+        linkedToResident(residentId) &&
+        me().role in ['Family Caregiver', 'Caregiver', 'Administrator'];
+
+      // Metadata changes are never allowed; together with `resource ==
+      // null` above, a photo can't be altered — delete and re-upload.
+      allow update: if false;
+
+      // The uploader, or a Caregiver/Administrator of the resident's
+      // facility (moderation).
+      allow delete: if verified() && (
+        (resource.metadata != null && resource.metadata.get('uploadedBy', null) == request.auth.uid) ||
+        (
+          residentDoc(residentId).get('facilityId', null) != null &&
+          me().get('orgId', null) == residentDoc(residentId).facilityId &&
+          me().role in ['Caregiver', 'Administrator']
+        )
+      );
+    }
+  }
+}

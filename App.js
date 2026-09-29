@@ -58,10 +58,12 @@ import MusicSelectionScreen from './screens/MusicSelectionScreen';
 import OrganizationalSettingsScreen from './screens/OrganizationalSettingsScreen';
 import OrganizationSettingsScreen from './screens/OrganizationSettingsScreen';
 import OverallStatsScreen from './screens/OverallStatsScreen';
-import PhotoAlbumScreen from './screens/PhotoAlbumScreen';
 import PINEntryScreen from './screens/PINEntryScreen';
 import PINSetupScreen from './screens/PINSetupScreen';
 import ResidentModeScreen from './screens/ResidentModeScreen';
+import ResidentPhotoAlbumScreen from './screens/ResidentPhotoAlbumScreen';
+import ResidentPhotoManageScreen from './screens/ResidentPhotoManageScreen';
+import ResidentPhotoUploadScreen from './screens/ResidentPhotoUploadScreen';
 import ResidentProfileScreen from './screens/ResidentProfileScreen';
 import SelectOrganizationResidentScreen from './screens/SelectOrganizationResidentScreen';
 import SettingsScreen from './screens/SettingsScreen';
@@ -267,6 +269,11 @@ export default function App() {
               <Stack.Screen name="ManageUsers" component={ManageUsersScreen} />
               <Stack.Screen name="ActivityLog" component={ActivityLogScreen} />
               <Stack.Screen name="ResidentSafety" component={ResidentSafetyScreen} />
+              {/* Photo album uploads (Family Mode's My Residents and a
+                  resident's profile) and caregiver moderation — outside
+                  Resident Mode on purpose; the album itself is PhotoAlbum. */}
+              <Stack.Screen name="ResidentPhotoUpload" component={ResidentPhotoUploadScreen} />
+              <Stack.Screen name="ResidentPhotoManage" component={ResidentPhotoManageScreen} />
               <Stack.Screen
                 name="OrganizationalSettings"
                 component={OrganizationalSettingsScreen}
@@ -300,7 +307,7 @@ export default function App() {
               <Stack.Screen name="MemoryMatch" component={MemoryMatchScreen} />
               <Stack.Screen name="WordGames" component={WordGamesScreen} />
               <Stack.Screen name="Trivia" component={TriviaScreen} />
-              <Stack.Screen name="PhotoAlbum" component={PhotoAlbumScreen} />
+              <Stack.Screen name="PhotoAlbum" component={ResidentPhotoAlbumScreen} />
               <Stack.Screen name="MoviesSelection" component={MoviesSelectionScreen} />
               <Stack.Screen name="MoviesPlayer" component={MoviesPlayerScreen} />
               <Stack.Screen name="Molehunt" component={MolehuntScreen} />

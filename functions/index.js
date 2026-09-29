@@ -66,6 +66,22 @@ function getAdmin() {
   return admin;
 }
 
+// Removes a resident's photo album: every file under
+// residents/{residentId}/photos/ in Cloud Storage now, and every
+// residents/{residentId}/photos/* doc queued on `writer` (deleting the
+// resident doc doesn't delete its subcollections). Files first, so if
+// that fails the docs are still there and a retry finds everything again.
+// deleteFiles on a prefix with nothing under it is a no-op, so this is
+// safe to repeat. See utils/residentPhotos.js for the layout.
+async function deleteResidentPhotos(admin, writer, residentRef) {
+  await admin
+    .storage()
+    .bucket()
+    .deleteFiles({ prefix: `residents/${residentRef.id}/photos/` });
+  const photos = await residentRef.collection('photos').get();
+  for (const photo of photos.docs) writer.delete(photo.ref);
+}
+
 // Activity-log triggers for changes the app makes directly (a resident
 // deleted, the volunteer permission changed) — see auditLog.js.
 const triggers = auditTriggers(getAdmin);
@@ -169,6 +185,8 @@ exports.deleteAccount = onCall(async (request) => {
       // Both private docs: the life story and the safety notes.
       writer.delete(snap.ref.collection('private').doc('lifeStory'));
       writer.delete(snap.ref.collection('private').doc('safety'));
+      // And the photo album (Storage files + photos/* docs).
+      await deleteResidentPhotos(admin, writer, snap.ref);
       writer.delete(snap.ref);
     } else if (assignedList.includes(uid)) {
       writer.update(snap.ref, { assignedCaregivers: FieldValue.arrayRemove(uid) });
@@ -480,6 +498,8 @@ exports.deleteOrganization = onCall(async (request) => {
       // Both private docs: the life story and the safety notes.
       writer.delete(snap.ref.collection('private').doc('lifeStory'));
       writer.delete(snap.ref.collection('private').doc('safety'));
+      // And the photo album (Storage files + photos/* docs).
+      await deleteResidentPhotos(admin, writer, snap.ref);
       writer.delete(snap.ref);
     }
     for (const snap of music.docs) writer.delete(snap.ref);

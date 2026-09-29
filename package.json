@@ -13,6 +13,9 @@
     "expo-crypto": "~15.0.9",
     "expo-font": "~14.0.12",
     "expo-haptics": "~15.0.8",
+    "expo-image": "~3.0.11",
+    "expo-image-manipulator": "~14.0.8",
+    "expo-image-picker": "~17.0.11",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "firebase": "^12.16.0",
@@ -37,9 +40,9 @@
     "typecheck": "tsc --noEmit -p jsconfig.json",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-welicare \"jest -c tests/rules/jest.config.js\"",
+    "test:rules": "firebase emulators:exec --only firestore,storage --project demo-welicare \"jest -c tests/rules/jest.config.js\"",
     "emulators": "firebase emulators:start --project demo-welicare",
-    "test:functions": "firebase emulators:exec --only auth,firestore,functions --project demo-welicare \"jest -c tests/functions/jest.config.js\""
+    "test:functions": "firebase emulators:exec --only auth,firestore,storage,functions --project demo-welicare \"jest -c tests/functions/jest.config.js\""
   },
   "private": true,
   "devDependencies": {

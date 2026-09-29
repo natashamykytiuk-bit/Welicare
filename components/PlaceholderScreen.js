@@ -16,7 +16,7 @@ import OrgIdBadge from './OrgIdBadge';
 //     icon that navigates there.
 //   - homeDestination: pass a screen name to show a home icon that routes
 //     there. Used by Resident Mode's activity screens (GuidedMeditation,
-//     Trivia, PhotoAlbum, WordGames, Molehunt) — every current caller that
+//     Trivia, WordGames, Molehunt) — every current caller that
 //     sets this is one of those, so its presence doubles as "this is a
 //     Resident Mode screen" and is what gates the lock-feature behavior
 //     below (see contexts/ResidentLockContext.js): while Resident Mode is

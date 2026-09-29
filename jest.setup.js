@@ -8,12 +8,14 @@
 
 jest.mock('firebase/firestore', () => require('./tests/mocks/firebase').firestore);
 jest.mock('firebase/auth', () => require('./tests/mocks/firebase').authModule);
+jest.mock('firebase/storage', () => require('./tests/mocks/firebase').storageModule);
 jest.mock('firebase/functions', () => require('./tests/mocks/firebase').functionsModule);
 jest.mock('./firebaseConfig', () => ({
   app: {},
   auth: require('./tests/mocks/firebase').auth,
   db: {},
   functions: {},
+  storage: {},
 }));
 
 // Icons render as a simple placeholder — tests care about behaviour, not
