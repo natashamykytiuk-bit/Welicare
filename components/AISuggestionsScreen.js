@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useResidentLock } from '../contexts/ResidentLockContext';
 import { auth, db } from '../firebaseConfig';
+import useActivitySession from '../hooks/useActivitySession';
 import { colors, fonts, radii } from '../theme';
 import { generateSuggestions } from '../utils/aiSuggestions';
 import { hasAnyLifeStoryData } from '../utils/lifeStory';
@@ -33,6 +34,16 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
   // Mode screen" and gates the lock-feature behavior below the same way
   // PlaceholderScreen's homeDestination does.
   const homeDestination = route?.params?.fromResidentMode ? 'ModeSelection' : undefined;
+  // Time spent here counts toward a resident's engagement, but only when
+  // opened as a Resident Mode activity — not from Caregiver Mode's quick
+  // links, where a caregiver is just browsing prompts.
+  useActivitySession({
+    navigation,
+    activityType: 'conversation',
+    activityId: kind,
+    residentId: residentId ?? null,
+    enabled: Boolean(route?.params?.fromResidentMode),
+  });
   const { locked, requestPin } = useResidentLock();
 
   function goHome() {

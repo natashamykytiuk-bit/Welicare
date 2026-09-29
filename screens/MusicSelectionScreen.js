@@ -14,6 +14,7 @@ import {
 import BackButton from '../components/BackButton';
 import ChipSelector from '../components/ChipSelector';
 import { db } from '../firebaseConfig';
+import useActivitySession from '../hooks/useActivitySession';
 import { colors, fonts, radii } from '../theme';
 import {
   MUSIC_DECADE_OPTIONS,
@@ -51,6 +52,10 @@ const VIEW_MODE_OPTIONS = ['All Music', 'Favourites'];
 // derived from "whatever's already narrowed down" without extra indexes.
 export default function MusicSelectionScreen({ navigation, route }) {
   const residentId = route?.params?.residentId;
+  // Browsing counts toward the resident's music engagement too, logged under
+  // the same activity as the player. Opening a video blurs this screen, so
+  // browsing and playing are saved as separate visits, never overlapping.
+  useActivitySession({ navigation, activityType: 'music', activityId: 'music', residentId });
 
   const [viewMode, setViewMode] = useState('All Music');
   const [subset, setSubset] = useState([]);

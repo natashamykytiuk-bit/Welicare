@@ -119,9 +119,9 @@ describe('activitySessions: create', () => {
     await assertSucceeds(addDoc(sessions(as('volunteerA')), session('volunteerA')));
   });
 
-  it('accepts Music and Movies sessions (no difficulty) as well as games', async () => {
+  it('accepts every non-game Resident Mode activity (no difficulty)', async () => {
     const db = as('caregiverA');
-    for (const type of ['music', 'movies']) {
+    for (const type of ['music', 'movies', 'trivia', 'photoAlbum', 'meditation', 'conversation']) {
       await assertSucceeds(
         addDoc(
           sessions(db),

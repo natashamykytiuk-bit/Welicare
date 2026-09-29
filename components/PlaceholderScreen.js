@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import useActivitySession from '../hooks/useActivitySession';
 import { colors, fonts, radii } from '../theme';
 import BackButton from './BackButton';
 import HomeButton from './HomeButton';
@@ -27,6 +28,10 @@ import OrgIdBadge from './OrgIdBadge';
 //   - showBack / onBackPress: control or override the default back button.
 //   - showOrgId: pass true on Administrator Mode screens to show the
 //     signed-in admin's organization ID at the top (see OrgIdBadge).
+//   - activityType / activityId / residentId: pass on Resident Mode
+//     activities to log time spent on the screen to activitySessions (see
+//     hooks/useActivitySession.js), so even "Coming soon" activities count
+//     toward a resident's engagement. Omit activityType to log nothing.
 export default function PlaceholderScreen({
   navigation,
   title,
@@ -36,7 +41,19 @@ export default function PlaceholderScreen({
   settingsTarget,
   homeDestination,
   showOrgId,
+  activityType,
+  activityId,
+  residentId,
 }) {
+  // Always called (hooks can't be conditional); enabled turns it off for
+  // screens that aren't Resident Mode activities.
+  useActivitySession({
+    navigation,
+    activityType,
+    activityId,
+    residentId: residentId ?? null,
+    enabled: Boolean(activityType),
+  });
   const showHeaderRow = showBack || settingsTarget || homeDestination;
 
   return (

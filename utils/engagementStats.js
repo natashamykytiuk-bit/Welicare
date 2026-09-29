@@ -18,6 +18,10 @@ export const ACTIVITY_LABELS = {
   wordGames: 'Finish the Phrase',
   music: 'Music',
   movies: 'Movies & Videos',
+  trivia: 'Trivia',
+  photoAlbum: 'Photo Album',
+  guidedMeditation: 'Guided Meditation & Exercise',
+  conversationStarters: 'Conversation Starters',
 };
 
 /** The time ranges the screen offers, newest-first defaults. */

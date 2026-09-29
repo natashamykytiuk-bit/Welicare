@@ -637,8 +637,9 @@ service cloud.firestore {
         d.isGuest is bool &&
         ((d.isGuest == true && d.residentId == null) ||
           (d.isGuest == false && d.residentId is string && d.residentId.matches('^[A-Za-z0-9_-]{1,128}$'))) &&
-        // Add 'trivia', ... here as those activities start logging.
-        d.activityType in ['game', 'music', 'movies'] &&
+        // Every Resident Mode activity; add new ones here as they're built.
+        d.activityType in ['game', 'music', 'movies', 'trivia', 'photoAlbum',
+          'meditation', 'conversation'] &&
         d.activityId is string && d.activityId.matches('^[A-Za-z]{1,40}$') &&
         d.difficulty in ['gentle', 'medium', 'challenge', null] &&
         d.roundsStarted is int && d.roundsStarted >= 0 && d.roundsStarted <= 1000 &&
