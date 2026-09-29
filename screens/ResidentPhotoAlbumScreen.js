@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import BackButton from '../components/BackButton';
 import HomeButton from '../components/HomeButton';
+import PhotoViewerModal from '../components/PhotoViewerModal';
 import UserAvatar from '../components/UserAvatar';
 import useActivitySession from '../hooks/useActivitySession';
 import { colors, fonts, radii } from '../theme';
@@ -64,6 +65,8 @@ export default function ResidentPhotoAlbumScreen({ navigation, route }) {
   // photoId → download URL, filled in lazily around the current photo.
   const [urls, setUrls] = useState({});
   const requested = useRef(new Set());
+  // Full-screen viewer (PhotoViewerModal), opened by tapping the photo.
+  const [fullScreen, setFullScreen] = useState(false);
 
   const load = useCallback(async () => {
     if (!residentId) return;
@@ -169,20 +172,42 @@ export default function ResidentPhotoAlbumScreen({ navigation, route }) {
         <View style={styles.photoColumn}>
           <View style={styles.photoFrame} {...pan.panHandlers}>
             {currentUrl ? (
-              <Image
-                source={{ uri: currentUrl }}
+              // Tap the photo to open it full screen.
+              <TouchableOpacity
                 style={styles.photo}
-                contentFit="contain"
-                cachePolicy="disk"
-                // A soft cross-fade between photos.
-                transition={300}
-                accessible
-                accessibilityLabel={current.caption || 'Photo'}
-                onError={() => skipPhoto(current.id)}
-              />
+                onPress={() => setFullScreen(true)}
+                activeOpacity={0.9}
+                accessibilityRole="button"
+                accessibilityHint="Opens the photo full screen"
+              >
+                <Image
+                  source={{ uri: currentUrl }}
+                  style={styles.photo}
+                  contentFit="contain"
+                  cachePolicy="disk"
+                  // A soft cross-fade between photos.
+                  transition={300}
+                  accessible
+                  accessibilityLabel={current.caption || 'Photo'}
+                  onError={() => skipPhoto(current.id)}
+                />
+              </TouchableOpacity>
             ) : (
               <ActivityIndicator size="large" color={colors.activities.photoAlbum.icon} />
             )}
+            {/* A visible way into full screen too, since tapping the photo
+                isn't obvious. */}
+            {currentUrl ? (
+              <TouchableOpacity
+                style={styles.expandButton}
+                onPress={() => setFullScreen(true)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="View full screen"
+              >
+                <Ionicons name="expand-outline" size={32} color={colors.white} />
+              </TouchableOpacity>
+            ) : null}
           </View>
           {current.uploaderName ? (
             // Who shared it: a small, plain line just under the photo's
@@ -222,6 +247,14 @@ export default function ResidentPhotoAlbumScreen({ navigation, route }) {
         <HomeButton navigation={navigation} destination="ModeSelection" />
       </View>
       <View style={styles.body}>{body}</View>
+      <PhotoViewerModal
+        visible={fullScreen && count > 0}
+        photos={photos}
+        index={index}
+        urls={urls}
+        onIndexChange={setIndex}
+        onClose={() => setFullScreen(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -308,6 +341,18 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansRegular,
     fontSize: 16,
     color: colors.textMuted,
+  },
+  // 64pt, over the photo's top-right corner.
+  expandButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 64,
+    height: 64,
+    borderRadius: radii.circular,
+    backgroundColor: 'rgba(26,46,37,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   navButton: {
     width: 80,

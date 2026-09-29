@@ -86,4 +86,37 @@ describe('ResidentPhotoAlbumScreen', () => {
     await screen.findByText('Hi');
     expect(screen.queryByLabelText(/delete|upload|edit|add photos/i)).toBeNull();
   });
+
+  it('opens the photo full screen with its caption, and closes again', async () => {
+    firestore.getDocs.mockResolvedValue({ docs: [photoSnap('a', 'Picnic day', 'Fran')] });
+    await renderAlbum();
+    await screen.findByText('Picnic day');
+    await fireEvent.press(await screen.findByLabelText('View full screen'));
+    expect(await screen.findByLabelText('Close full screen')).toBeTruthy();
+    // The caption now also shows in the viewer's bottom band.
+    expect(screen.getAllByText('Picnic day').length).toBe(2);
+    await fireEvent.press(screen.getByLabelText('Close full screen'));
+    expect(screen.queryByLabelText('Close full screen')).toBeNull();
+  });
+
+  it('full screen loops: swiping past the last photo lands on the first', async () => {
+    firestore.getDocs.mockResolvedValue({
+      docs: [photoSnap('a', 'First', 'Fran'), photoSnap('b', 'Second', 'Fran')],
+    });
+    await renderAlbum();
+    await screen.findByText('First');
+    // Move to the last photo, then open full screen.
+    await fireEvent.press(screen.getByLabelText('Next photo'));
+    await screen.findByText('Second');
+    await fireEvent.press(screen.getByLabelText('View full screen'));
+    // Pages are [copy of b, a, b, copy of a]; settle on the last one.
+    const { width } = require('react-native').Dimensions.get('window');
+    await fireEvent(screen.getByTestId('photo-viewer-list'), 'momentumScrollEnd', {
+      nativeEvent: { contentOffset: { x: width * 3 } },
+    });
+    await fireEvent.press(screen.getByLabelText('Close full screen'));
+    // Back on the album, the first photo is now the current one.
+    expect(await screen.findByText('First')).toBeTruthy();
+    expect(screen.queryByText('Second')).toBeNull();
+  });
 });
