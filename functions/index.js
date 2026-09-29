@@ -312,9 +312,12 @@ exports.listOrgMembers = onCall(async (request) => {
   const db = getAdmin().firestore();
   const orgId = request.data?.orgId;
   await requireOrgOwner(db, orgId, request.auth.uid);
-  const [snap, residents] = await Promise.all([
+  const [snap, residents, pendingSnap] = await Promise.all([
     db.collection('users').where('orgId', '==', orgId).get(),
     db.collection('residents').where('facilityId', '==', orgId).get(),
+    // People who used the invite code and are waiting for approval (see
+    // joinOrganization) — shown at the top of Manage Users.
+    db.collection('users').where('pendingOrgId', '==', orgId).get(),
   ]);
   // How many of the facility's residents each member is assigned to — shown
   // on Manage Users so an admin can review who has access to whom.
@@ -334,7 +337,99 @@ exports.listOrgMembers = onCall(async (request) => {
         assignedResidents: assignedCount[d.id] ?? 0,
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
+    pending: pendingSnap.docs
+      .map((d) => ({
+        uid: d.id,
+        name: d.data().fullName || d.data().username || 'Unnamed member',
+        role: d.data().role ?? '',
+        requestedAt: d.data().pendingSince?.toMillis?.() ?? null,
+      }))
+      // Oldest request first, so nobody waits at the bottom of the list.
+      .sort((a, b) => (a.requestedAt ?? 0) - (b.requestedAt ?? 0)),
   };
+});
+
+// Approves a join request (Manage Users → Approve): the person's
+// pendingOrgId becomes their orgId, which is what every org-scoped rule
+// trusts, so only from this moment can they see the facility's residents.
+// Owner-only and checked in one transaction against current data, so a
+// request that was cancelled, denied or replaced a moment ago isn't
+// approved by mistake. A Family Caregiver on a personal organization moves
+// to this one, the same as joining used to do.
+exports.approveOrgMember = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  requireVerified(request);
+  const { orgId, memberUid } = request.data ?? {};
+  if (typeof memberUid !== 'string' || !memberUid) {
+    throw new HttpsError('invalid-argument', 'memberUid is required.');
+  }
+  const db = getAdmin().firestore();
+  const { FieldValue } = require('firebase-admin/firestore');
+  const memberRef = db.doc(`users/${memberUid}`);
+  await db.runTransaction(async (tx) => {
+    await requireOrgOwnerTx(tx, db, orgId, request.auth.uid);
+    const member = (await tx.get(memberRef)).data();
+    if (!member || member.pendingOrgId !== orgId) {
+      throw new HttpsError('not-found', 'That request is no longer waiting for approval.');
+    }
+    // They may have created or been approved into another real org since
+    // asking (this reads the member's doc, not the caller's).
+    await readUserRequiringNoRealOrg(
+      tx,
+      db,
+      memberUid,
+      'This person has already joined another organization.'
+    );
+    tx.update(memberRef, {
+      orgId,
+      pendingOrgId: FieldValue.delete(),
+      pendingSince: FieldValue.delete(),
+    });
+  });
+  await logAudit(db, {
+    orgId,
+    action: ACTIONS.memberApproved,
+    actorUid: request.auth.uid,
+    targetUid: memberUid,
+  });
+  return { ok: true };
+});
+
+// Declines a join request (Manage Users → Deny). Only the request is
+// cleared; the person keeps their account and could ask again with the
+// code, so an admin who wants them kept out should also replace the code.
+exports.denyOrgMember = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  requireVerified(request);
+  const { orgId, memberUid } = request.data ?? {};
+  if (typeof memberUid !== 'string' || !memberUid) {
+    throw new HttpsError('invalid-argument', 'memberUid is required.');
+  }
+  const db = getAdmin().firestore();
+  const { FieldValue } = require('firebase-admin/firestore');
+  const memberRef = db.doc(`users/${memberUid}`);
+  await db.runTransaction(async (tx) => {
+    await requireOrgOwnerTx(tx, db, orgId, request.auth.uid);
+    const member = (await tx.get(memberRef)).data();
+    if (!member || member.pendingOrgId !== orgId) {
+      throw new HttpsError('not-found', 'That request is no longer waiting for approval.');
+    }
+    tx.update(memberRef, {
+      pendingOrgId: FieldValue.delete(),
+      pendingSince: FieldValue.delete(),
+    });
+  });
+  await logAudit(db, {
+    orgId,
+    action: ACTIONS.memberDenied,
+    actorUid: request.auth.uid,
+    targetUid: memberUid,
+  });
+  return { ok: true };
 });
 
 // Removes someone from the organization (Manage Users → Remove). Their
@@ -504,11 +599,15 @@ exports.deleteOrganization = onCall(async (request) => {
       db.collection('familyCodes').where('facilityId', '==', orgId).get(),
       db.collection('auditLog').where('orgId', '==', orgId).get(),
     ]);
+    // People still waiting for approval: their request is dropped so they
+    // aren't left on the pending screen for an org that no longer exists.
+    const pending = await db.collection('users').where('pendingOrgId', '==', orgId).get();
     const found =
       residents.size +
       music.size +
       movies.size +
       members.size +
+      pending.size +
       codes.size +
       familyCodes.size +
       audit.size;
@@ -533,6 +632,12 @@ exports.deleteOrganization = onCall(async (request) => {
     for (const snap of music.docs) writer.delete(snap.ref);
     for (const snap of movies.docs) writer.delete(snap.ref);
     for (const snap of members.docs) writer.update(snap.ref, { orgId: FieldValue.delete() });
+    for (const snap of pending.docs) {
+      writer.update(snap.ref, {
+        pendingOrgId: FieldValue.delete(),
+        pendingSince: FieldValue.delete(),
+      });
+    }
     // Its invite codes go too, so an old code can't point at a deleted org.
     for (const snap of codes.docs) writer.delete(snap.ref);
     // And its residents' family codes (familyCodes/*).
@@ -699,7 +804,12 @@ exports.createOrganization = onCall(async (request) => {
       createdAt: FieldValue.serverTimestamp(),
     });
     writeInviteCode(tx, db, { orgId: orgRef.id, code: newCode, uid, previous: null });
-    tx.set(db.doc(`users/${uid}`), { orgId: orgRef.id }, { merge: true });
+    // Creating their own org replaces any request waiting elsewhere.
+    tx.set(
+      db.doc(`users/${uid}`),
+      { orgId: orgRef.id, pendingOrgId: FieldValue.delete(), pendingSince: FieldValue.delete() },
+      { merge: true }
+    );
     return newCode;
   });
   return { orgId: orgRef.id, inviteCode: code };
@@ -734,6 +844,12 @@ exports.upgradePersonalOrganization = onCall(async (request) => {
     const code = await pickFreeInviteCode(tx, db);
     // Writes
     tx.update(orgRef, { name, isPersonal: false });
+    // Now running their own org, so drop any request waiting elsewhere.
+    const { FieldValue } = require('firebase-admin/firestore');
+    tx.update(db.doc(`users/${uid}`), {
+      pendingOrgId: FieldValue.delete(),
+      pendingSince: FieldValue.delete(),
+    });
     writeInviteCode(tx, db, { orgId, code, uid, previous: null });
     return { orgId, inviteCode: code };
   });
@@ -839,10 +955,14 @@ exports.resolveSignInEmail = onCall(async (request) => {
 const JOIN_MAX_ATTEMPTS = 10;
 const JOIN_WINDOW_MS = 15 * 60 * 1000;
 
-// Links the caller to an organization by its invite code — the only way a
-// user can set orgId to an organization they didn't create, because
-// firestore.rules refuse that write from the app (orgId is what every
-// org-scoped rule trusts).
+// Asks to join an organization by its invite code. The code alone doesn't
+// grant access: it records a join request (pendingOrgId) that the
+// organization's administrator approves or denies in Manage Users
+// (approveOrgMember / denyOrgMember). Only approval sets orgId, the field
+// every org-scoped rule trusts, so a pending user is a non-member
+// everywhere without any rule needing to know about pending status.
+// firestore.rules refuse client writes of pendingOrgId (except clearing it
+// to cancel), so a request can only be made with a valid code.
 exports.joinOrganization = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
@@ -885,8 +1005,8 @@ exports.joinOrganization = onCall(async (request) => {
   );
   const codeRef = db.doc(`inviteCodes/${code}`);
 
-  // The join itself — one transaction: link the user + count the code's use.
-  const orgId = await db.runTransaction(async (tx) => {
+  // The request itself — one transaction: record it + count the code's use.
+  const result = await db.runTransaction(async (tx) => {
     // Reads
     await readUserRequiringNoRealOrg(
       tx,
@@ -905,16 +1025,21 @@ exports.joinOrganization = onCall(async (request) => {
     // A deleted org, or one being deleted right now, can't be joined.
     const targetOrg = await tx.get(db.doc(`organizations/${invite.orgId}`));
     if (!targetOrg.exists || targetOrg.data().status === 'deleting') throw notFound;
-    // Writes
-    tx.set(db.doc(`users/${uid}`), { orgId: invite.orgId }, { merge: true });
+    // Writes. A new request replaces any earlier one (to this org or
+    // another), so each person waits on at most one organization.
+    tx.set(
+      db.doc(`users/${uid}`),
+      { pendingOrgId: invite.orgId, pendingSince: FieldValue.serverTimestamp() },
+      { merge: true }
+    );
     tx.update(codeRef, { uses: FieldValue.increment(1) });
-    return invite.orgId;
+    return { orgId: invite.orgId, orgName: targetOrg.data().name ?? null };
   });
 
-  // A successful join clears the counter, so honest typos don't pile up.
+  // A successful request clears the counter, so honest typos don't pile up.
   await limitRef.delete();
-  await logAudit(db, { orgId, action: ACTIONS.memberJoined, actorUid: uid });
-  return { orgId };
+  await logAudit(db, { orgId: result.orgId, action: ACTIONS.memberRequested, actorUid: uid });
+  return { orgId: result.orgId, orgName: result.orgName, pending: true };
 });
 
 // ---------------------------------------------------------------------------

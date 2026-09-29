@@ -49,8 +49,10 @@ async function main() {
 
   for (const org of orgs) {
     const orgId = org.id;
-    const [members, residents, sessions, invites, audit, orgPrivate] = await Promise.all([
+    const [members, pending, residents, sessions, invites, audit, orgPrivate] = await Promise.all([
       db.collection('users').where('orgId', '==', orgId).get(),
+      // People still waiting for approval to join (pendingOrgId).
+      db.collection('users').where('pendingOrgId', '==', orgId).get(),
       db.collection('residents').where('facilityId', '==', orgId).get(),
       db.collection('activitySessions').where('facilityId', '==', orgId).get(),
       db.collection('inviteCodes').where('orgId', '==', orgId).get(),
@@ -60,7 +62,7 @@ async function main() {
     plan.organizations.push({ ref: org.ref, label: `${org.data().name} (${orgId})` });
     for (const d of orgPrivate.docs)
       plan.organizations.push({ ref: d.ref, label: `  ${d.ref.path}` });
-    for (const m of members.docs) uids.set(m.id, m.data().email ?? '');
+    for (const m of [...members.docs, ...pending.docs]) uids.set(m.id, m.data().email ?? '');
     for (const r of residents.docs) {
       plan.residents.push({ ref: r.ref, label: `${r.data().name} (${r.id})` });
       // Subcollections aren't removed with their parent, so list them too.

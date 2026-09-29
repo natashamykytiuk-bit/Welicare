@@ -22,6 +22,8 @@ import { colors, fonts, radii } from '../theme';
 
 const callListOrgMembers = httpsCallable(functions, 'listOrgMembers');
 const callRemoveOrgMember = httpsCallable(functions, 'removeOrgMember');
+const callApproveOrgMember = httpsCallable(functions, 'approveOrgMember');
+const callDenyOrgMember = httpsCallable(functions, 'denyOrgMember');
 
 // Administrator Mode → Manage Users (also reachable from Settings). Lists
 // everyone in the organization with their role and how many residents
@@ -35,6 +37,11 @@ const callRemoveOrgMember = httpsCallable(functions, 'removeOrgMember');
 // requires a recent sign-in for destructive actions), asked for inline
 // rather than in an Alert, since Alert buttons don't work on web.
 //
+// Join requests: anyone who enters the invite code waits here under
+// "Waiting for approval" until the admin approves or denies them
+// (approveOrgMember / denyOrgMember). Neither needs the password: approving
+// is what the admin is here to do, and denying only drops a request.
+//
 // Only the organization's own administrator (its creator/owner) can use
 // this; anyone else sees a short explanation. The member list itself comes
 // from the server because firestore.rules only let users read their own
@@ -44,6 +51,10 @@ export default function ManageUsersScreen({ navigation }) {
   const [orgId, setOrgId] = useState(undefined);
   const [isOwner, setIsOwner] = useState(false);
   const [members, setMembers] = useState([]);
+  const [pending, setPending] = useState([]);
+  // uid of the request being approved/denied, so only its buttons disable.
+  const [decidingUid, setDecidingUid] = useState(null);
+  const [decideError, setDecideError] = useState('');
   const [loadError, setLoadError] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -73,6 +84,7 @@ export default function ManageUsersScreen({ navigation }) {
       if (owner) {
         const result = await callListOrgMembers({ orgId: id });
         setMembers(result.data.members);
+        setPending(result.data.pending ?? []);
       }
     } catch (e) {
       console.error('[ManageUsers] failed to load members:', e.code, e.message, e);
@@ -85,6 +97,37 @@ export default function ManageUsersScreen({ navigation }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Approves or denies one join request, then reloads both lists (an
+  // approved person moves from the requests into the members).
+  async function decide(person, approve) {
+    setDecidingUid(person.uid);
+    setDecideError('');
+    setNotice('');
+    try {
+      await (approve ? callApproveOrgMember : callDenyOrgMember)({
+        orgId,
+        memberUid: person.uid,
+      });
+      setNotice(
+        approve
+          ? `${person.name} can now use the organization.`
+          : `${person.name}’s request was declined.`
+      );
+      await load();
+    } catch (e) {
+      console.error('[ManageUsers] failed to decide request:', e.code, e.message, e);
+      // not-found: cancelled, or another admin action got there first.
+      setDecideError(
+        e.code === 'functions/not-found' || e.code === 'functions/failed-precondition'
+          ? e.message
+          : 'Something went wrong. Please try again.'
+      );
+      await load();
+    } finally {
+      setDecidingUid(null);
+    }
+  }
 
   function startRemove(member) {
     setRemoving(member);
@@ -151,6 +194,56 @@ export default function ManageUsersScreen({ navigation }) {
             </Text>
 
             {notice ? <Text style={styles.successBanner}>{notice}</Text> : null}
+
+            {pending.length > 0 ? (
+              <>
+                <Text style={styles.sectionLabel}>Waiting for approval</Text>
+                {decideError ? (
+                  <Text style={styles.errorBanner} accessibilityRole="alert">
+                    {decideError}
+                  </Text>
+                ) : null}
+                <View style={[styles.card, styles.pendingCard]}>
+                  {pending.map((p, i) => (
+                    <View
+                      key={p.uid}
+                      style={[styles.pendingRow, i < pending.length - 1 && styles.memberRowBorder]}
+                    >
+                      <View style={styles.memberRow}>
+                        <UserAvatar uid={p.uid} name={p.name} size={40} />
+                        <View style={styles.memberText}>
+                          <Text style={styles.memberName}>{p.name}</Text>
+                          <Text style={styles.memberMeta}>{p.role || 'No role'}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.decideRow}>
+                        <TouchableOpacity
+                          style={[styles.approveButton, decidingUid && styles.disabled]}
+                          onPress={() => decide(p, true)}
+                          disabled={!!decidingUid}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Approve ${p.name}`}
+                        >
+                          <Text style={styles.approveText}>
+                            {decidingUid === p.uid ? 'Saving…' : 'Approve'}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.denyButton, decidingUid && styles.disabled]}
+                          onPress={() => decide(p, false)}
+                          disabled={!!decidingUid}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Deny ${p.name}`}
+                        >
+                          <Text style={styles.denyText}>Deny</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.sectionLabel}>Members</Text>
+              </>
+            ) : null}
 
             {members.length === 0 ? (
               <Text style={styles.note}>
@@ -297,6 +390,36 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 2,
   },
+  sectionLabel: {
+    fontFamily: fonts.sansBold,
+    fontSize: 13,
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  pendingCard: { marginBottom: 24 },
+  pendingRow: { paddingBottom: 12 },
+  decideRow: { flexDirection: 'row', gap: 12 },
+  approveButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: radii.sm,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  approveText: { fontFamily: fonts.sansBold, color: colors.white, fontSize: 16 },
+  denyButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  denyText: { fontFamily: fonts.sansBold, color: colors.textPrimary, fontSize: 16 },
   removeButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
   removeText: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.destructive },
   confirmCard: {

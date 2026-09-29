@@ -59,6 +59,7 @@ import OrganizationalSettingsScreen from './screens/OrganizationalSettingsScreen
 import OrganizationSettingsScreen from './screens/OrganizationSettingsScreen';
 import OverallStatsScreen from './screens/OverallStatsScreen';
 import PINEntryScreen from './screens/PINEntryScreen';
+import PendingApprovalScreen from './screens/PendingApprovalScreen';
 import PINSetupScreen from './screens/PINSetupScreen';
 import ResidentModeScreen from './screens/ResidentModeScreen';
 import ResidentPhotoAlbumScreen from './screens/ResidentPhotoAlbumScreen';
@@ -209,6 +210,8 @@ export default function App() {
                 component={JoinCreateOrganizationScreen}
               />
               <Stack.Screen name="JoinOrganization" component={JoinOrganizationScreen} />
+              {/* Waiting for an administrator to approve a join request. */}
+              <Stack.Screen name="PendingApproval" component={PendingApprovalScreen} />
               <Stack.Screen name="CreateOrganization" component={CreateOrganizationScreen} />
 
               {/* The post-login hub, plus screens reachable from anywhere.

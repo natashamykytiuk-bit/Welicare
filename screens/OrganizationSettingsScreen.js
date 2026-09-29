@@ -21,6 +21,11 @@ import {
   upgradePersonalOrganization,
 } from '../utils/inviteCode';
 
+// Joining is a request the organization's administrator approves (see
+// joinOrganization in functions/index.js). While it waits, this person
+// stays on their personal org, so the screen shows the request above the
+// join form instead of switching views.
+//
 // Reached from SettingsScreen's "Organization" row, which only shows while
 // the caregiver's current org has isPersonal: true — i.e. a Family
 // Caregiver still on the auto-created personal org from sign-up (see
@@ -39,6 +44,9 @@ export default function OrganizationSettingsScreen({ navigation }) {
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
   const [joinNote, setJoinNote] = useState('');
+  // Name of the organization a join request is waiting on, or '' if none.
+  const [pendingOrgName, setPendingOrgName] = useState('');
+  const [hasPending, setHasPending] = useState(false);
 
   const [createName, setCreateName] = useState('');
   const [creating, setCreating] = useState(false);
@@ -56,6 +64,12 @@ export default function OrganizationSettingsScreen({ navigation }) {
       const uid = auth.currentUser?.uid;
       const userSnap = await getDoc(doc(db, 'users', uid));
       const orgId = userSnap.data()?.orgId;
+      const pendingOrgId = userSnap.data()?.pendingOrgId;
+      setHasPending(!!pendingOrgId);
+      if (pendingOrgId) {
+        const pendingOrg = await getDoc(doc(db, 'organizations', pendingOrgId));
+        setPendingOrgName(pendingOrg.data()?.name ?? '');
+      }
       if (orgId) {
         const orgSnap = await getDoc(doc(db, 'organizations', orgId));
         const data = orgSnap.data();
@@ -88,7 +102,7 @@ export default function OrganizationSettingsScreen({ navigation }) {
     try {
       await joinOrganizationByCode(joinCode);
       setJoinNote(
-        "You've joined the organization. Residents you added before are still in your list, and staff there can link you to others."
+        'Request sent. Once their administrator approves it you’ll be part of the organization. Residents you added before stay in your list.'
       );
       setJoinCode('');
       await loadOrgState();
@@ -147,6 +161,11 @@ export default function OrganizationSettingsScreen({ navigation }) {
             <Text style={styles.sectionLabel}>Join an Organization</Text>
             <View style={styles.card}>
               {joinNote ? <Text style={styles.note}>{joinNote}</Text> : null}
+              {hasPending && !joinNote ? (
+                <Text style={styles.note}>
+                  {`Your request to join ${pendingOrgName || 'an organization'} is waiting for its administrator to approve it. Sending another code replaces it.`}
+                </Text>
+              ) : null}
               {joinError ? <Text style={styles.error}>{joinError}</Text> : null}
               <TextInput
                 style={styles.input}
@@ -166,7 +185,7 @@ export default function OrganizationSettingsScreen({ navigation }) {
                 accessibilityRole="button"
                 accessibilityLabel="Join organization"
               >
-                <Text style={styles.buttonText}>{joining ? 'Joining…' : 'Join'}</Text>
+                <Text style={styles.buttonText}>{joining ? 'Sending…' : 'Ask to join'}</Text>
               </TouchableOpacity>
             </View>
 

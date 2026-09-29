@@ -22,8 +22,6 @@
 //
 // Not representable, because the app has no such fields (so nothing is
 // invented for them):
-//   - approval status: the app has no approval step. The two members meant
-//     to be "pending" are ordinary members; docs/TESTING.md says so.
 //   - dementia stage, mobility and dietary notes: residents have no such
 //     fields. Profiles vary through the life story questionnaire and the
 //     "topics to avoid" safety notes instead.
@@ -116,8 +114,10 @@ const ORGS = {
   },
 };
 
-// `intendedStatus` is only for the login table: the app has no approval
-// field, so "pending" can't be stored (see the header comment).
+// `intendedStatus` is for the login table. `pending: true` people asked to
+// join with the invite code and are waiting for approval: they get
+// pendingOrgId instead of orgId (see joinOrganization), so they have no
+// access to the org yet and log no sessions.
 // `org: null` + orgStepSkipped is the family member who skipped the
 // organization step (nextOnboardingRoute lets non-admins through with it).
 const PEOPLE = [
@@ -154,7 +154,8 @@ const PEOPLE = [
     org: 'A',
     role: 'Caregiver',
     fullName: 'Tomas Brightwater',
-    intendedStatus: 'PENDING (not representable)',
+    pending: true,
+    intendedStatus: 'PENDING (waiting for approval)',
   },
   {
     id: 'volunteer1',
@@ -168,7 +169,8 @@ const PEOPLE = [
     org: 'A',
     role: 'Volunteer',
     fullName: 'Keira Moss',
-    intendedStatus: 'PENDING (not representable)',
+    pending: true,
+    intendedStatus: 'PENDING (waiting for approval)',
   },
   {
     id: 'family1',
@@ -428,9 +430,7 @@ const LOGGERS = {
   A: [
     { id: 'caregiver1', weight: 5 },
     { id: 'caregiver2', weight: 5 },
-    { id: 'caregiver3', weight: 2 },
     { id: 'volunteer1', weight: 4 },
-    { id: 'volunteer2', weight: 2 },
     { id: 'admin2', weight: 1 },
     { id: 'family1', weight: 2 },
     { id: 'family2', weight: 1 },
@@ -458,7 +458,8 @@ function pickWeighted(rand, items) {
 // ---------------------------------------------------------------------------
 
 // SignUpScreen writeProfile + PINSetupScreen's { pinHash } + the orgId set by
-// createOrganization / joinOrganization (or JoinCreateOrganizationScreen's
+// createOrganization / approveOrgMember (or joinOrganization's pendingOrgId
+// for someone still waiting, or JoinCreateOrganizationScreen's
 // orgStepSkipped when skipped).
 function userDoc(person, uid, orgIds, pinHash) {
   const d = {
@@ -471,7 +472,10 @@ function userDoc(person, uid, orgIds, pinHash) {
     createdAt: CREATED_AT,
     pinHash,
   };
-  if (person.org) d.orgId = orgIds[person.org];
+  if (person.org && person.pending) {
+    d.pendingOrgId = orgIds[person.org];
+    d.pendingSince = Timestamp.fromDate(new Date(NOW - 2 * DAY_MS));
+  } else if (person.org) d.orgId = orgIds[person.org];
   else d.orgStepSkipped = true;
   return d;
 }
@@ -650,9 +654,6 @@ logged by caregivers, volunteers, an administrator and linked family members, wi
 
 ## Known gaps in the seed (the app has no field for these)
 
-- **Approval status.** The app has no approval step or approval field: anyone who joins with a
-  code is an active member straight away. \`caregiver3\` and \`volunteer2\` were *meant* to be
-  pending, but are ordinary active members.
 - **Dementia stage, mobility, dietary notes.** Residents have no such fields. Profiles differ
   through the life story questionnaire and the "topics to avoid" safety notes instead.
 
@@ -662,9 +663,11 @@ logged by caregivers, volunteers, an administrator and linked family members, wi
 > scripts use the Firebase Admin SDK, which bypasses \`firestore.rules\` entirely — so nothing
 > the scripts can read proves what a real user can see.
 
-- [ ] **Admin approval flow** — *blocked: the app has no approval step (see above).* Intended
-      test once it exists: sign in as \`caregiver3\` (should be held as pending), sign in as
-      \`admin1\` and approve them, then sign back in as \`caregiver3\` and reach Caregiver Mode.
+- [ ] **Admin approval flow** — sign in as \`caregiver3\`: you land on "Waiting for approval".
+      Sign in as \`admin1\` → Manage Users: \`caregiver3\` and \`volunteer2\` are under "Waiting
+      for approval". Approve \`caregiver3\` and deny \`volunteer2\`. Sign back in as
+      \`caregiver3\` and reach Caregiver Mode; as \`volunteer2\`, see "Your request wasn't
+      approved".
 - [ ] **Family view-only restrictions** — as \`family1\`: only Margaret Thornbury and Evelyn
       Castellanos-Mayhew are visible; "Select from organization" is not offered; no other Maple
       Grove residents appear; the resident profile photo can't be changed; safety notes are

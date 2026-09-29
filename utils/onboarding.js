@@ -10,8 +10,13 @@
 //   no profile doc   → FinishSignUp (sign-up stopped after the Auth account
 //                      was created — see SignUpScreen's finish-setup mode)
 //   no pinHash       → PINSetup
+//   no orgId, but a join request waiting (pendingOrgId)
+//                    → PendingApproval
 //   no orgId         → JoinCreateOrganization
 //   otherwise        → ModeSelection
+//
+// A join request is checked before the skip below: someone who asked to
+// join a facility waits for its administrator, whatever their role.
 //
 // Only Family Caregivers may skip the organization step (orgStepSkipped):
 // they look after a relative at home and needn't belong to a facility.
@@ -22,7 +27,7 @@
 /**
  * @param {Partial<import('../types/models').User> | null | undefined} userData
  *   The signed-in user's users/{uid} doc (undefined if it doesn't exist yet).
- * @returns {'FinishSignUp' | 'PINSetup' | 'JoinCreateOrganization' | 'ModeSelection'}
+ * @returns {'FinishSignUp' | 'PINSetup' | 'PendingApproval' | 'JoinCreateOrganization' | 'ModeSelection'}
  */
 export function nextOnboardingRoute(userData) {
   // No profile at all: without one there's no role, and firestore.rules
@@ -31,6 +36,7 @@ export function nextOnboardingRoute(userData) {
   if (!userData) return 'FinishSignUp';
   const data = userData;
   if (!data.pinHash) return 'PINSetup';
+  if (!data.orgId && data.pendingOrgId) return 'PendingApproval';
   const needsOrg =
     data.role === 'Family Caregiver' ? !data.orgId && !data.orgStepSkipped : !data.orgId;
   if (needsOrg) return 'JoinCreateOrganization';

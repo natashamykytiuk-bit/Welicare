@@ -26,7 +26,12 @@ const {
 
 // The actions an entry can record; ActivityLogScreen has a sentence for each.
 const ACTIONS = {
+  // Written before joining needed approval; old entries still use it.
   memberJoined: 'member.joined',
+  // Joining by invite code is a request an administrator approves.
+  memberRequested: 'member.requested',
+  memberApproved: 'member.approved',
+  memberDenied: 'member.denied',
   memberRemoved: 'member.removed',
   memberLeft: 'member.left',
   adminTransferred: 'admin.transferred',

@@ -27,7 +27,13 @@
  *   to. Only settable to an org they created, or via the joinOrganization
  *   Cloud Function.
  * @property {string} [pinHash] Hashed 4-digit PIN; missing until PINSetup.
- * @property {boolean} [orgStepSkipped] Non-admins who skipped joining an org.
+ * @property {boolean} [orgStepSkipped] Family Caregivers who skipped joining an org.
+ * @property {string} [pendingOrgId] An organization this user asked to join
+ *   with its invite code and is waiting for its administrator to approve.
+ *   Set only by the joinOrganization Cloud Function; approval moves it to
+ *   orgId. The app may only clear it (to cancel the request).
+ * @property {import('firebase/firestore').Timestamp} [pendingSince] When
+ *   that request was made.
  */
 
 /**

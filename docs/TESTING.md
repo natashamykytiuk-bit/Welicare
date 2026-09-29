@@ -25,9 +25,9 @@ was run. They are deliberately not written here or in any committed file.
 | TEST Maple Grove Care | Administrator | Priya Rasmussen | admin2@welicare-test.example | test_admin2 | approved |  |
 | TEST Maple Grove Care | Caregiver | Marcus Oyelaran | caregiver1@welicare-test.example | test_caregiver1 | approved |  |
 | TEST Maple Grove Care | Caregiver | Sofia Lindqvist | caregiver2@welicare-test.example | test_caregiver2 | approved |  |
-| TEST Maple Grove Care | Caregiver | Tomas Brightwater | caregiver3@welicare-test.example | test_caregiver3 | PENDING (not representable) |  |
+| TEST Maple Grove Care | Caregiver | Tomas Brightwater | caregiver3@welicare-test.example | test_caregiver3 | PENDING (waiting for approval) |  |
 | TEST Maple Grove Care | Volunteer | Jun Halvorsen | volunteer1@welicare-test.example | test_volunteer1 | approved |  |
-| TEST Maple Grove Care | Volunteer | Keira Moss | volunteer2@welicare-test.example | test_volunteer2 | PENDING (not representable) |  |
+| TEST Maple Grove Care | Volunteer | Keira Moss | volunteer2@welicare-test.example | test_volunteer2 | PENDING (waiting for approval) |  |
 | TEST Maple Grove Care | Family Caregiver | Ruth Thornbury-Hale | family1@welicare-test.example | test_family1 | approved | Margaret Thornbury, Evelyn Castellanos-Mayhew |
 | TEST Maple Grove Care | Family Caregiver | Leon Achterberg | family2@welicare-test.example | test_family2 | approved | Desmond Achterberg |
 | (none) | Family Caregiver | Imogen Farrow | family3@welicare-test.example | test_family3 | no org (skipped org step) | — |
@@ -50,9 +50,6 @@ logged by caregivers, volunteers, an administrator and linked family members, wi
 
 ## Known gaps in the seed (the app has no field for these)
 
-- **Approval status.** The app has no approval step or approval field: anyone who joins with a
-  code is an active member straight away. `caregiver3` and `volunteer2` were *meant* to be
-  pending, but are ordinary active members.
 - **Dementia stage, mobility, dietary notes.** Residents have no such fields. Profiles differ
   through the life story questionnaire and the "topics to avoid" safety notes instead.
 
@@ -62,9 +59,11 @@ logged by caregivers, volunteers, an administrator and linked family members, wi
 > scripts use the Firebase Admin SDK, which bypasses `firestore.rules` entirely — so nothing
 > the scripts can read proves what a real user can see.
 
-- [ ] **Admin approval flow** — *blocked: the app has no approval step (see above).* Intended
-      test once it exists: sign in as `caregiver3` (should be held as pending), sign in as
-      `admin1` and approve them, then sign back in as `caregiver3` and reach Caregiver Mode.
+- [ ] **Admin approval flow** — sign in as `caregiver3`: you land on "Waiting for approval".
+      Sign in as `admin1` → Manage Users: `caregiver3` and `volunteer2` are under "Waiting
+      for approval". Approve `caregiver3` and deny `volunteer2`. Sign back in as
+      `caregiver3` and reach Caregiver Mode; as `volunteer2`, see "Your request wasn't
+      approved".
 - [ ] **Family view-only restrictions** — as `family1`: only Margaret Thornbury and Evelyn
       Castellanos-Mayhew are visible; "Select from organization" is not offered; no other Maple
       Grove residents appear; the resident profile photo can't be changed; safety notes are

@@ -162,7 +162,9 @@ service cloud.firestore {
       // controlled paths below.
       allow create: if request.auth != null && request.auth.uid == userId &&
         request.resource.data.role in ['Family Caregiver', 'Caregiver', 'Volunteer', 'Administrator'] &&
-        !('orgId' in request.resource.data);
+        !('orgId' in request.resource.data) &&
+        !('pendingOrgId' in request.resource.data) &&
+        !('pendingSince' in request.resource.data);
 
       // Everything else on your own doc (username, pinHash, …) stays
       // self-editable, but never `role` — otherwise anyone could make
@@ -203,6 +205,16 @@ service cloud.firestore {
           // leave a facility and join another while keeping access. Only
           // the server clears it now — removeOrgMember, deleteOrganization.)
           getAfter(/databases/$(database)/documents/organizations/$(request.resource.data.orgId)).data.createdBy == request.auth.uid
+        ) &&
+        // A join request (pendingOrgId/pendingSince) is recorded only by the
+        // joinOrganization Cloud Function, which checks the invite code, so
+        // nobody can put themselves on an administrator's approval list
+        // without one. The app may only remove both, to cancel a request
+        // (PendingApprovalScreen). Pending users have no orgId, so every
+        // org-scoped rule already treats them as non-members.
+        (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pendingOrgId', 'pendingSince']) ||
+          (!('pendingOrgId' in request.resource.data) && !('pendingSince' in request.resource.data))
         );
     }
 

@@ -122,10 +122,15 @@ describe('joinOrganization', () => {
     ({ orgId, inviteCode: code } = (await call('createOrganization', { name: 'Oak' })).data);
   });
 
-  it('links the user and counts the use in one step', async () => {
+  it('records a request (not membership) and counts the use in one step', async () => {
     const uid = await newUser({ role: 'Caregiver' });
-    expect((await call('joinOrganization', { code })).data.orgId).toBe(orgId);
-    expect((await adminDb.doc(`users/${uid}`).get()).data().orgId).toBe(orgId);
+    const result = (await call('joinOrganization', { code })).data;
+    expect(result).toMatchObject({ orgId, orgName: 'Oak', pending: true });
+    const user = (await adminDb.doc(`users/${uid}`).get()).data();
+    // Waiting for approval: no orgId yet, so no org-scoped access.
+    expect(user.orgId).toBeUndefined();
+    expect(user.pendingOrgId).toBe(orgId);
+    expect(user.pendingSince).toBeTruthy();
     expect((await adminDb.doc(`inviteCodes/${code}`).get()).data().uses).toBe(1);
   });
 
@@ -136,6 +141,7 @@ describe('joinOrganization', () => {
 
     expect(await outcome(call('joinOrganization', { code: revoked }))).toBe('functions/not-found');
     expect((await adminDb.doc(`users/${uid}`).get()).data().orgId).toBeUndefined();
+    expect((await adminDb.doc(`users/${uid}`).get()).data().pendingOrgId).toBeUndefined();
     expect((await adminDb.doc(`inviteCodes/${revoked}`).get()).data().uses).toBe(0);
   });
 
@@ -146,6 +152,83 @@ describe('joinOrganization', () => {
 
     expect(await outcome(call('joinOrganization', { code }))).toBe('functions/failed-precondition');
     expect((await adminDb.doc(`users/${uid}`).get()).data().orgId).toBe(otherOrg.id);
+  });
+});
+
+describe('join approval (approveOrgMember / denyOrgMember)', () => {
+  it('the owner sees requests, and approving makes the person a member', async () => {
+    const ownerUid = await newUser({ role: 'Administrator' });
+    const owner = auth.currentUser;
+    const { orgId, inviteCode } = (await call('createOrganization', { name: 'Rowan' })).data;
+    const uid = await newUser({ role: 'Volunteer', fullName: 'Vera' });
+    await call('joinOrganization', { code: inviteCode });
+
+    // The person asking can't approve themselves.
+    expect(await outcome(call('approveOrgMember', { orgId, memberUid: uid }))).toBe(
+      'functions/permission-denied'
+    );
+
+    await signOut(auth);
+    await auth.updateCurrentUser(owner);
+    const listed = (await call('listOrgMembers', { orgId })).data;
+    expect(listed.members).toEqual([]);
+    expect(listed.pending).toMatchObject([{ uid, name: 'Vera', role: 'Volunteer' }]);
+
+    expect(await outcome(call('approveOrgMember', { orgId, memberUid: uid }))).toBe('ok');
+    const user = (await adminDb.doc(`users/${uid}`).get()).data();
+    expect(user.orgId).toBe(orgId);
+    expect(user.pendingOrgId).toBeUndefined();
+    expect(user.pendingSince).toBeUndefined();
+    // Approving again finds nothing waiting.
+    expect(await outcome(call('approveOrgMember', { orgId, memberUid: uid }))).toBe(
+      'functions/not-found'
+    );
+    expect(ownerUid).toBeTruthy();
+  });
+
+  it('denying clears the request and grants nothing', async () => {
+    await newUser({ role: 'Administrator' });
+    const owner = auth.currentUser;
+    const { orgId, inviteCode } = (await call('createOrganization', { name: 'Yew' })).data;
+    const uid = await newUser({ role: 'Caregiver' });
+    await call('joinOrganization', { code: inviteCode });
+
+    await signOut(auth);
+    await auth.updateCurrentUser(owner);
+    expect(await outcome(call('denyOrgMember', { orgId, memberUid: uid }))).toBe('ok');
+    const user = (await adminDb.doc(`users/${uid}`).get()).data();
+    expect(user.orgId).toBeUndefined();
+    expect(user.pendingOrgId).toBeUndefined();
+  });
+
+  it("can't approve a request made to a different organization", async () => {
+    await newUser({ role: 'Administrator' });
+    const ownerA = auth.currentUser;
+    const orgA = (await call('createOrganization', { name: 'Alder' })).data.orgId;
+    await newUser({ role: 'Administrator' });
+    const { inviteCode: codeB } = (await call('createOrganization', { name: 'Beech' })).data;
+    const uid = await newUser({ role: 'Caregiver' });
+    await call('joinOrganization', { code: codeB });
+
+    await signOut(auth);
+    await auth.updateCurrentUser(ownerA);
+    expect(await outcome(call('approveOrgMember', { orgId: orgA, memberUid: uid }))).toBe(
+      'functions/not-found'
+    );
+    expect((await adminDb.doc(`users/${uid}`).get()).data().orgId).toBeUndefined();
+  });
+
+  it('deleting the organization drops requests waiting on it', async () => {
+    await newUser({ role: 'Administrator' });
+    const owner = auth.currentUser;
+    const { orgId, inviteCode } = (await call('createOrganization', { name: 'Larch' })).data;
+    const uid = await newUser({ role: 'Caregiver' });
+    await call('joinOrganization', { code: inviteCode });
+
+    await signOut(auth);
+    await auth.updateCurrentUser(owner);
+    expect(await outcome(call('deleteOrganization', { orgId }))).toBe('ok');
+    expect((await adminDb.doc(`users/${uid}`).get()).data().pendingOrgId).toBeUndefined();
   });
 });
 

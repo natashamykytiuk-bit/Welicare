@@ -1,5 +1,13 @@
 // @ts-check
-import { collection, doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import {
+  collection,
+  deleteField,
+  doc,
+  getDoc,
+  serverTimestamp,
+  updateDoc,
+  writeBatch,
+} from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from '../firebaseConfig';
 
@@ -22,9 +30,10 @@ const callUpgradePersonalOrganization =
   /** @type {Callable<{ name: string }, { orgId: string, inviteCode: string }>} */ (
     httpsCallable(functions, 'upgradePersonalOrganization')
   );
-const callJoinOrganization = /** @type {Callable<{ code: string }, { orgId: string }>} */ (
-  httpsCallable(functions, 'joinOrganization')
-);
+const callJoinOrganization =
+  /** @type {Callable<{ code: string }, { orgId: string, orgName: string | null, pending: boolean }>} */ (
+    httpsCallable(functions, 'joinOrganization')
+  );
 const callRegenerateInviteCode =
   /** @type {Callable<{ orgId: string }, { inviteCode: string }>} */ (
     httpsCallable(functions, 'regenerateInviteCode')
@@ -59,14 +68,32 @@ export async function createOrganization({ name, type, province, city }) {
   return result.data.orgId;
 }
 
-// Links the current user to the organization with this invite code.
-// Used by both JoinOrganizationScreen (onboarding) and
-// OrganizationSettingsScreen (a Family Caregiver leaving their personal
-// org). The server refuses anyone already in a real (non-personal) org, so
-// this can't be used to hop between facilities, and rate-limits attempts.
+// Asks to join the organization with this invite code. It doesn't make the
+// user a member straight away: the server records a join request that the
+// organization's administrator approves in Manage Users (see
+// joinOrganization in functions/index.js). Used by both
+// JoinOrganizationScreen (onboarding) and OrganizationSettingsScreen (a
+// Family Caregiver on their personal org). The server refuses anyone
+// already in a real (non-personal) org, so this can't be used to hop
+// between facilities, and rate-limits attempts.
+/**
+ * @param {string} code
+ * @returns {Promise<{ orgId: string, orgName: string | null }>}
+ */
 export async function joinOrganizationByCode(code) {
   const result = await callJoinOrganization({ code });
-  return result.data.orgId;
+  return { orgId: result.data.orgId, orgName: result.data.orgName };
+}
+
+// Cancels this user's waiting join request (PendingApprovalScreen). The
+// only change firestore.rules allow the app to make to pendingOrgId.
+export async function cancelJoinRequest() {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  await updateDoc(doc(db, 'users', uid), {
+    pendingOrgId: deleteField(),
+    pendingSince: deleteField(),
+  });
 }
 
 // The organization's current invite code, or null if it has none (e.g. a

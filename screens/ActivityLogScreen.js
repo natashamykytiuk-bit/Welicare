@@ -103,6 +103,12 @@ export function describeEntry(entry) {
   switch (entry.action) {
     case 'member.joined':
       return `${who} joined the organization.`;
+    case 'member.requested':
+      return `${who} asked to join the organization.`;
+    case 'member.approved':
+      return `${who} approved ${whom}'s request to join.`;
+    case 'member.denied':
+      return `${who} declined ${whom}'s request to join.`;
     case 'member.removed':
       return `${who} removed ${whom} from the organization.`;
     case 'member.left':

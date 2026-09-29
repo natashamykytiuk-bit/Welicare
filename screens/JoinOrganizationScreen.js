@@ -13,8 +13,9 @@ import { formatOrgCode, joinOrganizationByCode } from '../utils/inviteCode';
 
 // Reached from JoinCreateOrganizationScreen's "Join" card. Error message
 // comes straight from joinOrganizationByCode() (e.g. "not found") since it's
-// more useful to the user than a generic fallback. Resets to ModeSelection
-// on success for the same reason as CreateOrganizationScreen.
+// more useful to the user than a generic fallback. A valid code sends a
+// join request rather than joining, so success resets to PendingApproval,
+// which waits for the organization's administrator to approve it.
 export default function JoinOrganizationScreen({ navigation }) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
@@ -30,7 +31,7 @@ export default function JoinOrganizationScreen({ navigation }) {
     setLoading(true);
     try {
       await joinOrganizationByCode(code);
-      navigation.reset({ index: 0, routes: [{ name: 'ModeSelection' }] });
+      navigation.reset({ index: 0, routes: [{ name: 'PendingApproval' }] });
     } catch (e) {
       setError(e.message || 'Something went wrong. Please try again.');
     } finally {
@@ -43,6 +44,10 @@ export default function JoinOrganizationScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.content}>
         <BackButton navigation={navigation} />
         <Text style={styles.heading}>Join an organization</Text>
+        <Text style={styles.body}>
+          Enter the code your organization gave you. Their administrator will approve your request
+          before you can see their residents.
+        </Text>
 
         {error ? (
           <Text style={styles.errorBanner} accessibilityRole="alert">
@@ -68,9 +73,9 @@ export default function JoinOrganizationScreen({ navigation }) {
           disabled={!code.trim() || loading}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel="Join organization"
+          accessibilityLabel="Ask to join"
         >
-          <Text style={styles.buttonText}>{loading ? 'Joining…' : 'Join organization'}</Text>
+          <Text style={styles.buttonText}>{loading ? 'Sending…' : 'Ask to join'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -85,7 +90,7 @@ const styles = StyleSheet.create({
     fontSize: 26,
     color: colors.textPrimary,
     marginTop: 16,
-    marginBottom: 24,
+    marginBottom: 12,
   },
   errorBanner: {
     fontFamily: fonts.sansRegular,
@@ -98,6 +103,13 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 20,
     lineHeight: 22,
+  },
+  body: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 16,
+    color: colors.textMuted,
+    lineHeight: 23,
+    marginBottom: 20,
   },
   label: {
     fontFamily: fonts.sansBold,

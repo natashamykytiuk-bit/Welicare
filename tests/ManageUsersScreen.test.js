@@ -1,5 +1,6 @@
 // Tests for Manage Users: the owner sees members with roles and resident
-// counts, and removing someone needs their password first.
+// counts, removing someone needs their password first, and join requests
+// can be approved or denied.
 
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import ManageUsersScreen from '../screens/ManageUsersScreen';
@@ -50,6 +51,47 @@ describe('ManageUsersScreen', () => {
     expect(authModule.reauthenticateWithCredential).toHaveBeenCalled();
     expect(callable('removeOrgMember')).toHaveBeenCalledWith({ orgId: 'orgA', memberUid: 'm1' });
     expect(await screen.findByText('Casey Lee was removed from the organization.')).toBeTruthy();
+  });
+
+  it('approves a join request and reloads the lists', async () => {
+    signedInAsOwner();
+    callable('listOrgMembers').mockResolvedValueOnce({
+      data: {
+        members: [],
+        pending: [{ uid: 'p1', name: 'Tomas B', role: 'Caregiver', requestedAt: 1 }],
+      },
+    });
+    callable('approveOrgMember').mockResolvedValueOnce({ data: { ok: true } });
+    await render(<ManageUsersScreen navigation={navigation} />);
+
+    expect(await screen.findByText('Waiting for approval')).toBeTruthy();
+    firestore.getDoc
+      .mockResolvedValueOnce(docSnap({ role: 'Administrator', orgId: 'orgA' }))
+      .mockResolvedValueOnce(docSnap({ name: 'Maple', createdBy: 'test-uid' }));
+    await fireEvent.press(screen.getByLabelText('Approve Tomas B'));
+
+    expect(callable('approveOrgMember')).toHaveBeenCalledWith({ orgId: 'orgA', memberUid: 'p1' });
+    expect(await screen.findByText('Tomas B can now use the organization.')).toBeTruthy();
+  });
+
+  it('denies a join request', async () => {
+    signedInAsOwner();
+    callable('listOrgMembers').mockResolvedValueOnce({
+      data: {
+        members: [],
+        pending: [{ uid: 'p2', name: 'Keira M', role: 'Volunteer', requestedAt: 1 }],
+      },
+    });
+    callable('denyOrgMember').mockResolvedValueOnce({ data: { ok: true } });
+    await render(<ManageUsersScreen navigation={navigation} />);
+
+    firestore.getDoc
+      .mockResolvedValueOnce(docSnap({ role: 'Administrator', orgId: 'orgA' }))
+      .mockResolvedValueOnce(docSnap({ name: 'Maple', createdBy: 'test-uid' }));
+    await fireEvent.press(await screen.findByLabelText('Deny Keira M'));
+
+    expect(callable('denyOrgMember')).toHaveBeenCalledWith({ orgId: 'orgA', memberUid: 'p2' });
+    expect(await screen.findByText('Keira M’s request was declined.')).toBeTruthy();
   });
 
   it('explains when you are not the organization owner', async () => {

@@ -45,6 +45,16 @@ describe('nextOnboardingRoute', () => {
     ['no PIN', { role: 'Caregiver' }, 'PINSetup'],
     ['PIN but no org', { role: 'Caregiver', pinHash: 'h' }, 'JoinCreateOrganization'],
     [
+      'join request waiting for approval',
+      { role: 'Volunteer', pinHash: 'h', pendingOrgId: 'o' },
+      'PendingApproval',
+    ],
+    [
+      'family caregiver on a personal org with a request waiting',
+      { role: 'Family Caregiver', pinHash: 'h', orgId: 'personal', pendingOrgId: 'o' },
+      'ModeSelection',
+    ],
+    [
       'family caregiver who skipped the org step',
       { role: 'Family Caregiver', pinHash: 'h', orgStepSkipped: true },
       'ModeSelection',
