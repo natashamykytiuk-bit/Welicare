@@ -45,7 +45,7 @@ describe('MolehuntScreen', () => {
     for (let i = 1; i <= 5; i++) {
       await fireEvent.press(screen.getByLabelText('Mole'));
       expect(screen.getByLabelText(`${i} of 5 moles found`)).toBeTruthy();
-      await act(() => jest.advanceTimersByTime(1000));
+      await act(() => jest.advanceTimersByTime(1200));
     }
 
     expect(screen.getByText('Wonderful! You found all the moles.')).toBeTruthy();
@@ -57,7 +57,7 @@ describe('MolehuntScreen', () => {
 
     for (let i = 1; i <= 5; i++) {
       await fireEvent.press(screen.getAllByLabelText('Mole')[0]);
-      await act(() => jest.advanceTimersByTime(1000));
+      await act(() => jest.advanceTimersByTime(1200));
     }
 
     expect(screen.getByText('Wonderful! You found all the moles.')).toBeTruthy();

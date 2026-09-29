@@ -53,6 +53,11 @@ import HomeButton from '../HomeButton';
 // round completed. The resident comes from route.params.residentId (none
 // means Guest Mode). Without an activityId nothing is logged.
 //
+// Play background: a game can pass `playBackground` (an element, e.g.
+// Molehunt's field) to fill the whole screen behind the header and the
+// game while a round is being played. Setup and completion keep the plain
+// app background.
+//
 // Extra switches: a game can offer caregiver-chosen on/off settings shown
 // under the difficulty picker, e.g. Molehunt's "Two moles at once":
 //   switches={[{ key: 'twoMoles', label: 'Two moles at once' }]}
@@ -72,6 +77,7 @@ export default function GameShell({
   switches = [],
   activityId,
   route,
+  playBackground,
   children,
 }) {
   const [phase, setPhase] = useState('setup');
@@ -103,6 +109,11 @@ export default function GameShell({
 
   return (
     <SafeAreaView style={styles.flex}>
+      {phase === 'playing' && playBackground ? (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          {playBackground}
+        </View>
+      ) : null}
       <View style={styles.headerRow}>
         <BackButton navigation={navigation} style={styles.iconNoMargin} />
         <HomeButton navigation={navigation} destination="ModeSelection" />

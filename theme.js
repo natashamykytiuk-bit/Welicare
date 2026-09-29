@@ -30,6 +30,23 @@ export const colors = {
     games: { icon: '#5A7A3A', bg: '#E4EDD9' },
     moviesVideos: { icon: '#8D5435', bg: '#F0E0D0' },
   },
+  // Molehunt's placeholder scene (games/molehunt/assets.js) until the
+  // illustrator's artwork arrives. Soft, natural tones; the mole's fur is
+  // dark enough to stand out against both the grass and the clay mound,
+  // and its light muzzle keeps the face readable inside the dark hole.
+  molehunt: {
+    sky: '#DDEBF1',
+    horizon: '#C9E0A8',
+    grass: '#9CC46E',
+    grassDark: '#86B05A',
+    clay: '#C99C6E',
+    clayDark: '#A97C50',
+    holeDark: '#3A2A1F',
+    moleFur: '#6B4226',
+    moleMuzzle: '#EBCFAE',
+    moleFeature: '#22160F',
+    sparkle: '#FFF1A8',
+  },
 };
 
 export const fonts = {
