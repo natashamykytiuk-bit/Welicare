@@ -168,35 +168,40 @@ export default function GameShell({
                   );
                 })}
               </View>
-              {allSwitches.map((option) => {
-                const on = !!options[option.key];
-                return (
-                  // A large tap-anywhere row with an on/off switch. The
-                  // whole row is the button (the Switch itself ignores
-                  // touches), since a lone switch is a small target. The
-                  // knob position shows "on", not colour alone.
-                  <TouchableOpacity
-                    key={option.key}
-                    style={[styles.switchButton, on && styles.difficultySelected]}
-                    onPress={() => setOptions((o) => ({ ...o, [option.key]: !on }))}
-                    activeOpacity={0.8}
-                    accessibilityRole="switch"
-                    accessibilityState={{ checked: on }}
-                    accessibilityLabel={option.label}
-                  >
-                    <View pointerEvents="none" importantForAccessibility="no-hide-descendants">
-                      <Switch
-                        value={on}
-                        style={styles.switch}
-                        trackColor={{ false: colors.border, true: accent.icon }}
-                        thumbColor={colors.white}
-                        ios_backgroundColor={colors.border}
-                      />
-                    </View>
-                    <Text style={styles.difficultyText}>{option.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+              {/* The switches side by side (e.g. "Two moles at once" and
+                  "Keep playing"), wrapping onto a second line only on a
+                  narrow screen. */}
+              <View style={styles.switchRow}>
+                {allSwitches.map((option) => {
+                  const on = !!options[option.key];
+                  return (
+                    // A large tap-anywhere row with an on/off switch. The
+                    // whole row is the button (the Switch itself ignores
+                    // touches), since a lone switch is a small target. The
+                    // knob position shows "on", not colour alone.
+                    <TouchableOpacity
+                      key={option.key}
+                      style={[styles.switchButton, on && styles.difficultySelected]}
+                      onPress={() => setOptions((o) => ({ ...o, [option.key]: !on }))}
+                      activeOpacity={0.8}
+                      accessibilityRole="switch"
+                      accessibilityState={{ checked: on }}
+                      accessibilityLabel={option.label}
+                    >
+                      <View pointerEvents="none" importantForAccessibility="no-hide-descendants">
+                        <Switch
+                          value={on}
+                          style={styles.switch}
+                          trackColor={{ false: colors.border, true: accent.icon }}
+                          thumbColor={colors.white}
+                          ios_backgroundColor={colors.border}
+                        />
+                      </View>
+                      <Text style={styles.difficultyText}>{option.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
               <BigButton label="Start" onPress={startRound} />
             </>
           ) : (
@@ -299,13 +304,19 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   difficultyTextSelected: { color: colors.textPrimary },
+  switchRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 16,
+    marginBottom: 32,
+  },
   switchButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 24,
     minHeight: 88,
     paddingHorizontal: 32,
-    marginBottom: 32,
     borderRadius: radii.lg,
     borderWidth: 3,
     borderColor: colors.border,
