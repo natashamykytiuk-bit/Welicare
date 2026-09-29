@@ -2,15 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { arrayRemove, arrayUnion, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import YoutubePlayer from 'react-native-youtube-iframe';
+import YouTubeEmbed from '../components/YouTubeEmbed';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 
-// Real YouTube-backed playback via react-native-youtube-iframe — the
-// Movies & Videos equivalent of MusicPlayerScreen, see there for where
-// videoId/title come from. Playback itself (play/pause/seek/progress) is
-// entirely YouTube's own embedded controls — controls defaults to true on
-// YoutubePlayer, so it's left unset rather than passed explicitly.
+// Real YouTube-backed playback via components/YouTubeEmbed (which has a
+// separate web version, since react-native-youtube-iframe doesn't work
+// properly in a browser) — the Movies & Videos equivalent of
+// MusicPlayerScreen, see there for where videoId/title come from. Playback
+// itself (play/pause/seek/progress) is entirely YouTube's own embedded
+// controls.
 //
 // Only ever opened from MoviesSelectionScreen with a movie from the curated
 // movieLibrary. The heart saves to the resident's favouriteMovieVideoIds
@@ -55,7 +56,7 @@ export default function MoviesPlayerScreen({ navigation, route }) {
       setIsFavourite(!next);
     }
   }
-  // The player fills its wrapper, but YoutubePlayer needs explicit pixel
+  // The player fills its wrapper, but the player needs explicit pixel
   // dimensions (no flex/percentage sizing), so this measures the wrapper
   // via onLayout instead of hardcoding a fixed height.
   const [playerLayout, setPlayerLayout] = useState({ width: 0, height: 0 });
@@ -83,14 +84,14 @@ export default function MoviesPlayerScreen({ navigation, route }) {
         {videoId ? (
           <View style={styles.playerWrap} onLayout={handlePlayerLayout}>
             {playerLayout.width > 0 && playerLayout.height > 0 ? (
-              // rel: false keeps YouTube's end-of-video suggestions to the
-              // same channel instead of any video on the site, so a resident
-              // isn't led off to unvetted content when a movie finishes.
-              <YoutubePlayer
+              // autoplay off: unlike music, a movie waits for a tap to
+              // start. YouTubeEmbed already limits end-of-video suggestions
+              // to the same channel (rel: false).
+              <YouTubeEmbed
                 height={playerLayout.height}
                 width={playerLayout.width}
                 videoId={videoId}
-                initialPlayerParams={{ rel: false }}
+                autoplay={false}
               />
             ) : null}
             {residentId ? (

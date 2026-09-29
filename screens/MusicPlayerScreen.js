@@ -2,12 +2,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { arrayRemove, arrayUnion, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import YoutubePlayer from 'react-native-youtube-iframe';
+import YouTubeEmbed from '../components/YouTubeEmbed';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { rankBySimilarity } from '../utils/songSimilarity';
 
-// Real YouTube-backed playback via react-native-youtube-iframe, replacing
+// How many Up next songs to list. The rest of the queue still plays in
+// order (and next/auto-advance still reach them) — this just keeps the
+// list short and easy to scan. Slicing from the start keeps each row's
+// index equal to its offset in Up next, which playUpNext relies on.
+const UP_NEXT_VISIBLE = 8;
+
+// Real YouTube-backed playback via components/YouTubeEmbed, replacing
 // the old fake progress-bar/interval mock — see MusicSelectionScreen for
 // where videoId/title come from. Distinct from Caregiver Mode's
 // MusicMovieRecsScreen, which is an AI-recommendation browser rather than a
@@ -22,9 +28,8 @@ import { rankBySimilarity } from '../utils/songSimilarity';
 // { videoId, title } (or a song with no videoId) get a one-song queue.
 //
 // Playback itself (play/pause/seek/progress) is entirely YouTube's own
-// embedded controls — controls defaults to true on YoutubePlayer, so it's
-// left unset rather than passed explicitly. The only player state the app
-// listens for is 'ended', to move on to the next song.
+// embedded controls. The only player event the app listens for is the
+// video ending, to move on to the next song.
 export default function MusicPlayerScreen({ navigation, route }) {
   const params = route?.params ?? {};
   const residentId = params.residentId;
@@ -52,10 +57,14 @@ export default function MusicPlayerScreen({ navigation, route }) {
   const current = queue[currentIndex] ?? {};
   const videoId = current.videoId;
   const title = current.title ?? 'Untitled';
+  // Only an artist that was actually entered — `artist` itself falls back
+  // to the YouTube channel name for similarity ranking, which isn't worth
+  // showing. Absent for single-song callers, so just the title shows.
+  const artist = current.displayArtist ?? null;
   const upNext = queue.slice(currentIndex + 1);
   const hasPrevious = currentIndex > 0;
   const hasNext = currentIndex < queue.length - 1;
-  // The player fills its wrapper, but YoutubePlayer needs explicit pixel
+  // The wrapper is sized by aspectRatio, but the player needs explicit pixel
   // dimensions (no flex/percentage sizing), so this measures the wrapper
   // via onLayout instead of hardcoding a fixed height.
   const [playerLayout, setPlayerLayout] = useState({ width: 0, height: 0 });
@@ -94,9 +103,7 @@ export default function MusicPlayerScreen({ navigation, route }) {
   // Auto-advance through the queue when a song finishes. Stops quietly at
   // the end of the queue rather than looping, so a resident isn't left
   // with music that never ends.
-  const handleStateChange = useCallback((state) => {
-    if (state === 'ended') playUpNext(0);
-  }, []);
+  const handleEnded = useCallback(() => playUpNext(0), []);
 
   // Plays the Up next song at `offset` (0 = the top of Up next) and
   // re-ranks whatever's left by similarity to *that* song, so the queue
@@ -135,7 +142,10 @@ export default function MusicPlayerScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.flex}>
-      <View style={styles.content}>
+      {/* The whole screen scrolls so the player can keep its true 16:9
+          shape — Up next sits below it and is reached by scrolling, rather
+          than squeezing the video to fit everything on one screen. */}
+      <ScrollView contentContainerStyle={styles.content}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           accessibilityRole="link"
@@ -146,20 +156,24 @@ export default function MusicPlayerScreen({ navigation, route }) {
 
         <Text style={styles.title} numberOfLines={2}>
           {title}
+          {/* Nested Text so the artist sits inline after the title, set
+              apart by a thin divider and a lighter, muted sans face. */}
+          {artist ? <Text style={styles.titleArtist}>{`  |  ${artist}`}</Text> : null}
         </Text>
 
         {videoId ? (
           <View style={styles.playerWrap} onLayout={handlePlayerLayout}>
             {playerLayout.width > 0 && playerLayout.height > 0 ? (
-              // play is true so a queued song starts by itself after the
-              // previous one ends (or after next/previous/Up next taps)
-              // instead of waiting for another tap on the video.
-              <YoutubePlayer
+              // YouTubeEmbed autoplays, so a queued song starts by itself
+              // after the previous one ends (or after next/previous/Up next
+              // taps). It has a separate web version, since the native
+              // library never reported "ended" or swapped videos in a
+              // browser — see components/YouTubeEmbed.web.js.
+              <YouTubeEmbed
                 height={playerLayout.height}
                 width={playerLayout.width}
                 videoId={videoId}
-                play
-                onChangeState={handleStateChange}
+                onEnded={handleEnded}
               />
             ) : null}
             {residentId ? (
@@ -220,8 +234,8 @@ export default function MusicPlayerScreen({ navigation, route }) {
         {upNext.length > 0 ? (
           <View style={styles.upNext}>
             <Text style={styles.upNextHeading}>Up next</Text>
-            <ScrollView style={styles.upNextList}>
-              {upNext.map((song, i) => (
+            <View>
+              {upNext.slice(0, UP_NEXT_VISIBLE).map((song, i) => (
                 <TouchableOpacity
                   key={`${song.videoId}-${i}`}
                   style={styles.upNextItem}
@@ -232,20 +246,23 @@ export default function MusicPlayerScreen({ navigation, route }) {
                   <Ionicons name="musical-note" size={18} color={colors.textMuted} />
                   <Text style={styles.upNextTitle} numberOfLines={1}>
                     {song.title}
+                    {song.displayArtist ? (
+                      <Text style={styles.upNextArtist}>{`  ·  ${song.displayArtist}`}</Text>
+                    ) : null}
                   </Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </View>
           </View>
         ) : null}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1, padding: 28, paddingTop: 24, alignItems: 'center' },
+  content: { flexGrow: 1, padding: 28, paddingTop: 24, alignItems: 'center' },
   backLink: {
     fontFamily: fonts.sansBold,
     fontSize: 15,
@@ -257,12 +274,19 @@ const styles = StyleSheet.create({
     fontFamily: fonts.serifBold,
     fontSize: 24,
     color: colors.textPrimary,
-    textAlign: 'center',
+    // Left-aligned, matching the Up next rows below it.
+    textAlign: 'left',
+    alignSelf: 'stretch',
     marginBottom: 20,
   },
+  titleArtist: { fontFamily: fonts.sansRegular, fontSize: 20, color: colors.textMuted },
+  // Fixed 16:9 (YouTube's shape) instead of flex: 1, so the video is never
+  // squished by the content below it. Capped in width so it doesn't grow
+  // taller than the screen on wide tablets/desktop.
   playerWrap: {
-    flex: 1,
     width: '100%',
+    maxWidth: 960,
+    aspectRatio: 16 / 9,
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.border,
@@ -285,8 +309,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   artPlaceholder: {
-    flex: 1,
     width: '100%',
+    maxWidth: 960,
+    aspectRatio: 16 / 9,
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.border,
@@ -317,14 +342,13 @@ const styles = StyleSheet.create({
   },
   controlDisabled: { opacity: 0.35 },
   position: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.textMuted },
-  upNext: { width: '100%', marginTop: 16, maxHeight: 200 },
+  upNext: { width: '100%', marginTop: 16 },
   upNextHeading: {
     fontFamily: fonts.sansBold,
     fontSize: 16,
     color: colors.textPrimary,
     marginBottom: 8,
   },
-  upNextList: { flexGrow: 0 },
   upNextItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -334,6 +358,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  upNextArtist: { fontFamily: fonts.sansRegular, color: colors.textMuted },
   upNextTitle: { flex: 1, fontFamily: fonts.sansRegular, fontSize: 16, color: colors.textPrimary },
   subtitle: {
     fontFamily: fonts.sansRegular,

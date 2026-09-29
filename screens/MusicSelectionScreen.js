@@ -247,6 +247,9 @@ export default function MusicSelectionScreen({ navigation, route }) {
             // should stay small and serialisable. genres/decade/artist
             // feed the player's similarity ranking (see songSimilarity);
             // genresOf/channelTitle cover pre-migration docs.
+            // displayArtist is only an artist someone actually entered
+            // (no channel-name fallback), so the player shows just the
+            // title rather than e.g. "Sam Cooke - Topic".
             onPress={() =>
               navigation.navigate('MusicPlayer', {
                 queue: videos
@@ -257,6 +260,7 @@ export default function MusicSelectionScreen({ navigation, route }) {
                     genres: genresOf(v),
                     decade: v.decade ?? null,
                     artist: v.artist || v.channelTitle || null,
+                    displayArtist: v.artist || null,
                   })),
                 startIndex: videos.filter((v, i) => v.videoId && i < index).length,
                 videoId: video.videoId,
