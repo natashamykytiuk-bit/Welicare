@@ -41,13 +41,20 @@ describe('JoinCreateOrganizationScreen', () => {
     expect(screen.queryByLabelText('Join an organization')).toBeNull();
 
     // Now let the load finish: options appear, and a Caregiver may skip.
-    await act(async () => finishLoad(docSnap({ role: 'Caregiver' })));
+    await act(async () => finishLoad(docSnap({ role: 'Family Caregiver' })));
     expect(await screen.findByLabelText('Join an organization')).toBeTruthy();
     expect(screen.getByLabelText('Skip this step')).toBeTruthy();
   });
 
   it('hides Skip for administrators', async () => {
     firestore.getDoc.mockResolvedValueOnce(docSnap({ role: 'Administrator' }));
+    await render(<JoinCreateOrganizationScreen navigation={navigation} />);
+    await screen.findByLabelText('Join an organization');
+    expect(screen.queryByLabelText('Skip this step')).toBeNull();
+  });
+
+  it('hides Skip for volunteers — only Family Caregivers can skip', async () => {
+    firestore.getDoc.mockResolvedValueOnce(docSnap({ role: 'Volunteer' }));
     await render(<JoinCreateOrganizationScreen navigation={navigation} />);
     await screen.findByLabelText('Join an organization');
     expect(screen.queryByLabelText('Skip this step')).toBeNull();

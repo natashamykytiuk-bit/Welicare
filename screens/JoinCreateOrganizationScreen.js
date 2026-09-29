@@ -21,9 +21,9 @@ import { colors, fonts, radii } from '../theme';
 // user's own Firestore doc, which SignUpScreen already wrote at account
 // creation.
 //
-// Administrators must connect to an organization before continuing (they
-// manage staff/residents at the org level, so a facility-less admin account
-// isn't useful) — everyone else can skip and connect later from Settings.
+// Only Family Caregivers can skip and connect later from Settings.
+// Administrators, Caregivers and Volunteers all work for a facility, so an
+// account with no organization has nothing for them (see utils/onboarding.js).
 export default function JoinCreateOrganizationScreen({ navigation }) {
   // undefined while loading, then either the role string or null
   const [role, setRole] = useState(undefined);
@@ -53,7 +53,7 @@ export default function JoinCreateOrganizationScreen({ navigation }) {
     };
   }, [reloadKey]);
 
-  const isAdministrator = role === 'Administrator';
+  const canSkip = role === 'Family Caregiver';
 
   // Skipping is recorded on the user's own doc (not just a navigation
   // shortcut) so App.js's onboarding-status check treats it as a durable
@@ -77,9 +77,9 @@ export default function JoinCreateOrganizationScreen({ navigation }) {
         <Text style={styles.stepIndicator}>STEP 3 OF 3</Text>
         <Text style={styles.heading}>Join or create an organization</Text>
         <Text style={styles.body}>
-          {isAdministrator
-            ? 'As an administrator, connect to your care facility to continue — this step can’t be skipped.'
-            : 'Connect to your care facility to start using Welicare.'}
+          {canSkip
+            ? 'Connect to your care facility to start using Welicare.'
+            : 'Connect to your care facility to continue — this step can’t be skipped.'}
         </Text>
 
         {loadError ? (
@@ -126,7 +126,7 @@ export default function JoinCreateOrganizationScreen({ navigation }) {
               </Text>
             </TouchableOpacity>
 
-            {!isAdministrator ? (
+            {canSkip ? (
               <TouchableOpacity
                 style={styles.skipLink}
                 onPress={handleSkip}

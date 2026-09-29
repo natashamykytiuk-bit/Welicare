@@ -45,9 +45,19 @@ describe('nextOnboardingRoute', () => {
     ['no PIN', { role: 'Caregiver' }, 'PINSetup'],
     ['PIN but no org', { role: 'Caregiver', pinHash: 'h' }, 'JoinCreateOrganization'],
     [
-      'caregiver who skipped the org step',
-      { role: 'Caregiver', pinHash: 'h', orgStepSkipped: true },
+      'family caregiver who skipped the org step',
+      { role: 'Family Caregiver', pinHash: 'h', orgStepSkipped: true },
       'ModeSelection',
+    ],
+    [
+      'caregiver cannot skip the org step',
+      { role: 'Caregiver', pinHash: 'h', orgStepSkipped: true },
+      'JoinCreateOrganization',
+    ],
+    [
+      'volunteer cannot skip the org step',
+      { role: 'Volunteer', pinHash: 'h', orgStepSkipped: true },
+      'JoinCreateOrganization',
     ],
     [
       'administrator cannot skip the org step',

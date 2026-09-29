@@ -123,7 +123,7 @@ describe('finish setting up', () => {
     auth.currentUser = { uid: 'has-profile', email: 'ann@example.com' };
     firestore.getDoc.mockReset();
     firestore.getDoc.mockResolvedValueOnce(
-      docSnap({ role: 'Volunteer', pinHash: 'h', orgStepSkipped: true })
+      docSnap({ role: 'Volunteer', pinHash: 'h', orgId: 'o' })
     );
 
     await render(<SignUpScreen navigation={navigation} route={finishRoute} />);

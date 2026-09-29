@@ -13,10 +13,12 @@
 //   no orgId         → JoinCreateOrganization
 //   otherwise        → ModeSelection
 //
-// Non-administrators may skip the organization step (orgStepSkipped);
-// Administrators can't, since an admin without an organization has nothing
-// to administer — and App.js ignores orgStepSkipped for them, so writing
-// it to their own doc doesn't get them past this step either.
+// Only Family Caregivers may skip the organization step (orgStepSkipped):
+// they look after a relative at home and needn't belong to a facility.
+// Administrators, Caregivers and Volunteers all work *for* a facility, so
+// without one the app has nothing for them — orgStepSkipped is ignored for
+// those roles, which also sends anyone who skipped under the old rules back
+// to this step on their next sign-in.
 /**
  * @param {Partial<import('../types/models').User> | null | undefined} userData
  *   The signed-in user's users/{uid} doc (undefined if it doesn't exist yet).
@@ -30,7 +32,7 @@ export function nextOnboardingRoute(userData) {
   const data = userData;
   if (!data.pinHash) return 'PINSetup';
   const needsOrg =
-    data.role === 'Administrator' ? !data.orgId : !data.orgId && !data.orgStepSkipped;
+    data.role === 'Family Caregiver' ? !data.orgId && !data.orgStepSkipped : !data.orgId;
   if (needsOrg) return 'JoinCreateOrganization';
   return 'ModeSelection';
 }
