@@ -24,6 +24,30 @@ import { safetyRef } from '../utils/residentSafety';
 
 const LOAD_TIMEOUT_MS = 10000;
 
+// Every resident in the signed-in volunteer's facility, as query docs, or []
+// for anyone who isn't a Volunteer with an organization. Reads the user's own
+// doc for role/orgId rather than reusing the screen's `role` state, since the
+// resident load can run before that state has arrived.
+export async function loadVolunteerFacilityResidents(uid) {
+  if (!uid) return [];
+  const userSnap = await withTimeout(
+    getDoc(doc(db, 'users', uid)),
+    LOAD_TIMEOUT_MS,
+    'Loading residents is taking longer than expected. Please check your connection and try again.'
+  );
+  const { role, orgId } = userSnap.data() ?? {};
+  if (role !== 'Volunteer' || !orgId) return [];
+  const snap = await withTimeout(
+    getDocs(query(collection(db, 'residents'), where('facilityId', '==', orgId))),
+    LOAD_TIMEOUT_MS,
+    'Loading residents is taking longer than expected. Please check your connection and try again.'
+  ).catch((e) => {
+    console.error('[ResidentMode] facilityId query failed:', e.code, e.message, e);
+    throw e;
+  });
+  return snap.docs;
+}
+
 // This is the resident-selection screen: full dark-green header, a grid of
 // saved residents, plus Guest Mode / Add Resident entry points. It's the
 // same screen ModeSelectionScreen and AppJS route to as "ResidentMode" —
@@ -110,9 +134,18 @@ export default function ResidentModeScreen({ navigation }) {
             console.error('[ResidentMode] assignedCaregivers query failed:', e.code, e.message, e);
             throw e;
           });
+          // Volunteers are never on assignedCaregivers (firestore.rules only
+          // let Caregivers/Administrators self-assign), so the two queries
+          // above would leave a facility volunteer with an empty list. They
+          // run sessions for anyone in their facility, so they also get the
+          // whole-facility query — its own `allow list` rule
+          // (seesWholeFacility) already permits it. Caregivers/Admins keep
+          // seeing only their own list here, as before; Family Caregivers
+          // must never get this query (the rule would refuse it anyway).
+          const facilityDocs = await loadVolunteerFacilityResidents(uid);
           if (cancelled) return;
           const merged = new Map();
-          [...ownedSnap.docs, ...assignedSnap.docs].forEach((d) =>
+          [...ownedSnap.docs, ...assignedSnap.docs, ...facilityDocs].forEach((d) =>
             merged.set(d.id, { id: d.id, ...d.data() })
           );
           const list = Array.from(merged.values()).sort(
@@ -254,15 +287,20 @@ export default function ResidentModeScreen({ navigation }) {
                 {item.name}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuButton}
-              onPress={() => setMenuFor(item)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={`Options for ${item.name}`}
-            >
-              <Ionicons name="ellipsis-vertical" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
+            {/* Volunteers may only edit residents they created themselves
+                (firestore.rules), so facility residents shown to them get no
+                options menu rather than an Edit that fails on save. */}
+            {role === 'Volunteer' && item.createdBy !== auth.currentUser?.uid ? null : (
+              <TouchableOpacity
+                style={styles.menuButton}
+                onPress={() => setMenuFor(item)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Options for ${item.name}`}
+              >
+                <Ionicons name="ellipsis-vertical" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+            )}
           </View>
         )}
       />

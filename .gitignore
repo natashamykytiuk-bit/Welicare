@@ -55,3 +55,10 @@ Claude outputs/
 
 # Firebase emulator logs
 *-debug.log
+
+# Seed/teardown scripts (scripts/seed-test-org.js): local secrets. The test
+# password/PIN live in .env and the Firebase service account key in
+# secrets/ — neither may ever be committed.
+.env
+/secrets/
+*service-account*.json
