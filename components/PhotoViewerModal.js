@@ -1,9 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useEffect, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Modal,
   SafeAreaView,
   StyleSheet,
@@ -13,9 +11,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { colors, fonts, radii } from '../theme';
-
-// How long scrolling must be still before a swipe counts as finished (web).
-const SETTLE_MS = 120;
+import LoopingPager from './LoopingPager';
 
 // Full-screen photo viewer for Resident Mode's Photo Album: tapping the
 // photo in ResidentPhotoAlbumScreen opens this. One photo per page on a
@@ -28,75 +24,14 @@ const SETTLE_MS = 120;
 // photo + neighbours) keeps the pages either side ready. Pages whose URL
 // isn't in yet show a spinner.
 //
-// Continuous: swiping past the last photo carries on to the first, and back
-// from the first to the last — never a dead end, same as the album's
-// arrows. Done with the usual looping trick: the page list is
-//   [copy of last, ...photos, copy of first]
-// and when a swipe settles on one of the copies, the list jumps (without
-// animation) to the real photo it shows, which looks identical. With only
-// one photo there's nothing to loop, so no copies are added.
+// The swiping is LoopingPager's, the same as the album itself: it follows
+// your finger and is continuous — past the last photo carries on to the
+// first.
 //
 // Props: visible, photos (ResidentPhoto[]), index, urls ({ photoId: url }),
 // onIndexChange(i), onClose().
 export default function PhotoViewerModal({ visible, photos, index, urls, onIndexChange, onClose }) {
   const { width, height } = useWindowDimensions();
-  const listRef = useRef(null);
-
-  const looping = photos.length > 1;
-  // The pages actually rendered (see "Continuous" above). Each keeps a
-  // unique key; the copies are marked so they aren't confused with the
-  // real pages.
-  const pages = useMemo(() => {
-    if (!looping) return photos.map((p) => ({ key: p.id, photo: p }));
-    const last = photos[photos.length - 1];
-    return [
-      { key: `copy-start-${last.id}`, photo: last },
-      ...photos.map((p) => ({ key: p.id, photo: p })),
-      { key: `copy-end-${photos[0].id}`, photo: photos[0] },
-    ];
-  }, [photos, looping]);
-  // Photo index → page, and page → photo index (the copies map onto the
-  // real photo they show).
-  const pageOf = (i) => (looping ? i + 1 : i);
-  const photoOf = (page) => (looping ? (page - 1 + photos.length) % photos.length : page);
-
-  // Keep the visible page in step with the album's index — when opened,
-  // after a jump off a copy, or after the screen rotates.
-  useEffect(() => {
-    if (!visible || !photos.length) return;
-    listRef.current?.scrollToIndex?.({ index: pageOf(index), animated: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, index, width, photos.length]);
-
-  // A swipe settled at horizontal offset `x`: report the photo it landed
-  // on, and if that was one of the copies, hop to the real page so the
-  // loop can keep going.
-  function settle(x) {
-    const page = Math.round(x / width);
-    if (page < 0 || page >= pages.length) return;
-    const photoIndex = photoOf(page);
-    if (page !== pageOf(photoIndex)) {
-      listRef.current?.scrollToIndex?.({ index: pageOf(photoIndex), animated: false });
-    }
-    if (photoIndex !== index) onIndexChange(photoIndex);
-  }
-
-  // Working out when a swipe has finished. Phones fire
-  // onMomentumScrollEnd, but the web build never does — which is what
-  // stopped the loop working there. So every scroll event also restarts a
-  // short timer, and once scrolling has been still for SETTLE_MS on (or
-  // very near) a page boundary, that counts as settled. Settling twice is
-  // harmless: the second time finds nothing to do.
-  const settleTimer = useRef(null);
-  function onScroll(e) {
-    const x = e.nativeEvent.contentOffset.x;
-    clearTimeout(settleTimer.current);
-    settleTimer.current = setTimeout(() => {
-      // Mid-snap on web the offset isn't on a page yet; wait for the next event.
-      if (Math.abs(x / width - Math.round(x / width)) < 0.02) settle(x);
-    }, SETTLE_MS);
-  }
-  useEffect(() => () => clearTimeout(settleTimer.current), []);
 
   return (
     <Modal
@@ -106,23 +41,15 @@ export default function PhotoViewerModal({ visible, photos, index, urls, onIndex
       supportedOrientations={['portrait', 'landscape']}
     >
       <View style={styles.backdrop}>
-        <FlatList
-          ref={listRef}
+        <LoopingPager
           testID="photo-viewer-list"
-          // Re-created on rotation so every page is exactly one screen wide.
-          key={`viewer-${width}`}
-          data={pages}
-          keyExtractor={(page) => page.key}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          initialScrollIndex={Math.min(pageOf(index), Math.max(pages.length - 1, 0))}
-          getItemLayout={(_d, i) => ({ length: width, offset: width * i, index: i })}
-          onMomentumScrollEnd={(e) => settle(e.nativeEvent.contentOffset.x)}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
-          renderItem={({ item: { photo: item } }) => (
-            <View style={{ width, height }}>
+          items={photos}
+          index={index}
+          onIndexChange={onIndexChange}
+          width={width}
+          height={height}
+          renderItem={(item) => (
+            <>
               {urls[item.id] ? (
                 <Image
                   source={{ uri: urls[item.id] }}
@@ -143,7 +70,7 @@ export default function PhotoViewerModal({ visible, photos, index, urls, onIndex
                   </Text>
                 </View>
               ) : null}
-            </View>
+            </>
           )}
         />
 

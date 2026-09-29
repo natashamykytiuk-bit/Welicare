@@ -1,9 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  PanResponder,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import {
 } from 'react-native';
 import BackButton from '../components/BackButton';
 import HomeButton from '../components/HomeButton';
+import LoopingPager from '../components/LoopingPager';
 import PhotoViewerModal from '../components/PhotoViewerModal';
 import UserAvatar from '../components/UserAvatar';
 import useActivitySession from '../hooks/useActivitySession';
@@ -23,8 +23,6 @@ import { getPhotoUrl, listResidentPhotos } from '../utils/residentPhotos';
 // URL fetched yet — the album can hold hundreds of photos, and a resident
 // usually looks at a handful.
 const NEIGHBOURS = 1;
-// How far (px) a finger must travel sideways to count as a swipe.
-const SWIPE_DISTANCE = 50;
 
 // Resident Mode's Photo Album activity (the "Photo Album" tile on
 // ActivityMenuScreen): a full-screen slideshow of the photos family and
@@ -123,20 +121,10 @@ export default function ResidentPhotoAlbumScreen({ navigation, route }) {
   const goNext = useCallback(() => count && setIndex((i) => (i + 1) % count), [count]);
   const goPrev = useCallback(() => count && setIndex((i) => (i - 1 + count) % count), [count]);
 
-  // Horizontal swipe on the photo. Rebuilt when count changes so the
-  // handlers wrap around correctly.
-  const pan = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_e, g) =>
-          Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy),
-        onPanResponderRelease: (_e, g) => {
-          if (g.dx <= -SWIPE_DISTANCE) goNext();
-          else if (g.dx >= SWIPE_DISTANCE) goPrev();
-        },
-      }),
-    [goNext, goPrev]
-  );
+  // The photo frame's size, measured on layout — LoopingPager needs exact
+  // page dimensions, and the frame's size depends on the screen and the
+  // buttons beside it.
+  const [frame, setFrame] = useState({ width: 0, height: 0 });
 
   const { width, height } = useWindowDimensions();
   const landscape = width >= height;
@@ -170,31 +158,53 @@ export default function ResidentPhotoAlbumScreen({ navigation, route }) {
       <View style={[styles.stage, !landscape && styles.stagePortrait]}>
         {landscape ? <NavButton direction="back" onPress={goPrev} disabled={count < 2} /> : null}
         <View style={styles.photoColumn}>
-          <View style={styles.photoFrame} {...pan.panHandlers}>
-            {currentUrl ? (
-              // Tap the photo to open it full screen.
-              <TouchableOpacity
-                style={styles.photo}
-                onPress={() => setFullScreen(true)}
-                activeOpacity={0.9}
-                accessibilityRole="button"
-                accessibilityHint="Opens the photo full screen"
-              >
-                <Image
-                  source={{ uri: currentUrl }}
-                  style={styles.photo}
-                  contentFit="contain"
-                  cachePolicy="disk"
-                  // A soft cross-fade between photos.
-                  transition={300}
-                  accessible
-                  accessibilityLabel={current.caption || 'Photo'}
-                  onError={() => skipPhoto(current.id)}
-                />
-              </TouchableOpacity>
-            ) : (
-              <ActivityIndicator size="large" color={colors.activities.photoAlbum.icon} />
-            )}
+          <View
+            style={styles.photoFrame}
+            onLayout={(e) =>
+              setFrame({
+                width: Math.round(e.nativeEvent.layout.width),
+                height: Math.round(e.nativeEvent.layout.height),
+              })
+            }
+          >
+            {/* The photos themselves: swiping follows your finger and loops
+                continuously (LoopingPager), and the prev/next buttons slide
+                it along. Tap a photo to open it full screen. */}
+            {frame.width > 0 ? (
+              <LoopingPager
+                testID="album-pager"
+                items={photos}
+                index={index}
+                onIndexChange={setIndex}
+                width={frame.width}
+                height={frame.height}
+                renderItem={(photo) =>
+                  urls[photo.id] ? (
+                    <TouchableOpacity
+                      style={styles.photo}
+                      onPress={() => setFullScreen(true)}
+                      activeOpacity={0.9}
+                      accessibilityRole="button"
+                      accessibilityHint="Opens the photo full screen"
+                    >
+                      <Image
+                        source={{ uri: urls[photo.id] }}
+                        style={styles.photo}
+                        contentFit="contain"
+                        cachePolicy="disk"
+                        accessible
+                        accessibilityLabel={photo.caption || 'Photo'}
+                        onError={() => skipPhoto(photo.id)}
+                      />
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.pageLoading}>
+                      <ActivityIndicator size="large" color={colors.activities.photoAlbum.icon} />
+                    </View>
+                  )
+                }
+              />
+            ) : null}
             {/* A visible way into full screen too, since tapping the photo
                 isn't obvious. */}
             {currentUrl ? (
@@ -311,15 +321,15 @@ const styles = StyleSheet.create({
   stage: { flex: 1, width: '100%', flexDirection: 'row', alignItems: 'center', gap: 16 },
   stagePortrait: { flexDirection: 'column' },
   photoColumn: { flex: 1, alignSelf: 'stretch', alignItems: 'center' },
+  // Not centred: the pager inside must stretch to the frame's full size.
   photoFrame: {
     flex: 1,
     width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
     borderRadius: radii.lg,
     overflow: 'hidden',
   },
   photo: { width: '100%', height: '100%' },
+  pageLoading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   caption: {
     fontFamily: fonts.sansBold,
     fontSize: 30,
