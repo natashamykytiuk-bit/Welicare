@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import YouTubeEmbed from '../components/YouTubeEmbed';
 import { db } from '../firebaseConfig';
+import useActivitySession from '../hooks/useActivitySession';
 import { colors, fonts, radii } from '../theme';
 
 // Real YouTube-backed playback via components/YouTubeEmbed (which has a
@@ -20,6 +21,19 @@ export default function MoviesPlayerScreen({ navigation, route }) {
   const videoId = route?.params?.videoId;
   const title = route?.params?.title ?? 'Untitled';
   const residentId = route?.params?.residentId;
+  // Logs time spent watching to activitySessions, same as the games and
+  // Music, so it shows under the resident's engagement on Resident
+  // Profile. The movie is one "round", completed if it plays to the end.
+  const session = useActivitySession({
+    navigation,
+    activityType: 'movies',
+    activityId: 'movies',
+    residentId,
+  });
+  const { roundStarted } = session;
+  useEffect(() => {
+    if (videoId) roundStarted(null);
+  }, [videoId, roundStarted]);
   // Only shown when there's a resident to save a favourite for (not Guest
   // Mode).
   const [isFavourite, setIsFavourite] = useState(false);
@@ -92,6 +106,7 @@ export default function MoviesPlayerScreen({ navigation, route }) {
                 width={playerLayout.width}
                 videoId={videoId}
                 autoplay={false}
+                onEnded={session.roundCompleted}
               />
             ) : null}
             {residentId ? (

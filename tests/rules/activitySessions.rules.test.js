@@ -119,6 +119,18 @@ describe('activitySessions: create', () => {
     await assertSucceeds(addDoc(sessions(as('volunteerA')), session('volunteerA')));
   });
 
+  it('accepts Music and Movies sessions (no difficulty) as well as games', async () => {
+    const db = as('caregiverA');
+    for (const type of ['music', 'movies']) {
+      await assertSucceeds(
+        addDoc(
+          sessions(db),
+          session('caregiverA', { activityType: type, activityId: type, difficulty: null })
+        )
+      );
+    }
+  });
+
   it('lets anyone log a Guest Mode session in their own facility', async () => {
     await assertSucceeds(
       addDoc(sessions(as('familyA')), session('familyA', { residentId: null, isGuest: true }))

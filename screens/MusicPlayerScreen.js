@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import YouTubeEmbed from '../components/YouTubeEmbed';
 import { db } from '../firebaseConfig';
+import useActivitySession from '../hooks/useActivitySession';
 import { colors, fonts, radii } from '../theme';
 import { rankBySimilarity } from '../utils/songSimilarity';
 
@@ -68,6 +69,20 @@ export default function MusicPlayerScreen({ navigation, route }) {
   // dimensions (no flex/percentage sizing), so this measures the wrapper
   // via onLayout instead of hardcoding a fixed height.
   const [playerLayout, setPlayerLayout] = useState({ width: 0, height: 0 });
+  // Logs time spent in the player to activitySessions, same as the games,
+  // so it shows under the resident's engagement on Resident Profile. Each
+  // song counts as a "round": started when it comes up, completed when it
+  // plays to the end.
+  const session = useActivitySession({
+    navigation,
+    activityType: 'music',
+    activityId: 'music',
+    residentId,
+  });
+  const { roundStarted } = session;
+  useEffect(() => {
+    if (videoId) roundStarted(null);
+  }, [videoId, roundStarted]);
   // Only meaningful when residentId is present (e.g. not Guest Mode, which
   // has no resident doc to store a favourite against) — the heart button
   // itself is hidden in that case, see below.
@@ -103,7 +118,10 @@ export default function MusicPlayerScreen({ navigation, route }) {
   // Auto-advance through the queue when a song finishes. Stops quietly at
   // the end of the queue rather than looping, so a resident isn't left
   // with music that never ends.
-  const handleEnded = useCallback(() => playUpNext(0), []);
+  const handleEnded = useCallback(() => {
+    session.roundCompleted();
+    playUpNext(0);
+  }, [session]);
 
   // Plays the Up next song at `offset` (0 = the top of Up next) and
   // re-ranks whatever's left by similarity to *that* song, so the queue

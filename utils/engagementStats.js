@@ -16,6 +16,8 @@ export const ACTIVITY_LABELS = {
   memoryMatch: 'Memory Match',
   molehunt: 'Molehunt',
   wordGames: 'Finish the Phrase',
+  music: 'Music',
+  movies: 'Movies & Videos',
 };
 
 /** The time ranges the screen offers, newest-first defaults. */
