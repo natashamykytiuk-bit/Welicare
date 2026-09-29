@@ -590,5 +590,64 @@ service cloud.firestore {
         resource.data.facilityId != 'global' &&
         resource.data.facilityId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId;
     }
+
+    // Play-time log for Resident Mode activities (hooks/useActivitySession.js,
+    // utils/activitySessions.js): one immutable doc per visit to an activity.
+    // Health-adjacent data (Alberta HIA), so only ids, counts, the difficulty
+    // and times are allowed, with no names or free text (validActivitySession).
+    match /activitySessions/{sessionId} {
+      // Facility staff (Caregiver, Administrator, Volunteer) in the same
+      // facility, for Overall Stats and volunteer hours.
+      // TODO(Family Mode stats): Family Caregivers are deliberately left out
+      // for now. Their read access (likely limited to residents they're
+      // linked to) will be designed when Family Mode stats are built.
+      allow get, list: if verified() && resource.data.facilityId == me().orgId &&
+        seesWholeFacility();
+
+      // Only for yourself (userId, and your real role from your own user
+      // doc), in your own facility, and, unless it's a Guest Mode visit,
+      // for a resident you're linked to (the same test resident reads use),
+      // so nobody can file sessions against another facility's residents.
+      allow create: if verified() &&
+        validActivitySession(request.resource.data) &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.facilityId == me().orgId &&
+        request.resource.data.userRole == me().role &&
+        (
+          request.resource.data.isGuest == true ||
+          linkedToResident(get(/databases/$(database)/documents/residents/$(request.resource.data.residentId)).data)
+        );
+
+      // An immutable log: sessions are never edited or removed.
+      allow update, delete: if false;
+    }
+
+    // Exactly the fields utils/activitySessions.js writes, each with its
+    // type. activityId must be a short plain identifier ('molehunt') so no
+    // free text can be smuggled in; a guest visit has no resident, a
+    // resident visit must name one.
+    function validActivitySession(d) {
+      return d.keys().hasOnly(['facilityId', 'residentId', 'isGuest', 'activityType',
+          'activityId', 'difficulty', 'roundsStarted', 'roundsCompleted', 'startedAt',
+          'endedAt', 'durationSeconds', 'userId', 'userRole']) &&
+        d.keys().hasAll(['facilityId', 'residentId', 'isGuest', 'activityType',
+          'activityId', 'difficulty', 'roundsStarted', 'roundsCompleted', 'startedAt',
+          'endedAt', 'durationSeconds', 'userId', 'userRole']) &&
+        d.facilityId is string &&
+        d.isGuest is bool &&
+        ((d.isGuest == true && d.residentId == null) ||
+          (d.isGuest == false && d.residentId is string && d.residentId.matches('^[A-Za-z0-9_-]{1,128}$'))) &&
+        // Add 'music', 'trivia', ... here as those activities start logging.
+        d.activityType in ['game'] &&
+        d.activityId is string && d.activityId.matches('^[A-Za-z]{1,40}$') &&
+        d.difficulty in ['gentle', 'medium', 'challenge', null] &&
+        d.roundsStarted is int && d.roundsStarted >= 0 && d.roundsStarted <= 1000 &&
+        d.roundsCompleted is int && d.roundsCompleted >= 0 &&
+        d.roundsCompleted <= d.roundsStarted &&
+        d.startedAt is timestamp && d.endedAt is timestamp && d.endedAt >= d.startedAt &&
+        // At least the app's 10-second minimum, at most a day.
+        d.durationSeconds is int && d.durationSeconds >= 10 && d.durationSeconds <= 86400 &&
+        d.userId is string && d.userRole is string;
+    }
   }
 }

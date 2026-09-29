@@ -19,10 +19,12 @@ const GRID = { 6: [3, 2], 8: [4, 2], 12: [4, 3] };
 
 // Resident Mode → Games → Memory Match. GameShell supplies the header,
 // difficulty picker and completion view; this screen only plays one round.
-export default function MemoryMatchScreen({ navigation }) {
+export default function MemoryMatchScreen({ navigation, route }) {
   return (
     <GameShell
       navigation={navigation}
+      route={route}
+      activityId="memoryMatch"
       title="Memory Match"
       description="Turn over two cards at a time to find the pictures that match."
     >

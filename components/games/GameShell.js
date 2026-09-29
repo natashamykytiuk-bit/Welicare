@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { colors, fonts, radii } from '../../theme';
+import useActivitySession from '../../hooks/useActivitySession';
 import BackButton from '../BackButton';
 import HomeButton from '../HomeButton';
 
@@ -46,6 +47,12 @@ import HomeButton from '../HomeButton';
 //     )}
 //   </GameShell>
 //
+// Play-time logging: pass `activityId` (e.g. 'molehunt') and `route`, and
+// the shell records each visit in Firestore via useActivitySession — Start /
+// Play again count as a round started, reaching the completion view as a
+// round completed. The resident comes from route.params.residentId (none
+// means Guest Mode). Without an activityId nothing is logged.
+//
 // Extra switches: a game can offer caregiver-chosen on/off settings shown
 // under the difficulty picker, e.g. Molehunt's "Two moles at once":
 //   switches={[{ key: 'twoMoles', label: 'Two moles at once' }]}
@@ -63,6 +70,8 @@ export default function GameShell({
   description,
   completionMessage = 'Wonderful! You found them all.',
   switches = [],
+  activityId,
+  route,
   children,
 }) {
   const [phase, setPhase] = useState('setup');
@@ -72,10 +81,24 @@ export default function GameShell({
   const [options, setOptions] = useState({});
   // Bumped for every new round; used as the game's key so it remounts.
   const [round, setRound] = useState(0);
+  const session = useActivitySession({
+    navigation,
+    activityType: 'game',
+    activityId,
+    residentId: route?.params?.residentId ?? null,
+    enabled: !!activityId,
+  });
 
   function startRound() {
+    session.roundStarted(difficulty);
     setRound((r) => r + 1);
     setPhase('playing');
+  }
+
+  // The game calls this once when its round ends.
+  function completeRound() {
+    session.roundCompleted();
+    setPhase('complete');
   }
 
   return (
@@ -89,7 +112,7 @@ export default function GameShell({
         // The game fills the rest of the screen and sizes itself to fit —
         // no scrolling while playing.
         <View key={round} style={styles.playArea}>
-          {children({ difficulty, options, onComplete: () => setPhase('complete') })}
+          {children({ difficulty, options, onComplete: completeRound })}
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.centred}>

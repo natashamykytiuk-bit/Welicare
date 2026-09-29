@@ -16,10 +16,12 @@ const accent = colors.activities.games;
 // the Phrase, the only word game so far; when more are added this screen
 // can become a small menu of them. GameShell supplies the header,
 // difficulty picker and completion view; this screen only plays a round.
-export default function WordGamesScreen({ navigation }) {
+export default function WordGamesScreen({ navigation, route }) {
   return (
     <GameShell
       navigation={navigation}
+      route={route}
+      activityId="wordGames"
       title="Finish the Phrase"
       description="Choose the word that finishes each familiar saying."
       completionMessage="Wonderful! You finished every phrase."
