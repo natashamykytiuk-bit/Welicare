@@ -13,18 +13,10 @@ import {
   View,
 } from 'react-native';
 import LoadError from '../components/LoadError';
+import UserAvatar from '../components/UserAvatar';
 import OrgIdBadge from '../components/OrgIdBadge';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
-
-function initialsOf(name) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-}
 
 // The hub screen after login. Each entry describes one mode card (other
 // than Resident Mode, which gets its own large card above these):
@@ -71,6 +63,9 @@ export default function ModeSelectionScreen({ navigation }) {
   // undefined while loading, then either the role string or null
   const [role, setRole] = useState(undefined);
   const [fullName, setFullName] = useState('');
+  // The optional profile picture's last change (users/{uid}.avatarUpdatedAt),
+  // for the top-right avatar's image cache key; null = none.
+  const [avatarUpdatedAt, setAvatarUpdatedAt] = useState(null);
   const [facilityName, setFacilityName] = useState('');
   const [allModes, setAllModes] = useState(false);
   // true when the user doc couldn't be loaded — without it we don't know
@@ -108,6 +103,7 @@ export default function ModeSelectionScreen({ navigation }) {
       }
       setRole(data?.role ?? null);
       setFullName(data?.fullName || data?.username || '');
+      setAvatarUpdatedAt(data?.avatarUpdatedAt ?? null);
       if (data?.orgId) {
         // The facility name is only a label in the header, so a failure
         // here is logged but doesn't block the mode cards.
@@ -124,6 +120,14 @@ export default function ModeSelectionScreen({ navigation }) {
       cancelled = true;
     };
   }, [reloadKey]);
+
+  // Coming back from Settings (where the profile picture is changed), re-read
+  // the profile so a new or removed picture shows straight away. Optional
+  // chaining keeps screens rendered without a navigator (tests) working.
+  useEffect(
+    () => navigation?.addListener?.('focus', () => setReloadKey((k) => k + 1)),
+    [navigation]
+  );
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -148,9 +152,22 @@ export default function ModeSelectionScreen({ navigation }) {
                 </Text>
               </View>
             ) : null}
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{fullName ? initialsOf(fullName) : ''}</Text>
-            </View>
+            {/* The user's profile picture if they added one (Settings →
+                Profile photo), else their initials. Tapping it opens
+                Settings, where the picture is changed. */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Settings')}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Your profile and settings"
+            >
+              <UserAvatar
+                uid={auth.currentUser?.uid}
+                name={fullName}
+                size={36}
+                updatedAt={avatarUpdatedAt}
+              />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -255,19 +272,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansRegular,
     fontSize: 12,
     color: colors.textMuted,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: radii.circular,
-    backgroundColor: colors.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontFamily: fonts.sansBold,
-    fontSize: 14,
-    color: colors.white,
   },
   topRow: {
     flexDirection: 'row',
