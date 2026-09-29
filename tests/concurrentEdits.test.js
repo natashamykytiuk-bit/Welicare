@@ -32,9 +32,12 @@ describe('saveApprovedIds', () => {
     firestore.getDoc.mockResolvedValueOnce(docSnap({ selectedMusicVideoIds: ['a', 'c'] }));
     const saved = await saveApprovedIds('r1', 'selectedMusicVideoIds', ['a'], ['a', 'b']);
     expect(saved).toEqual(['a', 'c', 'b']);
-    expect(firestore.updateDoc).toHaveBeenCalledWith(expect.objectContaining({ path: 'residents/r1' }), {
-      selectedMusicVideoIds: ['a', 'c', 'b'],
-    });
+    expect(firestore.updateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'residents/r1' }),
+      {
+        selectedMusicVideoIds: ['a', 'c', 'b'],
+      }
+    );
   });
 });
 
@@ -43,7 +46,10 @@ describe('saveResidentProfile', () => {
 
   it('reports only the fields that changed', () => {
     expect(
-      changedFields({ career: null, hobbies: ['Reading'] }, { career: 'Nurse', hobbies: ['Reading'] })
+      changedFields(
+        { career: null, hobbies: ['Reading'] },
+        { career: 'Nurse', hobbies: ['Reading'] }
+      )
     ).toEqual({ career: 'Nurse' });
   });
 

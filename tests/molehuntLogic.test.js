@@ -15,9 +15,9 @@ const sweep = Array.from({ length: 100 }, (_, i) => i / 100);
 
 describe('levelFor', () => {
   it('returns each difficulty and falls back to Gentle', () => {
-    expect(levelFor('gentle')).toMatchObject({ holes: 3, moles: 5 });
-    expect(levelFor('medium')).toMatchObject({ holes: 6, moles: 8 });
-    expect(levelFor('challenge')).toMatchObject({ holes: 9, moles: 10 });
+    expect(levelFor('gentle')).toMatchObject({ holes: 3, moles: 8 });
+    expect(levelFor('medium')).toMatchObject({ holes: 6, moles: 12 });
+    expect(levelFor('challenge')).toMatchObject({ holes: 9, moles: 16 });
     expect(levelFor('unknown')).toBe(LEVELS.gentle);
   });
 
@@ -72,13 +72,13 @@ describe('startingHoles', () => {
 
 describe('shouldShowAnother / isRoundComplete', () => {
   it('stops new moles once all have appeared', () => {
-    expect(shouldShowAnother(4, 'gentle')).toBe(true);
-    expect(shouldShowAnother(5, 'gentle')).toBe(false);
+    expect(shouldShowAnother(7, 'gentle')).toBe(true);
+    expect(shouldShowAnother(8, 'gentle')).toBe(false);
   });
 
   it('is complete once every mole is found', () => {
-    expect(isRoundComplete(4, 'gentle')).toBe(false);
-    expect(isRoundComplete(5, 'gentle')).toBe(true);
-    expect(isRoundComplete(10, 'challenge')).toBe(true);
+    expect(isRoundComplete(7, 'gentle')).toBe(false);
+    expect(isRoundComplete(8, 'gentle')).toBe(true);
+    expect(isRoundComplete(16, 'challenge')).toBe(true);
   });
 });

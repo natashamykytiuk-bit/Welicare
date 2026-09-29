@@ -17,8 +17,27 @@ import { PHRASES } from './phrases';
 /** @typedef {import('./phrases').Phrase} Phrase */
 /** @typedef {{ phrase: Phrase, choices: string[] }} Question */
 
-/** Phrases per round, the same at every difficulty — rounds stay short. */
-export const PHRASES_PER_ROUND = 5;
+/**
+ * Phrases per round for each difficulty — a few minutes each, Gentle the
+ * shortest.
+ * @type {Record<'gentle' | 'medium' | 'challenge', number>}
+ */
+export const PHRASES_BY_DIFFICULTY = {
+  gentle: 6,
+  medium: 8,
+  challenge: 10,
+};
+
+/**
+ * Phrases per round for a difficulty; unknown falls back to Gentle.
+ * @param {string} difficulty
+ */
+export function phrasesPerRound(difficulty) {
+  return (
+    PHRASES_BY_DIFFICULTY[/** @type {keyof typeof PHRASES_BY_DIFFICULTY} */ (difficulty)] ??
+    PHRASES_BY_DIFFICULTY.gentle
+  );
+}
 
 /**
  * Word buttons per question (the answer plus the others) for each
@@ -60,7 +79,8 @@ export function choicesFor(phrase, count, random = Math.random, pool = PHRASES) 
 }
 
 /**
- * A new round: PHRASES_PER_ROUND different phrases, each with its buttons.
+ * A new round: phrasesPerRound(difficulty) different phrases, each with
+ * its buttons.
  * @param {string} difficulty
  * @param {() => number} [random]
  * @param {Phrase[]} [pool]
@@ -69,7 +89,7 @@ export function choicesFor(phrase, count, random = Math.random, pool = PHRASES) 
 export function buildRound(difficulty, random = Math.random, pool = PHRASES) {
   const count = choiceCount(difficulty);
   return shuffle(pool, random)
-    .slice(0, PHRASES_PER_ROUND)
+    .slice(0, phrasesPerRound(difficulty))
     .map((phrase) => ({ phrase, choices: choicesFor(phrase, count, random, pool) }));
 }
 

@@ -17,6 +17,8 @@
 //   moles in the round, and how long each mole stays up (LEVELS);
 // - the "Two moles at once" switch: two moles are up together instead of
 //   one (molesUpAtOnce). It works with any difficulty.
+// ("Keep playing" — rounds chaining without a break — is GameShell's, for
+// every game.)
 
 /**
  * Molehills, moles per round, and how long (ms) a mole stays up before
@@ -26,9 +28,9 @@
  * @type {Record<'gentle' | 'medium' | 'challenge', { holes: number, moles: number, visibleMs: number }>}
  */
 export const LEVELS = {
-  gentle: { holes: 3, moles: 5, visibleMs: 7000 }, // one row of 3
-  medium: { holes: 6, moles: 8, visibleMs: 5000 }, // 3 × 2
-  challenge: { holes: 9, moles: 10, visibleMs: 3500 }, // 3 × 3
+  gentle: { holes: 3, moles: 8, visibleMs: 7000 }, // one row of 3
+  medium: { holes: 6, moles: 12, visibleMs: 5000 }, // 3 × 2
+  challenge: { holes: 9, moles: 16, visibleMs: 3500 }, // 3 × 3
 };
 
 /**

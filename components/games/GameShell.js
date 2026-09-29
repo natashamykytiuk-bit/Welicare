@@ -62,6 +62,14 @@ import HomeButton from '../HomeButton';
 // under the difficulty picker, e.g. Molehunt's "Two moles at once":
 //   switches={[{ key: 'twoMoles', label: 'Two moles at once' }]}
 // Each starts off; like the difficulty, the choice is kept for Play again.
+//
+// "Keep playing" (continuous play) is built in for every game, listed after
+// the game's own switches: with it on, finishing a round goes straight into
+// a fresh one (new deck, new moles, new phrases) instead of the completion
+// view, so a resident who's enjoying a game is never stopped. Each round
+// is still logged as started and completed. The resident or caregiver
+// leaves with the usual back/home buttons.
+const CONTINUOUS_SWITCH = { key: 'continuous', label: 'Keep playing' };
 
 export const DIFFICULTIES = [
   { key: 'gentle', label: 'Gentle' },
@@ -101,11 +109,18 @@ export default function GameShell({
     setPhase('playing');
   }
 
-  // The game calls this once when its round ends.
+  // The game calls this once when its round ends. With "Keep playing" on,
+  // the next round starts at once (the new key remounts the game).
   function completeRound() {
     session.roundCompleted();
+    if (options.continuous) {
+      startRound();
+      return;
+    }
     setPhase('complete');
   }
+
+  const allSwitches = [...switches, CONTINUOUS_SWITCH];
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -153,7 +168,7 @@ export default function GameShell({
                   );
                 })}
               </View>
-              {switches.map((option) => {
+              {allSwitches.map((option) => {
                 const on = !!options[option.key];
                 return (
                   // A large tap-anywhere row with an on/off switch. The

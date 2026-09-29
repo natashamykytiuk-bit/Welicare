@@ -18,7 +18,15 @@ export default function ProgressDots({ done, total, label }) {
 const accent = colors.activities.games;
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 28 },
+  // Wraps onto a second row when there are more dots than fit (a 16-mole
+  // round on a phone).
+  row: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 28,
+  },
   dot: {
     width: 24,
     height: 24,

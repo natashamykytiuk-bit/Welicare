@@ -12,9 +12,9 @@ import {
 
 describe('buildDeck', () => {
   it.each([
-    ['gentle', 6],
-    ['medium', 8],
-    ['challenge', 12],
+    ['gentle', 8],
+    ['medium', 12],
+    ['challenge', 16],
   ])('%s makes %i cards, two of each picture', (difficulty, count) => {
     const deck = buildDeck(difficulty);
     expect(deck).toHaveLength(count);
@@ -31,7 +31,10 @@ describe('buildDeck', () => {
 
   it('has enough distinct faces for the largest round, each with its own colour', () => {
     expect(CARD_FACES.length).toBeGreaterThanOrEqual(PAIRS_BY_DIFFICULTY.challenge);
-    expect(new Set(CARD_FACES.map((f) => f.accent)).size).toBe(CARD_FACES.length);
+    // Every face has its own picture (colours may repeat — there are only
+    // seven activity colours).
+    expect(new Set(CARD_FACES.map((f) => f.icon)).size).toBe(CARD_FACES.length);
+    expect(new Set(CARD_FACES.map((f) => f.faceId)).size).toBe(CARD_FACES.length);
   });
 });
 

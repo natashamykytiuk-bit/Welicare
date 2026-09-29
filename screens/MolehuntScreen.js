@@ -20,7 +20,8 @@ const NEXT_MOLE_DELAY_MS = 600;
 // Lets the last mole's happy pulse be seen before the completion message.
 const COMPLETE_DELAY_MS = 1100;
 // Height kept below the field for the progress dots.
-const PROGRESS_SPACE = 64;
+// Room for up to two rows of dots (16 moles wrap on a phone).
+const PROGRESS_SPACE = 100;
 // Blinking (only if assets.js provides moleBlink): a blink lasts this long,
 // and comes every 2.5–4.5 seconds while a mole is up.
 const BLINK_MS = 150;
@@ -40,6 +41,7 @@ export default function MolehuntScreen({ navigation, route }) {
       title="Molehunt"
       description="A friendly mole is peeking out. Tap it when you spot it!"
       completionMessage="Wonderful! You found all the moles."
+      // "Keep playing" comes from GameShell, for every game.
       switches={[{ key: 'twoMoles', label: 'Two moles at once' }]}
       playBackground={<FieldBackground />}
     >

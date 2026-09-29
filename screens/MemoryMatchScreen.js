@@ -13,9 +13,10 @@ const MISMATCH_PAUSE_MS = 1500;
 const COMPLETE_DELAY_MS = 900;
 // Space between cards.
 const GAP = 16;
-// Columns × rows for each deck size, all wider than tall, to suit a
-// landscape iPad.
-const GRID = { 6: [3, 2], 8: [4, 2], 12: [4, 3] };
+// Columns × rows for each deck size, to suit a landscape iPad. 16 cards
+// (Challenge) is a square 4 × 4 — every row full, and the cards stay as
+// large as the screen allows (sized to fit below).
+const GRID = { 6: [3, 2], 8: [4, 2], 12: [4, 3], 16: [4, 4] };
 
 // Resident Mode → Games → Memory Match. GameShell supplies the header,
 // difficulty picker and completion view; this screen only plays one round.

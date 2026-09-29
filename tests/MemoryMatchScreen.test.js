@@ -63,6 +63,8 @@ describe('MemoryMatchScreen', () => {
     await render(<MemoryMatchScreen navigation={navigation} />);
     expect(screen.getByLabelText('Gentle').props.accessibilityState.selected).toBe(true);
     expect(screen.getByLabelText('Start')).toBeTruthy();
+    // GameShell's built-in "Keep playing" switch, off by default.
+    expect(screen.getByLabelText('Keep playing').props.accessibilityState.checked).toBe(false);
   });
 
   it('plays a round to the warm completion screen', async () => {

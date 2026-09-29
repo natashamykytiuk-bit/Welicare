@@ -32,8 +32,9 @@ jest.mock('../games/finishThePhrase/logic', () => {
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn(), canGoBack: () => true };
 
-async function startRound() {
+async function startRound({ continuous = false } = {}) {
   await render(<WordGamesScreen navigation={navigation} />);
+  if (continuous) await fireEvent.press(screen.getByLabelText('Keep playing'));
   await fireEvent.press(screen.getByLabelText('Start'));
 }
 
@@ -51,6 +52,17 @@ describe('WordGamesScreen (Finish the Phrase)', () => {
     }
 
     expect(screen.getByText('Wonderful! You finished every phrase.')).toBeTruthy();
+  });
+
+  it('with "Keep playing" on, goes straight into a new round of phrases', async () => {
+    await startRound({ continuous: true });
+    for (const word of ['worm', 'pod', 'butter', 'pepper', 'boat']) {
+      await fireEvent.press(screen.getByLabelText(word));
+      await act(() => jest.advanceTimersByTime(1800));
+    }
+    expect(screen.queryByText('Wonderful! You finished every phrase.')).toBeNull();
+    // The (mocked, fixed) round starts over from its first phrase.
+    expect(screen.getByLabelText('The early bird catches the blank')).toBeTruthy();
   });
 
   it('fills in the blank when the right word is chosen', async () => {

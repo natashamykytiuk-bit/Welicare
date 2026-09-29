@@ -12,15 +12,15 @@
 // There is no score, no move count and no way to lose.
 
 /**
- * How many pairs each difficulty uses. Kept small: rounds should be short
+ * How many pairs each difficulty uses. Rounds are a few minutes long
  * and always finishable. The keys are what GameShell's difficulty picker
  * passes in.
  * @type {Record<'gentle' | 'medium' | 'challenge', number>}
  */
 export const PAIRS_BY_DIFFICULTY = {
-  gentle: 3, // 6 cards
-  medium: 4, // 8 cards
-  challenge: 6, // 12 cards
+  gentle: 4, // 8 cards
+  medium: 6, // 12 cards
+  challenge: 8, // 16 cards
 };
 
 /**
@@ -29,7 +29,9 @@ export const PAIRS_BY_DIFFICULTY = {
  * uses — no emoji, which look different on every device). `accent` names
  * one of colors.activities in theme.js, which supplies the background and
  * icon colours; the rules don't need to know the colours themselves.
- * Six faces, enough for the largest (Challenge) round.
+ * Eight faces, enough for the largest (Challenge) round. There are only
+ * seven activity colours, so two faces share a colour; every face still has
+ * its own picture, which is what makes a pair.
  */
 export const CARD_FACES = [
   { faceId: 'flower', icon: 'flower-outline', label: 'flower', accent: 'music' },
@@ -38,6 +40,8 @@ export const CARD_FACES = [
   { faceId: 'heart', icon: 'heart-outline', label: 'heart', accent: 'conversation' },
   { faceId: 'cup', icon: 'cafe-outline', label: 'coffee cup', accent: 'photoAlbum' },
   { faceId: 'note', icon: 'musical-note-outline', label: 'musical note', accent: 'games' },
+  { faceId: 'leaf', icon: 'leaf-outline', label: 'leaf', accent: 'moviesVideos' },
+  { faceId: 'star', icon: 'star-outline', label: 'star', accent: 'music' },
 ];
 
 /**
