@@ -183,19 +183,23 @@ export default function ResidentPhotoAlbumScreen({ navigation, route }) {
             ) : (
               <ActivityIndicator size="large" color={colors.activities.photoAlbum.icon} />
             )}
+            {current.uploaderName ? (
+              // Who shared it, as a small label in the photo's corner — for
+              // the caregiver's benefit, so it's kept out of the way of the
+              // caption, which is the resident's main text. The avatar
+              // falls back to initials if there isn't one.
+              <View style={styles.sharedByChip} pointerEvents="none">
+                <UserAvatar uid={current.uploadedBy} name={current.uploaderName} size={24} />
+                <Text style={styles.sharedBy} numberOfLines={1}>
+                  Shared by {current.uploaderName}
+                </Text>
+              </View>
+            ) : null}
           </View>
           {current.caption ? (
             <Text style={styles.caption} numberOfLines={3}>
               {current.caption}
             </Text>
-          ) : null}
-          {current.uploaderName ? (
-            // The sharer's avatar (initials if they have none, or it isn't
-            // visible to this account) beside their name.
-            <View style={styles.sharedByRow}>
-              <UserAvatar uid={current.uploadedBy} name={current.uploaderName} size={40} />
-              <Text style={styles.sharedBy}>Shared by {current.uploaderName}</Text>
-            </View>
           ) : null}
         </View>
         {landscape ? <NavButton direction="forward" onPress={goNext} disabled={count < 2} /> : null}
@@ -291,18 +295,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 16,
   },
-  sharedByRow: {
+  // Bottom-right corner of the photo, on a translucent surface so it reads
+  // over any image.
+  sharedByChip: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    maxWidth: '70%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    marginTop: 6,
+    gap: 8,
+    paddingVertical: 4,
+    paddingLeft: 4,
+    paddingRight: 12,
+    borderRadius: radii.circular,
+    backgroundColor: 'rgba(250,250,247,0.85)',
   },
   sharedBy: {
+    flexShrink: 1,
     fontFamily: fonts.sansRegular,
-    fontSize: 24,
-    color: colors.textMuted,
-    textAlign: 'center',
+    fontSize: 16,
+    color: colors.textPrimary,
   },
   navButton: {
     width: 80,
