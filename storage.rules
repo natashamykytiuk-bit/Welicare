@@ -1,8 +1,10 @@
 rules_version = '2';
 
-// Cloud Storage security rules. The only files the app stores are the
-// resident photo album's JPEGs (utils/residentPhotos.js), at
-//   residents/{residentId}/photos/{photoId}.jpg
+// Cloud Storage security rules. The app stores three kinds of JPEG:
+//   residents/{residentId}/photos/{photoId}.jpg  album (utils/residentPhotos.js)
+//   residents/{residentId}/profile.jpg           resident profile photo
+//   users/{uid}/avatar.jpg                       optional user avatar
+// (the last two: utils/profilePhotos.js).
 // Everything else is denied by default (no rule matches → no access).
 //
 // Storage has no idea who is linked to which resident — that lives in
@@ -42,6 +44,64 @@ service firebase.storage {
         (r.get('assignedCaregivers', null) is list && request.auth.uid in r.assignedCaregivers) ||
         (r.get('facilityId', null) != null && me().get('orgId', null) == r.facilityId &&
           me().role in ['Caregiver', 'Administrator', 'Volunteer']);
+    }
+
+    // May change this resident's profile photo — mirrors the photo branches
+    // of the residents update rule in firestore.rules: the creator, a
+    // Caregiver/Administrator directly linked to the resident, or a
+    // Caregiver/Administrator in the resident's facility. Never volunteers,
+    // and never an assigned family member who didn't create the resident.
+    function mayEditResidentPhoto(residentId) {
+      let r = residentDoc(residentId);
+      return r.get('createdBy', null) == request.auth.uid || (
+        me().role in ['Caregiver', 'Administrator'] && (
+          r.get('caregiverId', null) == request.auth.uid ||
+          (r.get('assignedCaregivers', null) is list && request.auth.uid in r.assignedCaregivers) ||
+          (r.get('facilityId', null) != null && me().get('orgId', null) == r.facilityId)
+        )
+      );
+    }
+
+    // The resident's profile photo. One file, replaced in place, so unlike
+    // the album an overwrite (update) IS allowed here.
+    match /residents/{residentId}/profile.jpg {
+      allow read: if verified() &&
+        firestore.exists(/databases/(default)/documents/residents/$(residentId)) &&
+        linkedToResident(residentId);
+
+      allow create, update: if verified() &&
+        request.resource.size < 2 * 1024 * 1024 &&
+        request.resource.contentType == 'image/jpeg' &&
+        request.resource.metadata != null &&
+        request.resource.metadata.get('uploadedBy', null) == request.auth.uid &&
+        firestore.exists(/databases/(default)/documents/residents/$(residentId)) &&
+        mayEditResidentPhoto(residentId);
+
+      allow delete: if verified() &&
+        firestore.exists(/databases/(default)/documents/residents/$(residentId)) &&
+        mayEditResidentPhoto(residentId);
+    }
+
+    // A user's optional avatar: only they can change it; they and people
+    // in the same organization can see it. Reading the target user's doc
+    // here is fine even though the Firestore rules wouldn't let the viewer
+    // read it — cross-service reads aren't subject to firestore.rules, and
+    // only orgId is compared, never returned.
+    match /users/{userId}/avatar.jpg {
+      allow read: if verified() && (
+        request.auth.uid == userId ||
+        (
+          me().get('orgId', null) != null &&
+          firestore.exists(/databases/(default)/documents/users/$(userId)) &&
+          me().orgId == firestore.get(/databases/(default)/documents/users/$(userId)).data.get('orgId', null)
+        )
+      );
+
+      allow create, update: if verified() && request.auth.uid == userId &&
+        request.resource.size < 1024 * 1024 &&
+        request.resource.contentType == 'image/jpeg';
+
+      allow delete: if verified() && request.auth.uid == userId;
     }
 
     match /residents/{residentId}/photos/{fileName} {

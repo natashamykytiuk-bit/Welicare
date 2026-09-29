@@ -82,7 +82,18 @@ service cloud.firestore {
         optList(d, 'selectedMusicVideoIds', 500) &&
         optList(d, 'favouriteMusicVideoIds', 500) &&
         optList(d, 'selectedMovieVideoIds', 500) &&
-        optList(d, 'favouriteMovieVideoIds', 500);
+        optList(d, 'favouriteMovieVideoIds', 500) &&
+        optText(d, 'photoPath', 200) &&
+        (!('photoUpdatedAt' in d) || d.photoUpdatedAt == null || d.photoUpdatedAt is timestamp);
+    }
+
+    // A resident update that touches the profile photo may only remove it
+    // or point it at the resident's own residents/{id}/profile.jpg — never
+    // another resident's file or anything else in Storage.
+    function validResidentPhotoChange(residentId) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['photoPath']) ||
+        request.resource.data.get('photoPath', null) == null ||
+        request.resource.data.photoPath == 'residents/' + residentId + '/profile.jpg';
     }
 
     // residents/{id}/private/lifeStory — exactly the LifeStory fields
@@ -166,8 +177,23 @@ service cloud.firestore {
       // finishes. That lets createPersonalOrganization create the org and
       // point orgId at it in ONE batch — get() would still see the org as
       // missing mid-batch. For a single write it's the same as get().
+      //
+      // The optional profile picture (Settings → Profile photo, see
+      // utils/profilePhotos.js): avatarPath may only be removed or set to
+      // the user's own users/{uid}/avatar.jpg, and avatarUpdatedAt must be
+      // the server time or removed.
       allow update: if request.auth != null && request.auth.uid == userId &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) &&
+        (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['avatarPath']) ||
+          request.resource.data.get('avatarPath', null) == null ||
+          request.resource.data.avatarPath == 'users/' + request.auth.uid + '/avatar.jpg'
+        ) &&
+        (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['avatarUpdatedAt']) ||
+          request.resource.data.get('avatarUpdatedAt', null) == null ||
+          request.resource.data.avatarUpdatedAt == request.time
+        ) &&
         (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['orgId']) ||
           // (Clearing your own orgId used to be allowed, which let people
@@ -283,7 +309,8 @@ service cloud.firestore {
         );
 
       // Every update must leave the resident's fields well-typed.
-      allow update: if verified() && validResidentFields(request.resource.data) && (
+      allow update: if verified() && validResidentFields(request.resource.data) &&
+        validResidentPhotoChange(residentId) && (
         // The creator or an already-assigned caregiver may edit the
         // resident's profile fields only (name, life story, music picks and
         // favourites — everything BuildProfile, CurateResidentMusic and the
@@ -300,6 +327,29 @@ service cloud.firestore {
           // The life story itself now lives in private/lifeStory; the old
           // field may only be removed (by a save), never written. Leaving it
           // untouched is fine — residents not migrated yet still have it.
+          (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['lifeStory']) ||
+            request.resource.data.get('lifeStory', null) == null
+          )
+        ) ||
+        // The profile photo (photoPath / photoUpdatedAt, see
+        // utils/profilePhotos.js) plus the usual profile fields: only the
+        // resident's creator, or a Caregiver/Administrator directly linked
+        // to them (caregiverId or assignedCaregivers). Kept apart from the
+        // branch above so an assigned Family Caregiver who didn't create
+        // the resident can edit their profile but NOT change their photo.
+        // (Staff in the same facility get it through the facility branch
+        // below.)
+        (
+          (
+            resource.data.createdBy == request.auth.uid ||
+            (
+              (resource.data.caregiverId == request.auth.uid ||
+                (resource.data.assignedCaregivers is list && request.auth.uid in resource.data.assignedCaregivers)) &&
+              me().role in ['Caregiver', 'Administrator']
+            )
+          ) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'preferredName', 'hasLifeStory', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds', 'selectedMovieVideoIds', 'favouriteMovieVideoIds', 'photoPath', 'photoUpdatedAt']) &&
           (
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['lifeStory']) ||
             request.resource.data.get('lifeStory', null) == null
@@ -323,12 +373,12 @@ service cloud.firestore {
         // resident's profile fields, even if not assigned to them — the
         // same field list as above, so ownership/facility/sharing fields
         // can't be changed this way. Family Members and Volunteers are
-        // excluded.
+        // excluded. Includes the profile photo fields.
         (
           resource.data.facilityId != null &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'preferredName', 'hasLifeStory', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds', 'selectedMovieVideoIds', 'favouriteMovieVideoIds']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'preferredName', 'hasLifeStory', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds', 'selectedMovieVideoIds', 'favouriteMovieVideoIds', 'photoPath', 'photoUpdatedAt']) &&
           // The life story itself now lives in private/lifeStory; the old
           // field may only be removed (by a save), never written. Leaving it
           // untouched is fine — residents not migrated yet still have it.

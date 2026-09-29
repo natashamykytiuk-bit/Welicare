@@ -1,6 +1,4 @@
 // @ts-check
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
-import * as ImagePicker from 'expo-image-picker';
 import {
   collection,
   deleteDoc,
@@ -13,8 +11,12 @@ import {
   setDoc,
   where,
 } from 'firebase/firestore';
-import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { deleteObject, getDownloadURL, ref } from 'firebase/storage';
 import { auth, db, storage } from '../firebaseConfig';
+import { deleteFileIfExists, fitWithin, pickImages, uploadJpeg } from './imageUpload';
+
+// Re-exported for existing callers/tests.
+export { fitWithin };
 
 // Everything about a resident's photo album, so the screens stay thin:
 // family members and caregivers add photos (ResidentPhotoUploadScreen),
@@ -58,57 +60,15 @@ export const MAX_CAPTION = 200;
  * @property {number} height
  */
 
-/** The width/height to resize to so the long edge is at most MAX_EDGE. */
-export function fitWithin(width, height, maxEdge = MAX_EDGE) {
-  const longest = Math.max(width, height);
-  if (!longest || longest <= maxEdge) return { width, height };
-  const scale = maxEdge / longest;
-  return { width: Math.round(width * scale), height: Math.round(height * scale) };
-}
-
 /**
- * Opens the photo library (images only, up to 10), then resizes and
- * re-encodes each pick as a JPEG. Returns [] if the person cancels.
- * Throws an Error with a friendly message if library access is refused.
+ * Opens the photo library (images only, up to 10), resizing each pick so
+ * its long edge is at most 1600px, re-encoded as JPEG (which strips EXIF,
+ * including GPS — see utils/imageUpload.js). Returns [] if the person
+ * cancels; throws a friendly Error if library access is refused.
  * @returns {Promise<PreparedPhoto[]>}
  */
-export async function pickAndPreparePhotos() {
-  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permission.granted) {
-    throw new Error(
-      'Welicare needs access to your photos to share them. You can allow it in your device settings.'
-    );
-  }
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'],
-    allowsMultipleSelection: true,
-    selectionLimit: MAX_PHOTOS_PER_PICK,
-    quality: 1,
-  });
-  if (result.canceled) return [];
-  // selectionLimit isn't honoured everywhere (e.g. some web browsers), so
-  // cap it here too.
-  const assets = result.assets.slice(0, MAX_PHOTOS_PER_PICK);
-  return Promise.all(assets.map((asset) => preparePhoto(asset)));
-}
-
-/**
- * Resizes one picked image and saves it as a JPEG at 80% quality.
- *
- * Re-encoding also drops every bit of EXIF metadata — including the GPS
- * location phones embed in photos. That's intentional, for privacy: a
- * family photo shouldn't reveal where someone lives.
- * @param {{ uri: string, width: number, height: number }} asset
- * @returns {Promise<PreparedPhoto>}
- */
-async function preparePhoto(asset) {
-  const size = fitWithin(asset.width, asset.height);
-  const context = ImageManipulator.manipulate(asset.uri);
-  // Only shrink, never enlarge; resizing to the same size is skipped.
-  if (size.width !== asset.width || size.height !== asset.height) context.resize(size);
-  const image = await context.renderAsync();
-  const saved = await image.saveAsync({ compress: 0.8, format: SaveFormat.JPEG });
-  return { uri: saved.uri, width: saved.width, height: saved.height };
+export function pickAndPreparePhotos() {
+  return pickImages({ limit: MAX_PHOTOS_PER_PICK, maxEdge: MAX_EDGE });
 }
 
 /** Where a photo's file lives in Storage. */
@@ -147,15 +107,9 @@ export async function uploadResidentPhoto({ residentId, photo, caption = '', upl
   // A fresh Firestore id doubles as the file name, so the two always match.
   const photoRef = doc(collection(db, 'residents', residentId, 'photos'));
   const storagePath = photoStoragePath(residentId, photoRef.id);
-  const fileRef = ref(storage, storagePath);
-
-  const blob = await (await fetch(photo.uri)).blob();
-  await uploadBytes(fileRef, blob, {
-    contentType: 'image/jpeg',
-    // storage.rules checks this matches the signed-in user, and uses it to
-    // let the uploader delete their own file later.
-    customMetadata: { uploadedBy: uid },
-  });
+  // Stamped with uploadedBy — storage.rules check it, and use it to let
+  // the uploader delete their own file later.
+  const fileRef = await uploadJpeg(storagePath, photo);
 
   try {
     await setDoc(photoRef, {
@@ -232,11 +186,7 @@ export async function listMyUploads(residentId) {
  * @param {Pick<ResidentPhoto, 'id' | 'storagePath'>} photo
  */
 export async function deleteResidentPhoto(residentId, photo) {
-  try {
-    await deleteObject(ref(storage, photo.storagePath));
-  } catch (e) {
-    if (e?.code !== 'storage/object-not-found') throw e;
-  }
+  await deleteFileIfExists(photo.storagePath);
   await deleteDoc(doc(db, 'residents', residentId, 'photos', photo.id));
 }
 

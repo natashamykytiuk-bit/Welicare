@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import BackButton from '../components/BackButton';
+import UserAvatar from '../components/UserAvatar';
 import LoadError from '../components/LoadError';
 import OrgIdBadge from '../components/OrgIdBadge';
 import { auth, db, functions } from '../firebaseConfig';
@@ -162,6 +163,8 @@ export default function ManageUsersScreen({ navigation }) {
                     key={m.uid}
                     style={[styles.memberRow, i < members.length - 1 && styles.memberRowBorder]}
                   >
+                    {/* Their profile picture — same organization, so visible. */}
+                    <UserAvatar uid={m.uid} name={m.name} size={40} />
                     <View style={styles.memberText}>
                       <Text style={styles.memberName}>{m.name}</Text>
                       <Text style={styles.memberMeta}>

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import BackButton from '../components/BackButton';
 import LoadError from '../components/LoadError';
+import ResidentPhotoEditor from '../components/ResidentPhotoEditor';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { hasAnyLifeStoryData } from '../utils/lifeStory';
@@ -185,6 +186,8 @@ export default function BuildProfileScreen({ navigation, route }) {
   const [nameError, setNameError] = useState('');
   // Name as loaded from Firestore, for the heading (see below).
   const [savedName, setSavedName] = useState('');
+  // The resident doc as loaded — for the profile photo at the top.
+  const [residentDoc, setResidentDoc] = useState(null);
   const [story, setStory] = useState(EMPTY_LIFE_STORY);
   const [isEdit, setIsEdit] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -230,6 +233,7 @@ export default function BuildProfileScreen({ navigation, route }) {
       // (ResidentModeScreen's card, ActivityMenuScreen's greeting, etc.).
       setName(snapshot.data()?.name ?? '');
       setSavedName(snapshot.data()?.name ?? '');
+      setResidentDoc(snapshot.data() ?? null);
       // What the form started from, so saving can tell which answers this
       // person actually changed.
       originalRef.current = {
@@ -356,6 +360,12 @@ export default function BuildProfileScreen({ navigation, route }) {
         ) : null}
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          {/* Profile photo — changeable by the creator and linked/facility
+              Caregivers & Administrators, read-only for everyone else.
+              Saved straight away, separately from the Save button below. */}
+          {residentDoc ? (
+            <ResidentPhotoEditor residentId={residentId} resident={residentDoc} />
+          ) : null}
           <SectionHeader>About You</SectionHeader>
           <TextField
             label="Resident's name"

@@ -6,8 +6,11 @@ import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } fr
 import appConfig from '../app.json';
 import BackButton from '../components/BackButton';
 import LoadError from '../components/LoadError';
+import PhotoPickerCircle from '../components/PhotoPickerCircle';
+import UserAvatar from '../components/UserAvatar';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import { pickAvatar, removeMyAvatar, setMyAvatar } from '../utils/profilePhotos';
 
 const APP_VERSION = appConfig?.expo?.version ?? '1.0.0';
 
@@ -18,6 +21,12 @@ const APP_VERSION = appConfig?.expo?.version ?? '1.0.0';
 export default function SettingsScreen({ navigation }) {
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('');
+  // Optional profile picture (users/{uid}.avatarPath). Never asked for at
+  // sign-up — this row is the only place to add one.
+  const [hasAvatar, setHasAvatar] = useState(false);
+  const [avatarUpdatedAt, setAvatarUpdatedAt] = useState(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarMessage, setAvatarMessage] = useState('');
   const [orgName, setOrgName] = useState('');
   // Only true for a Family Caregiver still on their auto-created personal
   // organization (see utils/inviteCode.js's createPersonalOrganization) —
@@ -50,6 +59,8 @@ export default function SettingsScreen({ navigation }) {
       if (cancelled) return;
       setFullName(data?.fullName || data?.username || '');
       setRole(data?.role ?? '');
+      setHasAvatar(!!data?.avatarPath);
+      setAvatarUpdatedAt(data?.avatarUpdatedAt ?? null);
       if (orgData) {
         setOrgName(orgData.name ?? '');
         setOrgIsPersonal(orgData.isPersonal === true);
@@ -60,6 +71,45 @@ export default function SettingsScreen({ navigation }) {
       cancelled = true;
     };
   }, [reloadKey]);
+
+  async function changeAvatar() {
+    setAvatarMessage('');
+    let image;
+    try {
+      image = await pickAvatar();
+    } catch (e) {
+      setAvatarMessage(e.message || "That photo couldn't be opened.");
+      return;
+    }
+    if (!image) return;
+    setAvatarBusy(true);
+    try {
+      await setMyAvatar(image);
+      setHasAvatar(true);
+      // Local time is fine for the image cache key until the next load.
+      setAvatarUpdatedAt(Date.now());
+    } catch (e) {
+      console.error('[Settings] avatar upload failed:', e.code, e.message, e);
+      setAvatarMessage("Your photo didn't upload. Please check your connection and try again.");
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  async function deleteAvatar() {
+    setAvatarMessage('');
+    setAvatarBusy(true);
+    try {
+      await removeMyAvatar();
+      setHasAvatar(false);
+      setAvatarUpdatedAt(Date.now());
+    } catch (e) {
+      console.error('[Settings] avatar remove failed:', e.code, e.message, e);
+      setAvatarMessage("Your photo couldn't be removed. Please try again.");
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -74,6 +124,33 @@ export default function SettingsScreen({ navigation }) {
             onRetry={() => setReloadKey((k) => k + 1)}
           />
         ) : null}
+
+        <Text style={styles.sectionLabel}>Profile photo</Text>
+        <View style={[styles.card, styles.avatarCard]}>
+          <PhotoPickerCircle
+            avatar={
+              <UserAvatar
+                uid={auth.currentUser?.uid}
+                name={fullName}
+                size={80}
+                updatedAt={avatarUpdatedAt}
+              />
+            }
+            hasPhoto={hasAvatar}
+            busy={avatarBusy}
+            onPick={changeAvatar}
+            onRemove={deleteAvatar}
+            size={80}
+          />
+          <Text style={styles.avatarHint}>
+            Optional. People in your organization see it next to photos you share.
+          </Text>
+          {avatarMessage ? (
+            <Text style={styles.avatarHint} accessibilityRole="alert">
+              {avatarMessage}
+            </Text>
+          ) : null}
+        </View>
 
         <Text style={styles.sectionLabel}>Account</Text>
         <View style={styles.card}>
@@ -183,6 +260,14 @@ function Row({ label, onPress, destructive, last, showArrow }) {
 }
 
 const styles = StyleSheet.create({
+  avatarCard: { alignItems: 'center', paddingVertical: 16, paddingHorizontal: 16 },
+  avatarHint: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   flex: { flex: 1, backgroundColor: colors.background },
   content: { padding: 28, paddingTop: 24, paddingBottom: 48 },
   heading: {

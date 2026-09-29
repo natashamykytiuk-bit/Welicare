@@ -2,16 +2,6 @@
 // doc second, file removed again if the doc fails), and deletion.
 import { firestore, storageModule } from './mocks/firebase';
 
-// Native modules have no JS implementation under Jest — stub them.
-jest.mock('expo-image-picker', () => ({
-  requestMediaLibraryPermissionsAsync: jest.fn(),
-  launchImageLibraryAsync: jest.fn(),
-}));
-jest.mock('expo-image-manipulator', () => ({
-  ImageManipulator: { manipulate: jest.fn() },
-  SaveFormat: { JPEG: 'jpeg' },
-}));
-
 const {
   deleteResidentPhoto,
   fitWithin,
@@ -27,12 +17,12 @@ beforeEach(() => {
 
 describe('fitWithin', () => {
   it('shrinks the long edge to 1600 and keeps the aspect ratio', () => {
-    expect(fitWithin(4000, 3000)).toEqual({ width: 1600, height: 1200 });
-    expect(fitWithin(3000, 6000)).toEqual({ width: 800, height: 1600 });
+    expect(fitWithin(4000, 3000, 1600)).toEqual({ width: 1600, height: 1200 });
+    expect(fitWithin(3000, 6000, 1600)).toEqual({ width: 800, height: 1600 });
   });
 
   it('never enlarges a small photo', () => {
-    expect(fitWithin(800, 600)).toEqual({ width: 800, height: 600 });
+    expect(fitWithin(800, 600, 1600)).toEqual({ width: 800, height: 600 });
   });
 });
 

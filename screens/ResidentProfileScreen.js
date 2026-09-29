@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import BackButton from '../components/BackButton';
+import ResidentPhotoEditor from '../components/ResidentPhotoEditor';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import {
@@ -169,6 +170,7 @@ export default function ResidentProfileScreen({ navigation, route }) {
           </Text>
         ) : (
           <>
+            <ResidentPhotoEditor residentId={residentId} resident={resident} size={88} />
             <Text style={styles.heading}>{resident?.name || 'Unnamed resident'}</Text>
             {resident?.preferredName && resident.preferredName !== resident.name ? (
               <Text style={styles.body}>Likes to be called {resident.preferredName}</Text>

@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import BackButton from '../components/BackButton';
+import ResidentAvatar from '../components/ResidentAvatar';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { withTimeout } from '../utils/withTimeout';
@@ -22,15 +23,6 @@ import { lifeStoryRef } from '../utils/residentLifeStory';
 import { safetyRef } from '../utils/residentSafety';
 
 const LOAD_TIMEOUT_MS = 10000;
-
-function initialsOf(name) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-}
 
 // This is the resident-selection screen: full dark-green header, a grid of
 // saved residents, plus Guest Mode / Add Resident entry points. It's the
@@ -250,9 +242,14 @@ export default function ResidentModeScreen({ navigation }) {
               accessibilityRole="button"
               accessibilityLabel={item.name}
             >
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{initialsOf(item.name)}</Text>
-              </View>
+              {/* Photo if they have one, else initials. */}
+              <ResidentAvatar
+                name={item.name}
+                photoPath={item.photoPath}
+                photoUpdatedAt={item.photoUpdatedAt}
+                size={56}
+                style={styles.avatar}
+              />
               <Text style={styles.cardName} numberOfLines={1}>
                 {item.name}
               </Text>
@@ -399,7 +396,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: radii.circular,
-    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,

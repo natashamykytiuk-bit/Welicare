@@ -4,8 +4,6 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import ResidentPhotoAlbumScreen from '../screens/ResidentPhotoAlbumScreen';
 import { firestore, storageModule } from './mocks/firebase';
 
-jest.mock('expo-image-picker', () => ({}));
-jest.mock('expo-image-manipulator', () => ({ ImageManipulator: {}, SaveFormat: {} }));
 jest.mock('expo-image', () => {
   const { View } = require('react-native');
   const Image = (props) => <View testID="photo" {...props} />;

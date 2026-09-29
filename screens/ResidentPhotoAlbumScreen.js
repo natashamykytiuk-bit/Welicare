@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import BackButton from '../components/BackButton';
 import HomeButton from '../components/HomeButton';
+import UserAvatar from '../components/UserAvatar';
 import useActivitySession from '../hooks/useActivitySession';
 import { colors, fonts, radii } from '../theme';
 import { getPhotoUrl, listResidentPhotos } from '../utils/residentPhotos';
@@ -189,7 +190,12 @@ export default function ResidentPhotoAlbumScreen({ navigation, route }) {
             </Text>
           ) : null}
           {current.uploaderName ? (
-            <Text style={styles.sharedBy}>Shared by {current.uploaderName}</Text>
+            // The sharer's avatar (initials if they have none, or it isn't
+            // visible to this account) beside their name.
+            <View style={styles.sharedByRow}>
+              <UserAvatar uid={current.uploadedBy} name={current.uploaderName} size={40} />
+              <Text style={styles.sharedBy}>Shared by {current.uploaderName}</Text>
+            </View>
           ) : null}
         </View>
         {landscape ? <NavButton direction="forward" onPress={goNext} disabled={count < 2} /> : null}
@@ -285,12 +291,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 16,
   },
+  sharedByRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 6,
+  },
   sharedBy: {
     fontFamily: fonts.sansRegular,
     fontSize: 24,
     color: colors.textMuted,
     textAlign: 'center',
-    marginTop: 6,
   },
   navButton: {
     width: 80,

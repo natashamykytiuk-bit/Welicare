@@ -3,19 +3,11 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useRef, useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import BackButton from '../components/BackButton';
+import ResidentAvatar from '../components/ResidentAvatar';
 import { useResidentLock } from '../contexts/ResidentLockContext';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { residentHasLifeStory } from '../utils/residentLifeStory';
-
-function initialsOf(name) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-}
 
 function timeGreeting() {
   const hour = new Date().getHours();
@@ -181,9 +173,15 @@ export default function ActivityMenuScreen({ navigation, route }) {
             <View style={styles.headerBackSpacer} />
           )}
           <View style={styles.headerCenter}>
-            <View style={styles.residentAvatar}>
-              <Text style={styles.residentAvatarText}>{initialsOf(avatarName)}</Text>
-            </View>
+            {/* The resident's photo when they have one; initials otherwise
+                (Guest Mode has no resident doc, so always initials). */}
+            <ResidentAvatar
+              name={avatarName}
+              photoPath={resident?.photoPath}
+              photoUpdatedAt={resident?.photoUpdatedAt}
+              size={40}
+              style={styles.residentAvatar}
+            />
             <Text style={styles.residentName} numberOfLines={1}>
               {avatarName}
             </Text>
@@ -317,7 +315,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: radii.circular,
-    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,

@@ -19,9 +19,15 @@ import {
 } from 'react-native';
 import BackButton from '../components/BackButton';
 import LoadError from '../components/LoadError';
+import PhotoPickerCircle from '../components/PhotoPickerCircle';
+import ResidentAvatar from '../components/ResidentAvatar';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import { pickResidentPhoto, setResidentPhoto } from '../utils/profilePhotos';
 import { isTimeoutError, withTimeout } from '../utils/withTimeout';
+
+// How long the "photo didn't upload" note stays up before carrying on.
+const PHOTO_NOTICE_MS = 3500;
 
 const CREATE_TIMEOUT_MS = 10000;
 // How long to wait for the server when double-checking a slow save.
@@ -48,6 +54,12 @@ export default function AddResidentScreen({ navigation }) {
   const [mode, setMode] = useState(null); // null = show chooser (if org exists), 'new' = show form
 
   const [name, setName] = useState('');
+  // Optional profile photo, picked and resized locally; only uploaded
+  // after the resident doc exists (see finishSuccess).
+  const [photo, setPhoto] = useState(null);
+  const [pickingPhoto, setPickingPhoto] = useState(false);
+  // True once the resident is saved and we're only waiting to leave.
+  const [finished, setFinished] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -142,8 +154,45 @@ export default function AddResidentScreen({ navigation }) {
     }
   }
 
-  function finishSuccess(id) {
+  // Called once the resident doc is confirmed saved. The photo goes up
+  // only now: storage.rules read the resident doc to decide who may upload
+  // its photo, so it has to exist first. A failed photo never undoes the
+  // resident — we say so gently and carry on back to resident selection;
+  // the photo can be added later from their profile.
+  async function finishSuccess(id) {
+    if (photo) {
+      try {
+        await setResidentPhoto(id, photo);
+      } catch (e) {
+        console.error(
+          '[AddResident] resident saved but photo upload failed:',
+          e.code,
+          e.message,
+          e
+        );
+        if (mountedRef.current) {
+          // Keeps the button disabled while the note is showing.
+          setFinished(true);
+          setNotice("Resident saved — the photo didn't upload. You can add it from their profile.");
+          setTimeout(() => mountedRef.current && navigation.goBack(), PHOTO_NOTICE_MS);
+        }
+        return;
+      }
+    }
     navigation.goBack();
+  }
+
+  async function choosePhoto() {
+    setPickingPhoto(true);
+    try {
+      const picked = await pickResidentPhoto();
+      if (picked && mountedRef.current) setPhoto(picked);
+    } catch (e) {
+      console.error('[AddResident] photo pick failed:', e);
+      if (mountedRef.current) setError(e.message || "That photo couldn't be opened.");
+    } finally {
+      if (mountedRef.current) setPickingPhoto(false);
+    }
   }
 
   async function handleCreate() {
@@ -161,7 +210,7 @@ export default function AddResidentScreen({ navigation }) {
       // fields — so the retry would be refused rather than harmlessly
       // overwrite. If it's already there, we're done.
       if (attemptedRef.current && (await existsOnServer(ref)) === true) {
-        finishSuccess(ref.id);
+        await finishSuccess(ref.id);
         return;
       }
       attemptedRef.current = true;
@@ -188,7 +237,7 @@ export default function AddResidentScreen({ navigation }) {
         }),
         CREATE_TIMEOUT_MS
       );
-      finishSuccess(ref.id);
+      await finishSuccess(ref.id);
     } catch (e) {
       if (isTimeoutError(e)) {
         // Slow, not failed: the write may still land (withTimeout doesn't
@@ -198,7 +247,7 @@ export default function AddResidentScreen({ navigation }) {
           setNotice('This is taking longer than usual… checking whether the resident was saved.');
         const exists = await existsOnServer(ref);
         if (exists === true) {
-          finishSuccess(ref.id);
+          await finishSuccess(ref.id);
           return;
         }
         if (mountedRef.current) {
@@ -210,7 +259,7 @@ export default function AddResidentScreen({ navigation }) {
       } else if (e.code === 'permission-denied' && (await existsOnServer(ref)) === true) {
         // The resident landed between our check and this write, so the
         // write was refused as an update. It's saved — carry on.
-        finishSuccess(ref.id);
+        await finishSuccess(ref.id);
         return;
       } else {
         console.error('[AddResident] resident creation failed:', e.code, e.message, e);
@@ -290,6 +339,16 @@ export default function AddResidentScreen({ navigation }) {
             ) : null}
             {notice ? <Text style={styles.noticeBanner}>{notice}</Text> : null}
 
+            {/* Optional photo, at the top of the form. */}
+            <PhotoPickerCircle
+              avatar={<ResidentAvatar name={name || '?'} size={96} />}
+              previewUri={photo?.uri}
+              hasPhoto={!!photo}
+              busy={pickingPhoto}
+              onPick={choosePhoto}
+              onRemove={() => setPhoto(null)}
+            />
+
             <Text style={styles.label}>Name</Text>
             <TextInput
               style={styles.input}
@@ -303,9 +362,9 @@ export default function AddResidentScreen({ navigation }) {
             />
 
             <TouchableOpacity
-              style={[styles.button, (!name.trim() || saving) && styles.buttonDisabled]}
+              style={[styles.button, (!name.trim() || saving || finished) && styles.buttonDisabled]}
               onPress={handleCreate}
-              disabled={!name.trim() || saving}
+              disabled={!name.trim() || saving || finished}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel={attemptedRef.current && error ? 'Try again' : 'Create resident'}

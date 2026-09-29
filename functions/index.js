@@ -66,18 +66,19 @@ function getAdmin() {
   return admin;
 }
 
-// Removes a resident's photo album: every file under
-// residents/{residentId}/photos/ in Cloud Storage now, and every
-// residents/{residentId}/photos/* doc queued on `writer` (deleting the
-// resident doc doesn't delete its subcollections). Files first, so if
-// that fails the docs are still there and a retry finds everything again.
-// deleteFiles on a prefix with nothing under it is a no-op, so this is
-// safe to repeat. See utils/residentPhotos.js for the layout.
+// Removes a resident's files and photo album: EVERYTHING under
+// residents/{residentId}/ in Cloud Storage (the album's photos/ and the
+// profile.jpg profile photo), and every residents/{residentId}/photos/*
+// doc queued on `writer` (deleting the resident doc doesn't delete its
+// subcollections). Files first, so if that fails the docs are still there
+// and a retry finds everything again. deleteFiles on a prefix with nothing
+// under it is a no-op, so this is safe to repeat. See
+// utils/residentPhotos.js and utils/profilePhotos.js for the layout.
 async function deleteResidentPhotos(admin, writer, residentRef) {
   await admin
     .storage()
     .bucket()
-    .deleteFiles({ prefix: `residents/${residentRef.id}/photos/` });
+    .deleteFiles({ prefix: `residents/${residentRef.id}/` });
   const photos = await residentRef.collection('photos').get();
   for (const photo of photos.docs) writer.delete(photo.ref);
 }
@@ -200,6 +201,11 @@ exports.deleteAccount = onCall(async (request) => {
   const usernames = await db.collection('usernames').where('uid', '==', uid).get();
   for (const snap of usernames.docs) writer.delete(snap.ref);
   await writer.finish();
+
+  // Their optional profile picture (utils/profilePhotos.js). Removed with
+  // the other cleanup, before the profile, so a failure can be retried.
+  // ignoreNotFound: most people never add one.
+  await admin.storage().bucket().file(`users/${uid}/avatar.jpg`).delete({ ignoreNotFound: true });
 
   // Step 2: only now remove the profile, then (below) the login itself.
   await db.doc(`users/${uid}`).delete();

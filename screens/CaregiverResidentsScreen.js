@@ -12,21 +12,13 @@ import {
   View,
 } from 'react-native';
 import BackButton from '../components/BackButton';
+import ResidentAvatar from '../components/ResidentAvatar';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { residentHasLifeStory } from '../utils/residentLifeStory';
 import { withTimeout } from '../utils/withTimeout';
 
 const LOAD_TIMEOUT_MS = 10000;
-
-function initialsOf(name) {
-  return (name ?? '')
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-}
 
 // Caregiver Mode's "My Residents" — reached from CaregiverModeScreen.
 // Shows every resident in the caregiver's organization (facilityId match),
@@ -139,9 +131,12 @@ export default function CaregiverResidentsScreen({ navigation }) {
                   accessibilityRole="button"
                   accessibilityLabel={`${item.name}, ${profileStarted ? 'profile started' : 'profile not started'}. Open profile`}
                 >
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{initialsOf(item.name)}</Text>
-                  </View>
+                  <ResidentAvatar
+                    name={item.name}
+                    photoPath={item.photoPath}
+                    photoUpdatedAt={item.photoUpdatedAt}
+                    size={44}
+                  />
                   <View style={styles.rowText}>
                     <Text style={styles.rowName} numberOfLines={1}>
                       {item.name || 'Unnamed resident'}

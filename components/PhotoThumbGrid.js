@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, fonts, radii } from '../theme';
 import { getPhotoUrl } from '../utils/residentPhotos';
+import UserAvatar from './UserAvatar';
 
 // A small grid of photo thumbnails, each with a delete button that asks
 // for confirmation first. Used by staff/family screens only — never in
@@ -35,11 +36,15 @@ export default function PhotoThumbGrid({ photos, onDelete, showUploader = false 
       {photos.map((photo) => (
         <View key={photo.id} style={styles.cell}>
           <Thumb storagePath={photo.storagePath} />
-          {showUploader && photo.uploaderName ? (
-            <Text style={styles.meta} numberOfLines={1}>
-              by {photo.uploaderName}
-            </Text>
-          ) : null}
+          {/* Who shared it: avatar (or initials) and, when asked for, the name. */}
+          <View style={styles.metaRow}>
+            <UserAvatar uid={photo.uploadedBy} name={photo.uploaderName} size={22} />
+            {showUploader && photo.uploaderName ? (
+              <Text style={styles.meta} numberOfLines={1}>
+                {photo.uploaderName}
+              </Text>
+            ) : null}
+          </View>
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={() => setConfirming(photo)}
@@ -124,7 +129,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.mistBackground,
   },
   thumbImage: { width: '100%', height: '100%' },
-  meta: { fontFamily: fonts.sansRegular, fontSize: 13, color: colors.textMuted, marginTop: 4 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  meta: { flex: 1, fontFamily: fonts.sansRegular, fontSize: 13, color: colors.textMuted },
   deleteButton: {
     position: 'absolute',
     top: 6,

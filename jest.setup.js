@@ -18,6 +18,18 @@ jest.mock('./firebaseConfig', () => ({
   storage: {},
 }));
 
+// Native image modules have no JS implementation under Jest. Screens only
+// import them through utils/imageUpload.js; tests that exercise picking
+// set return values on these.
+jest.mock('expo-image-picker', () => ({
+  requestMediaLibraryPermissionsAsync: jest.fn(),
+  launchImageLibraryAsync: jest.fn(),
+}));
+jest.mock('expo-image-manipulator', () => ({
+  ImageManipulator: { manipulate: jest.fn() },
+  SaveFormat: { JPEG: 'jpeg' },
+}));
+
 // Icons render as a simple placeholder — tests care about behaviour, not
 // glyphs, and this avoids font-loading noise.
 jest.mock('@expo/vector-icons', () => {

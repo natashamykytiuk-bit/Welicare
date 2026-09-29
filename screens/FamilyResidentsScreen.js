@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import BackButton from '../components/BackButton';
 import LoadError from '../components/LoadError';
+import ResidentAvatar from '../components/ResidentAvatar';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { withTimeout } from '../utils/withTimeout';
@@ -98,6 +99,12 @@ export default function FamilyResidentsScreen({ navigation }) {
         ) : (
           residents.map((r) => (
             <View key={r.id} style={styles.row}>
+              <ResidentAvatar
+                name={r.name}
+                photoPath={r.photoPath}
+                photoUpdatedAt={r.photoUpdatedAt}
+                size={44}
+              />
               <Text style={styles.rowName} numberOfLines={1}>
                 {r.name || 'Unnamed resident'}
               </Text>
