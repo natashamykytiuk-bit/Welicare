@@ -34,6 +34,7 @@ import EmailVerificationScreen from './screens/EmailVerificationScreen';
 import FamilyFeedScreen from './screens/FamilyFeedScreen';
 import FamilyModeScreen from './screens/FamilyModeScreen';
 import FamilyResidentsScreen from './screens/FamilyResidentsScreen';
+import FamilyStatsScreen from './screens/FamilyStatsScreen';
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
 import ForgotPinScreen from './screens/ForgotPinScreen';
 import GamesScreen from './screens/GamesScreen';
@@ -254,6 +255,8 @@ export default function App() {
               {/* Family Mode */}
               <Stack.Screen name="FamilyMode" component={FamilyModeScreen} />
               <Stack.Screen name="FamilyResidents" component={FamilyResidentsScreen} />
+              {/* View-only activity time for the residents they're linked to. */}
+              <Stack.Screen name="FamilyStats" component={FamilyStatsScreen} />
 
               {/* Caregiver Mode */}
               <Stack.Screen name="CaregiverMode" component={CaregiverModeScreen} />

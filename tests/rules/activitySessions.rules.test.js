@@ -32,6 +32,8 @@ const USERS = {
   caregiverA: { role: 'Caregiver', orgId: 'orgA' },
   volunteerA: { role: 'Volunteer', orgId: 'orgA' },
   familyA: { role: 'Family Caregiver', orgId: 'orgA' },
+  // Linked to residentA by a family code; their own orgId is a personal org.
+  familyLinked: { role: 'Family Caregiver', orgId: 'personalF' },
   caregiverB: { role: 'Caregiver', orgId: 'orgB' },
 };
 
@@ -74,6 +76,7 @@ async function seed() {
       createdBy: 'caregiverA',
       facilityId: 'orgA',
       assignedCaregivers: ['caregiverA'],
+      familyMembers: ['familyLinked'],
     });
     await setDoc(doc(db, 'residents', 'residentB'), {
       name: 'Bob',
@@ -87,6 +90,11 @@ async function seed() {
     await setDoc(
       doc(db, 'activitySessions', 'sessionB'),
       session('caregiverB', { residentId: 'residentB' })
+    );
+    // A Guest Mode visit in orgA (no resident).
+    await setDoc(
+      doc(db, 'activitySessions', 'guestA'),
+      session('caregiverA', { residentId: null, isGuest: true })
     );
   });
 }
@@ -134,6 +142,25 @@ describe('activitySessions: create', () => {
   it('lets anyone log a Guest Mode session in their own facility', async () => {
     await assertSucceeds(
       addDoc(sessions(as('familyA')), session('familyA', { residentId: null, isGuest: true }))
+    );
+  });
+
+  it("files a linked family member's visit under the resident's facility", async () => {
+    await assertSucceeds(
+      addDoc(sessions(as('familyLinked')), session('familyLinked', { facilityId: 'orgA' }))
+    );
+    // Their own personal org also still works (older app versions).
+    await assertSucceeds(addDoc(sessions(as('familyLinked')), session('familyLinked')));
+    // But never some other facility.
+    await assertFails(
+      addDoc(sessions(as('familyLinked')), session('familyLinked', { facilityId: 'orgB' }))
+    );
+    // And a guest visit only in their own organization.
+    await assertFails(
+      addDoc(
+        sessions(as('familyLinked')),
+        session('familyLinked', { facilityId: 'orgA', residentId: null, isGuest: true })
+      )
     );
   });
 
@@ -185,12 +212,26 @@ describe('activitySessions: read', () => {
     }
   });
 
-  it("refuses other facilities' sessions, and family members (for now)", async () => {
+  it("refuses other facilities' sessions, and unlinked family members", async () => {
     await assertFails(getDoc(doc(as('caregiverA'), 'activitySessions', 'sessionB')));
     await assertFails(
       getDocs(query(sessions(as('caregiverA')), where('facilityId', '==', 'orgB')))
     );
+    // familyA is in orgA but isn't linked to residentA.
     await assertFails(getDoc(doc(as('familyA'), 'activitySessions', 'sessionA')));
+    await assertFails(
+      getDocs(query(sessions(as('familyA')), where('residentId', '==', 'residentA')))
+    );
+  });
+
+  it("lets a linked family member read only their resident's visits", async () => {
+    const db = as('familyLinked');
+    await assertSucceeds(getDoc(doc(db, 'activitySessions', 'sessionA')));
+    await assertSucceeds(getDocs(query(sessions(db), where('residentId', '==', 'residentA'))));
+    // Not the whole facility, not Guest Mode visits, not other residents.
+    await assertFails(getDocs(query(sessions(db), where('facilityId', '==', 'orgA'))));
+    await assertFails(getDoc(doc(db, 'activitySessions', 'guestA')));
+    await assertFails(getDocs(query(sessions(db), where('residentId', '==', 'residentB'))));
   });
 });
 

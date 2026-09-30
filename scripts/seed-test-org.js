@@ -682,8 +682,9 @@ logged by caregivers, volunteers, an administrator and linked family members, wi
 - [ ] **Resident Mode PIN exit** — enter Resident Mode on a resident, try to leave, and confirm
       the shared test PIN is required (and a wrong PIN keeps the lock).
 - [ ] **Family member with no org joins by code** — sign in as \`family3\`, open organization
-      settings, join with Org A's code (\`${codes.A}\`). Afterwards they see *no* residents
-      until linked to one (family members never see the whole facility).
+      settings, ask to join with Org A's code (\`${codes.A}\`), then approve them as \`admin1\`
+      in Manage Users. Afterwards they see *no* residents until linked to one (family members
+      never see the whole facility).
 - [ ] **Cross-org isolation** — as \`cedar-admin1\` / \`cedar-caregiver1\`: no Maple Grove
       residents, stats, members, library entries or activity log appear. As \`admin1\` /
       \`caregiver1\`: no Cedar House data appears. Also try Org B's join code while signed in

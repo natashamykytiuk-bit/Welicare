@@ -53,6 +53,7 @@ export function newLiveSession(now = Date.now()) {
  *   residentId: string | null,
  *   userId: string,
  *   profile: { orgId?: string, role?: string } | null,
+ *   residentFacilityId?: string | null,
  * }} input
  */
 export function buildSessionDoc({
@@ -63,14 +64,19 @@ export function buildSessionDoc({
   residentId,
   userId,
   profile,
+  residentFacilityId = null,
 }) {
   const durationSeconds = Math.floor((endedAt - session.startedAt) / 1000);
   if (durationSeconds < MIN_SESSION_SECONDS) return null;
-  // Sessions are scoped to the facility like residents are; without an
-  // organization there's nowhere (and no one) to file it for.
-  if (!profile?.orgId || !profile?.role) return null;
+  // Sessions are scoped to a facility like residents are. A resident visit
+  // is filed under the resident's own facility, so a family member linked
+  // by a family code (whose orgId is their personal org) still counts in
+  // the care home's stats; a Guest Mode visit under the user's own org.
+  // Without either there's nowhere (and no one) to file it for.
+  const facilityId = (residentId && residentFacilityId) || profile?.orgId;
+  if (!facilityId || !profile?.role) return null;
   return {
-    facilityId: profile.orgId,
+    facilityId,
     residentId: residentId ?? null,
     // No resident picked means Guest Mode (ResidentModeScreen's Guest Mode
     // button opens the activity menu without a residentId).
@@ -109,6 +115,22 @@ export async function loadSessionProfile() {
 }
 
 /**
+ * The facility a resident belongs to, or null (no facility, or the read
+ * failed — then the visit falls back to the user's own org).
+ * @param {string} residentId
+ * @returns {Promise<string | null>}
+ */
+async function loadResidentFacility(residentId) {
+  try {
+    const snap = await getDoc(doc(db, 'residents', residentId));
+    return snap.data()?.facilityId ?? null;
+  } catch (e) {
+    console.warn('[activitySessions] could not load resident:', e?.code, e?.message);
+    return null;
+  }
+}
+
+/**
  * Saves one finished visit. Fire-and-forget by design: it never throws and
  * never shows anything to the resident — a failure is only logged. The
  * write isn't awaited by callers because addDoc's promise only settles once
@@ -122,7 +144,8 @@ export async function saveActivitySession({ profile, ...rest }) {
   try {
     const userId = auth.currentUser?.uid;
     if (!userId) return;
-    const data = buildSessionDoc({ ...rest, userId, profile: await profile });
+    const residentFacilityId = rest.residentId ? await loadResidentFacility(rest.residentId) : null;
+    const data = buildSessionDoc({ ...rest, userId, profile: await profile, residentFacilityId });
     if (!data) return;
     await addDoc(collection(db, 'activitySessions'), data);
   } catch (e) {

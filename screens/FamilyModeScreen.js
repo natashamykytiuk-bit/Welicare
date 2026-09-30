@@ -30,6 +30,18 @@ export default function FamilyModeScreen({ navigation }) {
           <Text style={styles.cardTitle}>My Residents</Text>
           <Text style={styles.cardSubtitle}>See who you're connected to</Text>
         </TouchableOpacity>
+
+        {/* View-only: time each linked resident spent in activities. */}
+        <TouchableOpacity
+          style={[styles.card, styles.cardSpaced]}
+          onPress={() => navigation.navigate('FamilyStats')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Activity"
+        >
+          <Text style={styles.cardTitle}>Activity</Text>
+          <Text style={styles.cardSubtitle}>See how your loved one has been spending time</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -58,6 +70,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  cardSpaced: { marginTop: 16 },
   cardTitle: {
     fontFamily: fonts.sansBold,
     fontSize: 18,

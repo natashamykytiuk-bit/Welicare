@@ -731,24 +731,43 @@ service cloud.firestore {
     match /activitySessions/{sessionId} {
       // Facility staff (Caregiver, Administrator, Volunteer) in the same
       // facility, for Overall Stats and volunteer hours.
-      // TODO(Family Mode stats): Family Caregivers are deliberately left out
-      // for now. Their read access (likely limited to residents they're
-      // linked to) will be designed when Family Mode stats are built.
       allow get, list: if verified() && resource.data.facilityId == me().orgId &&
         seesWholeFacility();
 
+      // Family Mode → Activity: anyone linked to a resident (a family member
+      // by family code, or the family caregiver who added them) may read
+      // that resident's visits — and only theirs, never Guest Mode visits or
+      // other residents'. The app always queries with residentId == one
+      // resident, which is what lets Firestore check this per query.
+      allow get, list: if verified() && resource.data.residentId is string &&
+        linkedToResident(get(/databases/$(database)/documents/residents/$(resource.data.residentId)).data);
+
       // Only for yourself (userId, and your real role from your own user
-      // doc), in your own facility, and, unless it's a Guest Mode visit,
-      // for a resident you're linked to (the same test resident reads use),
-      // so nobody can file sessions against another facility's residents.
+      // doc), and, unless it's a Guest Mode visit, for a resident you're
+      // linked to (the same test resident reads use), so nobody can file
+      // sessions against another facility's residents.
+      //
+      // Filed under your own organization, or — for a resident visit — the
+      // resident's facility. The second lets a family member linked by a
+      // family code (whose own orgId is their personal org) log visits the
+      // resident's care home can see in its stats.
       allow create: if verified() &&
         validActivitySession(request.resource.data) &&
         request.resource.data.userId == request.auth.uid &&
-        request.resource.data.facilityId == me().orgId &&
         request.resource.data.userRole == me().role &&
         (
-          request.resource.data.isGuest == true ||
-          linkedToResident(get(/databases/$(database)/documents/residents/$(request.resource.data.residentId)).data)
+          (
+            request.resource.data.isGuest == true &&
+            request.resource.data.facilityId == me().orgId
+          ) ||
+          (
+            request.resource.data.isGuest == false &&
+            linkedToResident(get(/databases/$(database)/documents/residents/$(request.resource.data.residentId)).data) &&
+            (
+              request.resource.data.facilityId == me().orgId ||
+              request.resource.data.facilityId == get(/databases/$(database)/documents/residents/$(request.resource.data.residentId)).data.get('facilityId', null)
+            )
+          )
         );
 
       // An immutable log: sessions are never edited or removed.

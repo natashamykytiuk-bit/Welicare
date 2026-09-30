@@ -93,7 +93,9 @@ export default function ResidentProfileScreen({ navigation, route }) {
       }
       const residentData = residentSnap.data();
       setResident(residentData);
-      const orgId = userSnap.data()?.orgId;
+      // Visits are filed under the resident's facility (utils/activitySessions.js),
+      // which is also what lets a linked family member read them.
+      const orgId = residentData.facilityId ?? userSnap.data()?.orgId;
       setHasOrg(!!orgId);
       setRole(userSnap.data()?.role ?? null);
 

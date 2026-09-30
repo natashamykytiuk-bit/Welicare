@@ -17,6 +17,26 @@ describe('buildSessionDoc', () => {
     profile: PROFILE,
   };
 
+  it("files a resident visit under the resident's facility, a guest visit under the user's", () => {
+    const session = newLiveSession(0);
+    const visit = buildSessionDoc({
+      ...base,
+      session,
+      endedAt: 60_000,
+      residentId: 'r1',
+      residentFacilityId: 'careHome',
+    });
+    expect(visit.facilityId).toBe('careHome');
+    const guest = buildSessionDoc({
+      ...base,
+      session,
+      endedAt: 60_000,
+      residentId: null,
+      residentFacilityId: 'careHome',
+    });
+    expect(guest.facilityId).toBe('orgA');
+  });
+
   it('builds exactly the allowed fields for a resident visit', () => {
     const session = {
       ...newLiveSession(0),
