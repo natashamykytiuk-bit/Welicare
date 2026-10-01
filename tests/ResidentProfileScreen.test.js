@@ -57,6 +57,15 @@ describe('ResidentProfileScreen', () => {
     expect(navigation.navigate).toHaveBeenCalledWith('ResidentSafety', { residentId: 'r1' });
   });
 
+  it('is view-only for volunteers: no Edit life story, safety notes still open', async () => {
+    setUp({ user: { orgId: 'orgA', role: 'Volunteer' } });
+    await render(<ResidentProfileScreen navigation={navigation} route={route} />);
+    expect(await screen.findByText('Margaret')).toBeTruthy();
+    expect(screen.queryByLabelText('Edit life story')).toBeNull();
+    expect(screen.queryByLabelText('Add photos')).toBeNull();
+    expect(screen.getByLabelText('Safety notes')).toBeTruthy();
+  });
+
   it('queries only this facility and resident', async () => {
     setUp();
     await render(<ResidentProfileScreen navigation={navigation} route={route} />);

@@ -60,6 +60,9 @@ const LIFE_STORY_FIELDS = [
 // (mirrors the photos rules in firestore.rules / storage.rules).
 const PHOTO_UPLOAD_ROLES = ['Family Caregiver', 'Caregiver', 'Administrator'];
 const PHOTO_MODERATOR_ROLES = ['Caregiver', 'Administrator'];
+// Volunteers see the profile but can't change it (firestore.rules refuse
+// their writes anyway; this just doesn't offer buttons that would fail).
+const VIEW_ONLY_ROLES = ['Volunteer'];
 
 export default function ResidentProfileScreen({ navigation, route }) {
   const residentId = route?.params?.residentId;
@@ -201,7 +204,7 @@ export default function ResidentProfileScreen({ navigation, route }) {
                 </Text>
               )}
               <View style={styles.buttonRow}>
-                {!lifeStoryDenied ? (
+                {!lifeStoryDenied && !VIEW_ONLY_ROLES.includes(role) ? (
                   <TouchableOpacity
                     style={styles.primaryButton}
                     onPress={() =>

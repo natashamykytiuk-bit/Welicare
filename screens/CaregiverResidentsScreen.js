@@ -34,7 +34,12 @@ const LOAD_TIMEOUT_MS = 10000;
 // A caregiver with no organization (skipped that onboarding step) falls
 // back to the residents they're assigned to, since there's no facility to
 // list.
-export default function CaregiverResidentsScreen({ navigation }) {
+//
+// Volunteer Mode's "My Residents" (VolunteerResidentsScreen) renders this
+// same screen with viewOnly: volunteers may list their facility's residents
+// too (seesWholeFacility in firestore.rules), and only the wording changes —
+// what they can't edit is decided on ResidentProfileScreen and by the rules.
+export default function CaregiverResidentsScreen({ navigation, viewOnly = false }) {
   const [residents, setResidents] = useState([]);
   const [orgName, setOrgName] = useState('');
   const [hasOrg, setHasOrg] = useState(true);
@@ -114,7 +119,9 @@ export default function CaregiverResidentsScreen({ navigation }) {
           <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
         ) : residents.length === 0 && !error ? (
           <Text style={styles.emptyText}>
-            No residents yet. Add one from Resident Mode and they'll appear here.
+            {viewOnly
+              ? 'No residents yet. Once your organization adds residents, they’ll appear here.'
+              : 'No residents yet. Add one from Resident Mode and they’ll appear here.'}
           </Text>
         ) : (
           <FlatList
