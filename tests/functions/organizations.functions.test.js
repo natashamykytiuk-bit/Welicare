@@ -26,9 +26,30 @@ const { connectFunctionsEmulator, getFunctions, httpsCallable } = require('fireb
 
 const fromFunctions = (id) =>
   require(require.resolve(id, { paths: [path.join(__dirname, '..', '..', 'functions')] }));
-const admin = fromFunctions('firebase-admin');
+// firebase-admin 13+ has no admin.firestore() namespace: each service is
+// imported from its own subpath.
+const { initializeApp: initializeAdminApp, deleteApp } = fromFunctions('firebase-admin/app');
+const { getFirestore, Timestamp } = fromFunctions('firebase-admin/firestore');
 
 const PROJECT = 'demo-welicare';
+
+// Admin-level Auth operations go straight to the Auth emulator's REST API
+// (the "owner" token is its admin credential) rather than through
+// firebase-admin/auth: that module pulls in an ES-module-only dependency
+// (jose) that Jest can't load without extra transform config.
+async function authEmulator(method, body) {
+  const res = await fetch(
+    `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/projects/${PROJECT}/accounts:${method}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
+      body: JSON.stringify(body),
+    }
+  );
+  if (!res.ok) throw new Error(`Auth emulator ${method} failed: ${await res.text()}`);
+  return res.json();
+}
+let adminApp;
 let adminDb;
 let auth;
 let functions;
@@ -38,8 +59,8 @@ beforeAll(() => {
   if (!process.env.FIRESTORE_EMULATOR_HOST || !process.env.FIREBASE_AUTH_EMULATOR_HOST) {
     throw new Error('Run these through `npm run test:functions` so the emulators are running.');
   }
-  admin.initializeApp({ projectId: PROJECT });
-  adminDb = admin.firestore();
+  adminApp = initializeAdminApp({ projectId: PROJECT });
+  adminDb = getFirestore(adminApp);
   const app = initializeApp({ projectId: PROJECT, apiKey: 'fake-key-for-emulator' });
   auth = getAuth(app);
   connectAuthEmulator(auth, `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}`, {
@@ -51,7 +72,7 @@ beforeAll(() => {
 
 afterAll(async () => {
   await signOut(auth);
-  await admin.app().delete();
+  await deleteApp(adminApp);
 });
 
 /** Signs up a fresh test user with the given users/{uid} data; returns uid. */
@@ -67,7 +88,7 @@ async function newUser(data, { verified = true } = {}) {
   // The organization functions require a verified email. Mark the test
   // user verified, then refresh their token so it carries the claim.
   if (verified) {
-    await admin.auth().updateUser(user.uid, { emailVerified: true });
+    await authEmulator('update', { localId: user.uid, emailVerified: true });
     await user.getIdToken(true);
   }
   return user.uid;
@@ -376,7 +397,7 @@ describe('resolveSignInEmail (sign-in with a username)', () => {
     const uid = await newUser({ role: 'Caregiver', username: 'Ann.Smith' });
     await adminDb.doc('usernames/ann.smith').set({ uid });
     const { email } = (await call('resolveSignInEmail', { username: ' ANN.smith ' })).data;
-    expect(email).toBe((await admin.auth().getUser(uid)).email);
+    expect(email).toBe((await authEmulator('lookup', { localId: [uid] })).users[0].email);
   });
 
   it('does not resolve a username that is no longer on the profile', async () => {
@@ -599,7 +620,7 @@ describe('family codes (createFamilyCode / redeemFamilyCode)', () => {
     const second = (await call('createFamilyCode', { residentId })).data.code;
     await adminDb
       .doc(`familyCodes/${second}`)
-      .update({ expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() - 1000) });
+      .update({ expiresAt: Timestamp.fromMillis(Date.now() - 1000) });
     await newUser({ role: 'Family Caregiver' });
     expect(await outcome(call('redeemFamilyCode', { code: first }))).toBe('functions/not-found');
     expect(await outcome(call('redeemFamilyCode', { code: second }))).toBe('functions/not-found');

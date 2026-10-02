@@ -20,8 +20,11 @@ const path = require('path');
 // scripts in this folder), so resolve it from there.
 const fromFunctions = (id) =>
   require(require.resolve(id, { paths: [path.join(__dirname, '..', 'functions')] }));
-const admin = fromFunctions('firebase-admin');
-const { FieldValue, Timestamp } = fromFunctions('firebase-admin/firestore');
+// firebase-admin 13+ has no admin.firestore() namespace: each service is
+// imported from its own subpath.
+const { initializeApp, cert } = fromFunctions('firebase-admin/app');
+const { getAuth } = fromFunctions('firebase-admin/auth');
+const { FieldValue, Timestamp, getFirestore } = fromFunctions('firebase-admin/firestore');
 
 // Only organizations whose name starts with this are test data. The seed
 // names its orgs "TEST …" and the teardown deletes nothing else.
@@ -31,15 +34,16 @@ const TEST_ORG_PREFIX = 'TEST';
 const TEST_EMAIL_DOMAIN = 'welicare-test.example';
 
 /**
- * Initializes the Admin SDK and returns { admin, db, auth, projectId }.
+ * Initializes the Admin SDK and returns { db, auth, projectId }.
  * Exits with a message if no usable credentials are configured.
  */
 function initAdmin() {
   const emulator = process.env.FIRESTORE_EMULATOR_HOST && process.env.FIREBASE_AUTH_EMULATOR_HOST;
   let projectId;
+  let app;
   if (emulator) {
     projectId = process.env.GCLOUD_PROJECT || 'demo-welicare';
-    admin.initializeApp({ projectId });
+    app = initializeApp({ projectId });
   } else {
     const keyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
     if (!keyPath || !fs.existsSync(keyPath)) {
@@ -51,10 +55,10 @@ function initAdmin() {
     }
     const key = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
     projectId = key.project_id;
-    admin.initializeApp({ credential: admin.credential.cert(key), projectId });
+    app = initializeApp({ credential: cert(key), projectId });
   }
   console.log(`Firebase project: ${projectId}${emulator ? ' (emulator)' : ''}\n`);
-  return { admin, db: admin.firestore(), auth: admin.auth(), projectId };
+  return { db: getFirestore(app), auth: getAuth(app), projectId };
 }
 
 module.exports = { initAdmin, FieldValue, Timestamp, TEST_ORG_PREFIX, TEST_EMAIL_DOMAIN };

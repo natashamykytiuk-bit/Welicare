@@ -22,8 +22,8 @@ const { requireProject } = require('./requireProject');
 const path = require('path');
 const fromFunctions = (id) =>
   require(require.resolve(id, { paths: [path.join(__dirname, '..', 'functions')] }));
-const admin = fromFunctions('firebase-admin');
-const { FieldValue } = fromFunctions('firebase-admin/firestore');
+const { initializeApp } = fromFunctions('firebase-admin/app');
+const { FieldValue, getFirestore } = fromFunctions('firebase-admin/firestore');
 
 async function migrate(db, { apply }) {
   const orgs = await db.collection('organizations').get();
@@ -191,8 +191,7 @@ if (require.main === module) {
         return migrateViaRest({ baseUrl, token, apply });
       }
     : () => {
-        admin.initializeApp({ projectId });
-        return migrate(admin.firestore(), { apply });
+        return migrate(getFirestore(initializeApp({ projectId })), { apply });
       };
   run().catch((e) => {
     console.error(e.message);

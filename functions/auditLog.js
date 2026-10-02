@@ -103,7 +103,7 @@ function actorFromEvent(event) {
 /**
  * The two Firestore triggers, created by index.js with its Admin SDK
  * getter (so firebase-admin is only initialised once).
- * @param {() => import('firebase-admin')} getAdmin
+ * @param {() => { firestore: () => import('firebase-admin/firestore').Firestore }} getAdmin
  */
 function auditTriggers(getAdmin) {
   return {

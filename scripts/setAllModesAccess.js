@@ -13,7 +13,8 @@
 // has to sign out and back in (or wait up to an hour for their token to
 // refresh) before the change shows in the app.
 const { requireProject } = require('./requireProject');
-const admin = require('../functions/node_modules/firebase-admin');
+const { initializeApp } = require('../functions/node_modules/firebase-admin/app');
+const { getAuth } = require('../functions/node_modules/firebase-admin/auth');
 
 async function main() {
   const [email, flag] = process.argv.slice(2);
@@ -21,12 +22,12 @@ async function main() {
     console.error('Usage: node scripts/setAllModesAccess.js <email> [--revoke]');
     process.exit(1);
   }
-  admin.initializeApp({ projectId: requireProject() });
-  const user = await admin.auth().getUserByEmail(email);
+  const auth = getAuth(initializeApp({ projectId: requireProject() }));
+  const user = await auth.getUserByEmail(email);
   const claims = { ...(user.customClaims ?? {}) };
   if (flag === '--revoke') delete claims.allModes;
   else claims.allModes = true;
-  await admin.auth().setCustomUserClaims(user.uid, claims);
+  await auth.setCustomUserClaims(user.uid, claims);
   console.log(
     `${flag === '--revoke' ? 'Revoked' : 'Granted'} all-modes access for ${email} (uid ${user.uid}).`
   );

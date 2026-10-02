@@ -59,11 +59,19 @@ function trackedBulkWriter(db, label) {
 // The Admin SDK, initialised on first use rather than at load, so functions
 // that never touch it (AI suggestions, YouTube search) don't pay for it on
 // cold start.
+//
+// firebase-admin 13+ has no admin.firestore() / admin.auth() namespace any
+// more: each service comes from its own subpath (firebase-admin/firestore,
+// …). getAdmin() returns the same three accessors the rest of this file
+// already calls, so callers read the same as before.
 let adminApp = null;
 function getAdmin() {
-  const admin = require('firebase-admin');
-  if (!adminApp) adminApp = admin.initializeApp();
-  return admin;
+  if (!adminApp) adminApp = require('firebase-admin/app').initializeApp();
+  return {
+    firestore: () => require('firebase-admin/firestore').getFirestore(adminApp),
+    auth: () => require('firebase-admin/auth').getAuth(adminApp),
+    storage: () => require('firebase-admin/storage').getStorage(adminApp),
+  };
 }
 
 // Removes a resident's files and photo album: EVERYTHING under
