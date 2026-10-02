@@ -65,7 +65,6 @@ import ResidentPhotoAlbumScreen from './screens/ResidentPhotoAlbumScreen';
 import ResidentPhotoManageScreen from './screens/ResidentPhotoManageScreen';
 import ResidentPhotoUploadScreen from './screens/ResidentPhotoUploadScreen';
 import ResidentProfileScreen from './screens/ResidentProfileScreen';
-import SelectOrganizationResidentScreen from './screens/SelectOrganizationResidentScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import SignInScreen from './screens/SignInScreen';
 import SignUpScreen from './screens/SignUpScreen';
@@ -320,10 +319,6 @@ export default function App() {
                 Caregiver Mode's quick links, and Resident Mode's
                 Add Resident / resident-info-edit shortcuts) */}
               <Stack.Screen name="AddResident" component={AddResidentScreen} />
-              <Stack.Screen
-                name="SelectOrganizationResident"
-                component={SelectOrganizationResidentScreen}
-              />
               <Stack.Screen name="BuildProfile" component={BuildProfileScreen} />
               <Stack.Screen name="ResidentProfile" component={ResidentProfileScreen} />
               <Stack.Screen name="ConversationStarters" component={ConversationStartersScreen} />

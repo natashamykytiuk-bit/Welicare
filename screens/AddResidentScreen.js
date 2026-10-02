@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import {
   collection,
   doc,
@@ -33,25 +32,18 @@ const CREATE_TIMEOUT_MS = 10000;
 // How long to wait for the server when double-checking a slow save.
 const CHECK_TIMEOUT_MS = 10000;
 
-// Reached two ways: from Caregiver Mode's quick links, and from
-// ResidentModeScreen's "Add Resident" option. Captures a name and creates a
-// resident doc — the rest of the profile is filled in later via
-// BuildProfileScreen. Goes back to wherever it was opened from rather than
-// assuming a specific destination screen.
+// Reached from ResidentModeScreen's "Add Resident" option. Captures a name
+// and creates a resident doc — the rest of the profile is filled in later
+// via BuildProfileScreen. Goes back to wherever it was opened from rather
+// than assuming a specific destination screen.
 //
-// If the signed-in user is a Caregiver or Administrator in an organization,
-// they're shown a chooser
-// first: create a brand-new resident, or pick one already shared by someone
-// else at the same facility (via SelectOrganizationResidentScreen). Users
-// with no organization skip straight to the form, unchanged from before.
+// There used to be a "Select from [Organization]" choice here for adding a
+// resident someone else at the facility had set up. It's gone: staff now see
+// every resident in their facility automatically (see loadRoleResidents in
+// ResidentModeScreen), and family members only ever see residents they're
+// linked to, so this screen only creates brand-new residents.
 export default function AddResidentScreen({ navigation }) {
   const [orgId, setOrgId] = useState(undefined); // undefined = loading, null = no org
-  const [orgName, setOrgName] = useState('');
-  // Only Caregivers and Administrators may add themselves to an existing
-  // resident (firestore.rules refuses it for anyone else), so only they get
-  // the chooser — everyone else goes straight to the new-resident form.
-  const [canSelectFromOrg, setCanSelectFromOrg] = useState(false);
-  const [mode, setMode] = useState(null); // null = show chooser (if org exists), 'new' = show form
 
   const [name, setName] = useState('');
   // Optional profile photo, picked and resized locally; only uploaded
@@ -84,15 +76,7 @@ export default function AddResidentScreen({ navigation }) {
       try {
         const userSnap = await getDoc(doc(db, 'users', uid));
         const id = userSnap.data()?.orgId ?? null;
-        const role = userSnap.data()?.role;
-        let nameForOrg = '';
-        if (id) {
-          const orgSnap = await getDoc(doc(db, 'organizations', id));
-          nameForOrg = orgSnap.data()?.name || 'your organization';
-        }
         if (cancelled) return;
-        setOrgName(nameForOrg);
-        setCanSelectFromOrg(role === 'Caregiver' || role === 'Administrator');
         setOrgId(id);
       } catch (e) {
         console.error('[AddResident] failed to load organization:', e.code, e.message, e);
@@ -272,8 +256,6 @@ export default function AddResidentScreen({ navigation }) {
     }
   }
 
-  const showChooser = orgId && canSelectFromOrg && mode !== 'new';
-
   return (
     <SafeAreaView style={styles.flex}>
       <View style={styles.content}>
@@ -283,50 +265,6 @@ export default function AddResidentScreen({ navigation }) {
           <LoadError onRetry={() => setReloadKey((k) => k + 1)} />
         ) : orgId === undefined ? (
           <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
-        ) : showChooser ? (
-          <>
-            <Text style={styles.heading}>Add a resident</Text>
-            <Text style={styles.body}>
-              Create a brand-new profile, or add a resident someone else at your organization has
-              already set up.
-            </Text>
-
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() => setMode('new')}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel="Add New Resident"
-            >
-              <Ionicons
-                name="person-add-outline"
-                size={28}
-                color={colors.primary}
-                style={styles.cardIcon}
-              />
-              <Text style={styles.cardTitle}>Add New Resident</Text>
-              <Text style={styles.cardBody}>Create a brand-new resident profile.</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() => navigation.navigate('SelectOrganizationResident', { orgId, orgName })}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={`Select from ${orgName}`}
-            >
-              <Ionicons
-                name="people-outline"
-                size={28}
-                color={colors.primary}
-                style={styles.cardIcon}
-              />
-              <Text style={styles.cardTitle}>Select from {orgName}</Text>
-              <Text style={styles.cardBody}>
-                Add a resident already shared by your organization.
-              </Text>
-            </TouchableOpacity>
-          </>
         ) : (
           <>
             <Text style={styles.heading}>Add a resident</Text>
@@ -402,27 +340,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginBottom: 24,
     lineHeight: 22,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 16,
-  },
-  cardIcon: { marginBottom: 10 },
-  cardTitle: {
-    fontFamily: fonts.sansBold,
-    fontSize: 18,
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  cardBody: {
-    fontFamily: fonts.sansRegular,
-    fontSize: 15,
-    color: colors.textMuted,
-    lineHeight: 20,
   },
   // Calm, non-error styling for the "taking longer than usual" message.
   noticeBanner: {

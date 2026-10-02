@@ -24,11 +24,16 @@ import { safetyRef } from '../utils/residentSafety';
 
 const LOAD_TIMEOUT_MS = 10000;
 
+// Roles that see every resident in their facility.
+const FACILITY_STAFF_ROLES = ['Caregiver', 'Administrator', 'Volunteer'];
+
 // The residents a role gets on top of the createdBy / assignedCaregivers
 // lists, as query docs:
-//   - Volunteer with an organization: every resident in their facility;
+//   - facility staff (Caregiver, Administrator, Volunteer) with an
+//     organization: every resident in their facility, automatically — there
+//     is no "Select from organization" step any more;
 //   - Family Caregiver: residents they linked to with a family code
-//     (familyMembers — see utils/familyLinks.js);
+//     (familyMembers — see utils/familyLinks.js), never the whole facility;
 //   - anyone else: none.
 // Reads the user's own doc for role/orgId rather than reusing the screen's
 // `role` state, since the resident load can run before that state arrives.
@@ -41,7 +46,9 @@ export async function loadRoleResidents(uid) {
   );
   const { role, orgId } = userSnap.data() ?? {};
   let clause = null;
-  if (role === 'Volunteer' && orgId) clause = where('facilityId', '==', orgId);
+  // Same role list as seesWholeFacility() in firestore.rules, which is what
+  // permits this query.
+  if (FACILITY_STAFF_ROLES.includes(role) && orgId) clause = where('facilityId', '==', orgId);
   else if (role === 'Family Caregiver') clause = where('familyMembers', 'array-contains', uid);
   if (!clause) return [];
   const snap = await withTimeout(
@@ -160,15 +167,12 @@ export default function ResidentModeScreen({ navigation }) {
             console.error('[ResidentMode] assignedCaregivers query failed:', e.code, e.message, e);
             throw e;
           });
-          // Volunteers are never on assignedCaregivers (firestore.rules only
-          // let Caregivers/Administrators self-assign), so the two queries
-          // above would leave a facility volunteer with an empty list. They
-          // run sessions for anyone in their facility, so they also get the
+          // Facility staff (Caregivers, Administrators, Volunteers) run
+          // sessions for anyone in their facility, so they also get the
           // whole-facility query — its own `allow list` rule
-          // (seesWholeFacility) already permits it. Family Caregivers get
-          // the residents they linked to with a family code instead, and
-          // must never get the facility query (the rule refuses it anyway).
-          // Caregivers/Admins keep seeing only their own list, as before.
+          // (seesWholeFacility) permits it. Family Caregivers get the
+          // residents they linked to with a family code instead, and must
+          // never get the facility query (the rule refuses it anyway).
           const facilityDocs = await loadRoleResidents(uid);
           if (cancelled) return;
           const merged = new Map();
