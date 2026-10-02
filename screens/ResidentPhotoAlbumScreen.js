@@ -118,8 +118,23 @@ export default function ResidentPhotoAlbumScreen({ navigation, route }) {
   }, [photos, index, skipPhoto]);
 
   const count = photos.length;
-  const goNext = useCallback(() => count && setIndex((i) => (i + 1) % count), [count]);
-  const goPrev = useCallback(() => count && setIndex((i) => (i - 1 + count) % count), [count]);
+  // The buttons tell the pager which way to slide (it reports the new index
+  // back through onIndexChange) rather than setting `index` themselves —
+  // from the index alone the pager can't always tell "next" from "previous"
+  // (see LoopingPager's step), and "next" must always move forward.
+  const pagerRef = useRef(null);
+  // Until the frame has been measured there's no pager to slide, so the
+  // index is just moved directly.
+  const step = useCallback(
+    (delta) => {
+      if (!count) return;
+      if (pagerRef.current) pagerRef.current.step(delta);
+      else setIndex((i) => (i + delta + count) % count);
+    },
+    [count]
+  );
+  const goNext = useCallback(() => step(1), [step]);
+  const goPrev = useCallback(() => step(-1), [step]);
 
   // The photo frame's size, measured on layout — LoopingPager needs exact
   // page dimensions, and the frame's size depends on the screen and the
@@ -172,6 +187,7 @@ export default function ResidentPhotoAlbumScreen({ navigation, route }) {
                 it along. Tap a photo to open it full screen. */}
             {frame.width > 0 ? (
               <LoopingPager
+                ref={pagerRef}
                 testID="album-pager"
                 items={photos}
                 index={index}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { FlatList, View } from 'react-native';
 
 // How long scrolling must be still before a swipe counts as finished (web).
@@ -25,6 +25,7 @@ const SETTLE_MS = 120;
 //   width / height — the page size (the pager fills exactly this)
 //   renderItem(item) — one page's content
 //   testID
+//   ref            — exposes step(1) / step(-1) for next / previous buttons
 export default function LoopingPager({
   items,
   index,
@@ -33,6 +34,7 @@ export default function LoopingPager({
   height,
   renderItem,
   testID,
+  ref,
 }) {
   const listRef = useRef(null);
   const looping = items.length > 1;
@@ -82,6 +84,29 @@ export default function LoopingPager({
     else scrollToPage(pageOf(index), true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, width, items.length]);
+
+  // Lets the prev/next buttons say which way to go: ref.current.step(1) is
+  // "next", step(-1) is "previous". The direction can't be worked out from
+  // `index` alone — with two photos, 0 → 1 is both one forward and one back —
+  // and guessing made "next" slide the wrong way. Stepping always slides in
+  // the direction asked, so the album feels endless either way.
+  useImperativeHandle(ref, () => ({
+    step(delta) {
+      if (!looping || !width) return;
+      // Still resting on a copy (a quick second press, before settle() ran)?
+      // Hop to the real page first, or the slide would rewind through the
+      // whole album to reach its neighbour.
+      const real = pageOf(itemOf(shownPage.current));
+      if (shownPage.current !== real) scrollToPage(real, false);
+      // real ± 1 may be a copy at either end; settle() hops off it afterwards.
+      const target = real + (delta < 0 ? -1 : 1);
+      scrollToPage(target, true);
+      // Report it here so the effect above sees a change it already handled.
+      const itemIndex = itemOf(target);
+      lastIndex.current = itemIndex;
+      onIndexChange(itemIndex);
+    },
+  }));
 
   // A swipe (or slide) settled at offset `x`: hop off a copy onto the real
   // page, and report where we landed.
