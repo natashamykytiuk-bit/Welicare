@@ -71,6 +71,12 @@ export default function ResidentModeScreen({ navigation }) {
   // is Administrator-only (see firestore.rules), so the menu item is hidden
   // for everyone else rather than shown and then failing on tap.
   const [role, setRole] = useState(undefined);
+  // False once we know the user has no organization. Guest Mode visits are
+  // filed under the user's organization (utils/activitySessions.js), so
+  // without one they can't be recorded — the Guest Mode card says so,
+  // rather than the time silently going missing from the stats. Assumed
+  // true until known, so the note never flashes up for everyone else.
+  const [hasOrg, setHasOrg] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,7 +88,10 @@ export default function ResidentModeScreen({ navigation }) {
       // default) and the resident list itself is unaffected.
       try {
         const snap = await getDoc(doc(db, 'users', uid));
-        if (!cancelled) setRole(snap.data()?.role ?? null);
+        if (!cancelled) {
+          setRole(snap.data()?.role ?? null);
+          setHasOrg(!!snap.data()?.orgId);
+        }
       } catch (e) {
         console.error('[ResidentMode] failed to load role:', e.code, e.message, e);
         if (!cancelled) setRole(null);
@@ -94,14 +103,24 @@ export default function ResidentModeScreen({ navigation }) {
     };
   }, []);
 
+  // Leaving the resident picker goes straight back to the home screen
+  // (ModeSelection) with no PIN: nothing staff-only is reachable from there
+  // without one, since every other mode asks for the PIN on the way in. The
+  // PIN lock that keeps a resident inside a session is on ActivityMenuScreen.
+  // The back arrow and Android's back button share this.
+  const exitToHome = useCallback(
+    () => navigation.navigate('ModeSelection', { animation: 'slide_from_left' }),
+    [navigation]
+  );
+
   useFocusEffect(
     useCallback(() => {
       const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-        navigation.navigate('PINEntry', { destination: 'ModeSelection' });
+        exitToHome();
         return true;
       });
       return () => subscription.remove();
-    }, [navigation])
+    }, [exitToHome])
   );
 
   // Two simple single-field queries merged client-side, rather than one
@@ -216,14 +235,13 @@ export default function ResidentModeScreen({ navigation }) {
     <SafeAreaView style={styles.flex}>
       <View style={styles.header}>
         {/* Not a plain goBack: this screen is reached via navigation.reset()
-            when the PIN gate lets someone in (see the hardware-back handler
-            above, and ActivityMenuScreen's back button), which wipes any
-            prior stack entry — goBack() would then have nothing to pop to. */}
+            when the PIN gate lets someone in, which wipes any prior stack
+            entry — goBack() would then have nothing to pop to. */}
         <BackButton
           navigation={navigation}
           color={colors.white}
           style={styles.headerBack}
-          onPress={() => navigation.navigate('ModeSelection', { animation: 'slide_from_left' })}
+          onPress={exitToHome}
         />
         <Text style={styles.headerTitle}>Hello! Who are we visiting today?</Text>
         <Text style={styles.headerSubtitle}>Select a resident to begin their session</Text>
@@ -254,7 +272,11 @@ export default function ResidentModeScreen({ navigation }) {
               accessibilityLabel="Guest Mode"
             >
               <Text style={styles.actionTitle}>Guest Mode</Text>
-              <Text style={styles.actionSubtitle}>Start a session without picking a resident</Text>
+              <Text style={styles.actionSubtitle}>
+                {hasOrg
+                  ? 'Start a session without picking a resident'
+                  : 'Start a session without picking a resident. Time isn’t recorded until you join an organization.'}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity

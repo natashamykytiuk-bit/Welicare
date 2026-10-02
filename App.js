@@ -17,7 +17,6 @@ import { nextOnboardingRoute } from './utils/onboarding';
 import { colors } from './theme';
 import { withTimeout } from './utils/withTimeout';
 
-import ActivityIdeasScreen from './screens/ActivityIdeasScreen';
 import ActivityMenuScreen from './screens/ActivityMenuScreen';
 import AddResidentScreen from './screens/AddResidentScreen';
 import AdministratorModeScreen from './screens/AdministratorModeScreen';
@@ -53,7 +52,6 @@ import MovieLibraryScreen from './screens/MovieLibraryScreen';
 import MoviesPlayerScreen from './screens/MoviesPlayerScreen';
 import MoviesSelectionScreen from './screens/MoviesSelectionScreen';
 import MusicLibraryScreen from './screens/MusicLibraryScreen';
-import MusicMovieRecsScreen from './screens/MusicMovieRecsScreen';
 import MusicPlayerScreen from './screens/MusicPlayerScreen';
 import MusicSelectionScreen from './screens/MusicSelectionScreen';
 import OrganizationalSettingsScreen from './screens/OrganizationalSettingsScreen';
@@ -328,9 +326,7 @@ export default function App() {
               />
               <Stack.Screen name="BuildProfile" component={BuildProfileScreen} />
               <Stack.Screen name="ResidentProfile" component={ResidentProfileScreen} />
-              <Stack.Screen name="ActivityIdeas" component={ActivityIdeasScreen} />
               <Stack.Screen name="ConversationStarters" component={ConversationStartersScreen} />
-              <Stack.Screen name="MusicMovieRecs" component={MusicMovieRecsScreen} />
               <Stack.Screen name="FamilyFeed" component={FamilyFeedScreen} />
             </>
           ) : (
@@ -383,6 +379,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 28,
-    backgroundColor: '#F1EDE6',
+    backgroundColor: colors.background,
   },
 });

@@ -61,6 +61,19 @@ describe('ActivityMenuScreen lock', () => {
     expect(navigation.dispatch).toHaveBeenCalledWith(event.data.action);
   });
 
+  it('still shows the menu when the resident fails to load', async () => {
+    firestore.getDoc.mockRejectedValue(
+      Object.assign(new Error('offline'), { code: 'unavailable' })
+    );
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    await render(<ActivityMenuScreen navigation={makeNavigation()} route={route} />);
+    expect(await screen.findByText('Games')).toBeTruthy();
+    // No "Complete Profile" banner: we don't know the profile's state.
+    expect(screen.queryByText(/Complete Profile/)).toBeNull();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
   it('lets you leave freely when unlocked', async () => {
     mockLock.locked = false;
     const navigation = makeNavigation();

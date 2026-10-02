@@ -9,7 +9,7 @@ import OrgIdBadge from './OrgIdBadge';
 // The reusable shell behind most "not built yet" screens: just a title,
 // a description, and a "Coming soon" badge. Most screens in this app are
 // still placeholders, so this component is what actually renders them —
-// see e.g. screens/ActivityIdeasScreen.js for the simplest possible usage.
+// see e.g. screens/FamilyFeedScreen.js for the simplest possible usage.
 //
 // Optional props add the header icons the screen-flow diagram calls for:
 //   - settingsTarget: pass a screen name (e.g. "Settings") to show a gear

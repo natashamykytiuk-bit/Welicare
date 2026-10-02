@@ -681,9 +681,8 @@ exports.deleteOrganization = onCall(async (request) => {
 // upgrading a personal one are Cloud Functions too.
 // ---------------------------------------------------------------------------
 
-// Invite codes are 2 letters + 4 digits (e.g. "MG-4821"), the shape
-// formatOrgCode in utils/inviteCode.js expects people to type.
-// New codes: 8 characters from a 31-character alphabet with look-alikes
+// Invite codes are 8 characters (decided over the original 6-character
+// spec, for the reasons below) from a 31-character alphabet with look-alikes
 // removed (no 0/O, 1/I/L), shown as two groups of four, e.g. "MGK7-4TXR".
 // That's 31^8 ≈ 850 billion possibilities, drawn with crypto.randomInt (a
 // cryptographically secure source) — Math.random is predictable, and the

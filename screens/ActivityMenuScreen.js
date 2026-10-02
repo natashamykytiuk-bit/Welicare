@@ -66,9 +66,17 @@ export default function ActivityMenuScreen({ navigation, route }) {
   useEffect(() => {
     let cancelled = false;
     if (!residentId) return undefined;
-    getDoc(doc(db, 'residents', residentId)).then((snapshot) => {
-      if (!cancelled) setResident(snapshot.data() ?? null);
-    });
+    // The resident doc only adds the photo, preferred name and the
+    // "complete the profile" banner; the menu works without it (the name
+    // came in as a route param). So a failed read is logged, not shown —
+    // nothing here should put an error in front of a resident.
+    getDoc(doc(db, 'residents', residentId))
+      .then((snapshot) => {
+        if (!cancelled) setResident(snapshot.data() ?? null);
+      })
+      .catch((e) => {
+        console.error('[ActivityMenu] failed to load resident:', e.code, e.message, e);
+      });
     return () => {
       cancelled = true;
     };
@@ -150,7 +158,9 @@ export default function ActivityMenuScreen({ navigation, route }) {
     resident?.lifeStory?.preferredName ||
     resident?.name?.split(' ')[0] ||
     residentName;
-  const showBanner = !!residentId && !bannerDismissed && !residentHasLifeStory(resident);
+  // Only once the resident has actually loaded: while it's loading (or if
+  // the read failed) we don't know whether the profile is complete.
+  const showBanner = !!resident && !bannerDismissed && !residentHasLifeStory(resident);
   const avatarName = resident?.name || residentName;
   // A real resident is picked (not Guest Mode) whenever residentId is set —
   // greet them by name. In Guest Mode there's no resident to name, and we

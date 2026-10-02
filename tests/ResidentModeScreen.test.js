@@ -2,7 +2,7 @@
 // facility (they're never on assignedCaregivers), without an options menu on
 // residents they can't edit; a Family Caregiver also sees residents linked by
 // a family code; other roles keep seeing only their own list.
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import ResidentModeScreen from '../screens/ResidentModeScreen';
 import { docSnap, firestore } from './mocks/firebase';
 
@@ -29,7 +29,7 @@ function setUp({ user, byField }) {
 }
 
 describe('ResidentModeScreen', () => {
-  it("shows a volunteer every resident in their facility, with options only on their own", async () => {
+  it('shows a volunteer every resident in their facility, with options only on their own', async () => {
     setUp({
       user: { role: 'Volunteer', orgId: 'orgA' },
       byField: {
@@ -63,6 +63,24 @@ describe('ResidentModeScreen', () => {
     expect(screen.getByText('Arthur')).toBeTruthy();
     expect(screen.queryByText('Margaret')).toBeNull();
     expect(firestore.where).not.toHaveBeenCalledWith('facilityId', '==', 'orgA');
+  });
+
+  it('goes straight to the home screen from the back arrow, with no PIN', async () => {
+    setUp({ user: { role: 'Caregiver', orgId: 'orgA' }, byField: {} });
+    await render(<ResidentModeScreen navigation={navigation} />);
+    await fireEvent.press(await screen.findByLabelText('Go back'));
+    expect(navigation.navigate).toHaveBeenCalledWith('ModeSelection', {
+      animation: 'slide_from_left',
+    });
+    expect(navigation.navigate).not.toHaveBeenCalledWith('PINEntry', expect.anything());
+  });
+
+  it('says Guest Mode time is not recorded when the user has no organization', async () => {
+    setUp({ user: { role: 'Family Caregiver' }, byField: {} });
+    await render(<ResidentModeScreen navigation={navigation} />);
+    expect(
+      await screen.findByText(/Time isn’t recorded until you join an organization/)
+    ).toBeTruthy();
   });
 
   it('does not run the facility query for a volunteer with no organization', async () => {

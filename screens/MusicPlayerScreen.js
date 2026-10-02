@@ -16,9 +16,7 @@ const UP_NEXT_VISIBLE = 8;
 
 // Real YouTube-backed playback via components/YouTubeEmbed, replacing
 // the old fake progress-bar/interval mock — see MusicSelectionScreen for
-// where videoId/title come from. Distinct from Caregiver Mode's
-// MusicMovieRecsScreen, which is an AI-recommendation browser rather than a
-// player.
+// where videoId/title come from.
 //
 // Queue: MusicSelectionScreen passes the whole list it was showing as
 // `queue` plus `startIndex` for the tapped song, so the songs after it play
