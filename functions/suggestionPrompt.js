@@ -42,6 +42,59 @@ const TEXT_FIELDS = [
   'musicGenresOtherDetail',
 ];
 
+// The people lists (utils/lifeStoryPeople.js in the app): children,
+// grandchildren and other important people, each a list of
+// { name, notes, okToTalkAbout }. `legacyKey` is the older free-text answer
+// a list replaces, still used for profiles not re-saved since; `hasKey` the
+// Yes/No answer the list belongs to.
+const PEOPLE_LISTS = [
+  { key: 'childrenList', label: 'Children', legacyKey: 'childrenDetails', hasKey: 'hasChildren' },
+  {
+    key: 'grandchildrenList',
+    label: 'Grandchildren',
+    legacyKey: 'grandchildrenDetails',
+    hasKey: 'hasGrandchildren',
+  },
+  {
+    key: 'importantPeopleList',
+    label: 'Important people',
+    legacyKey: 'importantPeople',
+    hasKey: null,
+  },
+];
+// Same caps as firestore.rules put on a saved list.
+const MAX_PEOPLE = 20;
+const MAX_NAME_LENGTH = 200;
+
+// One people list from untrusted input: only real entries with some text,
+// trimmed and capped. `okToTalkAbout` is false only when explicitly false,
+// matching the form, where the box starts ticked.
+function sanitizePeople(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((p) => p && typeof p === 'object' && !Array.isArray(p))
+    .map((p) => ({
+      name: typeof p.name === 'string' ? p.name.trim().slice(0, MAX_NAME_LENGTH) : '',
+      notes: typeof p.notes === 'string' ? p.notes.trim().slice(0, MAX_TEXT_LENGTH) : '',
+      okToTalkAbout: p.okToTalkAbout !== false,
+    }))
+    .filter((p) => p.name || p.notes)
+    .slice(0, MAX_PEOPLE);
+}
+
+// "Ruth (visits most Sundays)", or just the name or the notes.
+function describePerson(person) {
+  if (person.name && person.notes) return `${person.name} (${person.notes})`;
+  return person.name || person.notes;
+}
+
+// A people list as it counts for the prompt: ignored when its Yes/No answer
+// isn't Yes (entries typed before switching to "No" stay saved but hidden).
+function activePeople(lifeStory, { key, hasKey }) {
+  if (hasKey && !lifeStory[hasKey]) return [];
+  return lifeStory[key] ?? [];
+}
+
 // generateSuggestions is callable directly, so the life story can't be
 // trusted to have the shape BuildProfileScreen saves (e.g. `hobbies: 42`
 // used to crash buildFactLines). This rebuilds it from known fields only:
@@ -72,6 +125,10 @@ function sanitizeLifeStory(raw) {
   for (const key of BOOLEAN_FIELDS) {
     if (typeof raw[key] === 'boolean') clean[key] = raw[key];
   }
+  for (const { key } of PEOPLE_LISTS) {
+    const people = sanitizePeople(raw[key]);
+    if (people.length) clean[key] = people;
+  }
   return Object.keys(clean).length ? clean : null;
 }
 
@@ -86,14 +143,25 @@ function isEmpty(value) {
 
 function buildFactLines(lifeStory) {
   const lines = [];
+  // The older free-text people answers are handled with their lists below.
+  const legacyPeopleKeys = PEOPLE_LISTS.map((l) => l.legacyKey);
   for (const [key, label] of FIELD_LABELS) {
+    if (legacyPeopleKeys.includes(key)) continue;
     if (!isEmpty(lifeStory[key])) lines.push(`- ${label}: ${lifeStory[key]}`);
   }
-  if (lifeStory.hasChildren) {
-    lines.push(`- Children: ${lifeStory.childrenDetails || 'Yes'}`);
-  }
-  if (lifeStory.hasGrandchildren) {
-    lines.push(`- Grandchildren: ${lifeStory.grandchildrenDetails || 'Yes'}`);
+  for (const list of PEOPLE_LISTS) {
+    const people = activePeople(lifeStory, list);
+    if (people.length) {
+      // Only the people marked OK to talk about are offered as facts. If
+      // none are, the line is left out altogether — even "Children: Yes"
+      // would invite the model to ask about them.
+      const ok = people.filter((p) => p.okToTalkAbout).map(describePerson);
+      if (ok.length) lines.push(`- ${list.label}: ${ok.join('; ')}`);
+    } else if (list.hasKey ? lifeStory[list.hasKey] : !isEmpty(lifeStory[list.legacyKey])) {
+      // No list yet (a profile saved before the lists existed): the old
+      // free-text answer, or a bare "Yes" for children/grandchildren.
+      lines.push(`- ${list.label}: ${lifeStory[list.legacyKey] || 'Yes'}`);
+    }
   }
   if (!isEmpty(lifeStory.hobbies)) {
     const detail =
@@ -150,7 +218,17 @@ function buildPrompt(kind, lifeStory, topicsToAvoid = null) {
           `Based on this, please generate ${phrase} that are specifically tailored to this person. If limited information is available, use what is provided and make warm, general suggestions appropriate for an elderly person in a care setting.`,
         ].join('\n');
 
-  if (!topicsToAvoid) return request;
+  // People whose "OK to talk about" box was unticked on the life story. They
+  // are named here, with the safety notes, rather than simply left out of
+  // the facts: the model can only steer clear of someone it knows about
+  // (e.g. a late husband who also appears in "happiest memory").
+  const peopleToAvoid = lifeStory
+    ? PEOPLE_LISTS.flatMap((list) => activePeople(lifeStory, list))
+        .filter((p) => !p.okToTalkAbout)
+        .map(describePerson)
+    : [];
+
+  if (!topicsToAvoid && peopleToAvoid.length === 0) return request;
   // Framed as a firm rule rather than as another fact about the person, and
   // placed last so it's the final instruction the model reads. It applies
   // even when the life story is empty.
@@ -158,7 +236,8 @@ function buildPrompt(kind, lifeStory, topicsToAvoid = null) {
     request,
     '',
     "Important — the person's caregivers have asked that suggestions never include, mention or lead to the following, even indirectly:",
-    topicsToAvoid,
+    ...(topicsToAvoid ? [topicsToAvoid] : []),
+    ...(peopleToAvoid.length ? [`These people: ${peopleToAvoid.join('; ')}`] : []),
     'Leave out any idea that touches on these, rather than softening it.',
   ].join('\n');
 }

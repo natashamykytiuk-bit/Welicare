@@ -57,6 +57,27 @@ describe('ResidentProfileScreen', () => {
     expect(navigation.navigate).toHaveBeenCalledWith('ResidentSafety', { residentId: 'r1' });
   });
 
+  it('lists people one per line, flagging anyone not OK to talk about', async () => {
+    setUp();
+    firestore.getDoc.mockImplementation(async (ref) => {
+      if (ref.path === 'users/test-uid') return docSnap({ orgId: 'orgA', role: 'Caregiver' });
+      if (ref.path === 'residents/r1') return docSnap({ name: 'Margaret', hasLifeStory: true });
+      if (ref.path === 'residents/r1/private/lifeStory')
+        return docSnap({
+          hasChildren: true,
+          childrenDetails: 'Two daughters', // older free-text answer, no list yet
+          importantPeopleList: [
+            { name: 'June', notes: 'sister', okToTalkAbout: true },
+            { name: 'Walter', notes: '', okToTalkAbout: false },
+          ],
+        });
+      return docSnap(undefined);
+    });
+    await render(<ResidentProfileScreen navigation={navigation} route={route} />);
+    expect(await screen.findByText('June (sister)\nWalter — avoid talking about')).toBeTruthy();
+    expect(screen.getByText('Two daughters')).toBeTruthy();
+  });
+
   it('is view-only for volunteers: no Edit life story, safety notes still open', async () => {
     setUp({ user: { orgId: 'orgA', role: 'Volunteer' } });
     await render(<ResidentProfileScreen navigation={navigation} route={route} />);

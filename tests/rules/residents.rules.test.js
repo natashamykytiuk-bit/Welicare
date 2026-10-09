@@ -891,6 +891,22 @@ describe('field validation (security fix)', () => {
     );
   });
 
+  it('accepts people lists up to their length limit', async () => {
+    const person = (i) => ({ name: `Person ${i}`, notes: '', okToTalkAbout: true });
+    const full = Array.from({ length: 20 }, (_, i) => person(i));
+    await assertSucceeds(
+      setDoc(lifeStoryDoc('caregiverA'), {
+        hasChildren: true,
+        childrenList: full,
+        grandchildrenList: full,
+        importantPeopleList: full,
+      })
+    );
+    await assertSucceeds(setDoc(lifeStoryDoc('caregiverA'), { childrenList: [] }));
+    await assertFails(setDoc(lifeStoryDoc('caregiverA'), { childrenList: [...full, person(20)] }));
+    await assertFails(setDoc(lifeStoryDoc('caregiverA'), { childrenList: 'Ruth' }));
+  });
+
   it('refuses life stories with unknown keys or wrong types', async () => {
     await assertFails(setDoc(lifeStoryDoc('caregiverA'), { hobbies: 42 }));
     await assertFails(setDoc(lifeStoryDoc('caregiverA'), { hasChildren: 'yes' }));

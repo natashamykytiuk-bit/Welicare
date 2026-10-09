@@ -37,6 +37,15 @@
  */
 
 /**
+ * One person in a life story's people lists (utils/lifeStoryPeople.js).
+ * @typedef {object} LifeStoryPerson
+ * @property {string} name
+ * @property {string} notes Details about them; may be ''.
+ * @property {boolean} okToTalkAbout False for someone who shouldn't be
+ *   brought up with the resident — AI suggestions are told to leave them out.
+ */
+
+/**
  * The questionnaire answers collected by BuildProfileScreen. Every field is
  * optional in practice; empty answers are saved as null (or [] for lists).
  * @typedef {object} LifeStory
@@ -46,10 +55,16 @@
  * @property {string | null} [otherPlacesLived]
  * @property {string | null} [relationshipStatus]
  * @property {boolean | null} [hasChildren]
- * @property {string | null} [childrenDetails]
+ * @property {LifeStoryPerson[]} [childrenList]
+ * @property {string | null} [childrenDetails] Older free-text answer,
+ *   replaced by childrenList (BuildProfileScreen converts it on next save).
  * @property {boolean | null} [hasGrandchildren]
- * @property {string | null} [grandchildrenDetails]
- * @property {string | null} [importantPeople]
+ * @property {LifeStoryPerson[]} [grandchildrenList]
+ * @property {string | null} [grandchildrenDetails] Older free-text answer,
+ *   replaced by grandchildrenList.
+ * @property {LifeStoryPerson[]} [importantPeopleList]
+ * @property {string | null} [importantPeople] Older free-text answer,
+ *   replaced by importantPeopleList.
  * @property {string | null} [career]
  * @property {string | null} [careerLove]
  * @property {string[]} [hobbies]

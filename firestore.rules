@@ -104,7 +104,8 @@ service cloud.firestore {
     function validLifeStory(d) {
       return d.keys().hasOnly(['preferredName', 'age', 'grewUpIn', 'otherPlacesLived',
           'relationshipStatus', 'hasChildren', 'childrenDetails', 'hasGrandchildren',
-          'grandchildrenDetails', 'importantPeople', 'career', 'careerLove', 'hobbies',
+          'grandchildrenDetails', 'importantPeople', 'childrenList', 'grandchildrenList',
+          'importantPeopleList', 'career', 'careerLove', 'hobbies',
           'hobbiesOtherDetail', 'creativeHobbies', 'creativeHobbiesOtherDetail', 'musicGenres',
           'musicGenresOtherDetail', 'favouriteMusicians', 'favouriteMovies', 'favouriteFoods',
           'happiestMemory', 'specialPlace']) &&
@@ -113,6 +114,13 @@ service cloud.firestore {
         optText(d, 'relationshipStatus', 200) && optBool(d, 'hasChildren') &&
         optText(d, 'childrenDetails', 2000) && optBool(d, 'hasGrandchildren') &&
         optText(d, 'grandchildrenDetails', 2000) && optText(d, 'importantPeople', 2000) &&
+        // People lists (utils/lifeStoryPeople.js): only the list and its
+        // length are checked, like the other lists. Rules can't loop, and
+        // checking each person by hand ran past the 1000 expressions a rule
+        // may evaluate — so the app and generateSuggestions clean every
+        // entry when they read it instead (cleanPeople / sanitizePeople).
+        optList(d, 'childrenList', 20) && optList(d, 'grandchildrenList', 20) &&
+        optList(d, 'importantPeopleList', 20) &&
         optText(d, 'career', 2000) && optText(d, 'careerLove', 2000) &&
         optList(d, 'hobbies', 30) && optText(d, 'hobbiesOtherDetail', 2000) &&
         optList(d, 'creativeHobbies', 30) && optText(d, 'creativeHobbiesOtherDetail', 2000) &&
@@ -801,6 +809,49 @@ service cloud.firestore {
         // At least the app's 10-second minimum, at most a day.
         d.durationSeconds is int && d.durationSeconds >= 10 && d.durationSeconds <= 86400 &&
         d.userId is string && d.userRole is string;
+    }
+
+    // Good/bad ratings caregivers give AI suggestions (AISuggestionsScreen,
+    // utils/suggestionFeedback.js). They show which prompt versions work and
+    // become labelled examples for the suggestion classifier (welicare-ml).
+    // The rated text is AI output, never the life story, and no resident id
+    // is stored: the ratings are about the prompt, not about a resident, so
+    // there's nothing linking a rating back to a person beyond the text itself.
+    match /suggestionFeedback/{feedbackId} {
+      // Facility staff rate (the same roles that use AI suggestions), only
+      // as themselves, with their real role, filed under their own facility.
+      allow create: if verified() &&
+        seesWholeFacility() &&
+        validSuggestionFeedback(request.resource.data) &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.userRole == me().role &&
+        request.resource.data.facilityId == me().orgId;
+
+      // Only the facility's administrators can read their facility's ratings;
+      // exports for training data go through the Admin SDK instead.
+      allow get, list: if verified() &&
+        me().role == 'Administrator' &&
+        resource.data.facilityId == me().orgId;
+
+      // An immutable log, like activitySessions: a changed mind is a new rating.
+      allow update, delete: if false;
+    }
+
+    // Exactly the fields utils/suggestionFeedback.js writes. kind and
+    // promptVersion are short plain identifiers so no free text can be
+    // smuggled in through them; itemText is capped at a suggestion's length.
+    function validSuggestionFeedback(d) {
+      return d.keys().hasOnly(['facilityId', 'kind', 'promptVersion', 'itemText',
+          'rating', 'userId', 'userRole', 'createdAt']) &&
+        d.keys().hasAll(['facilityId', 'kind', 'promptVersion', 'itemText',
+          'rating', 'userId', 'userRole', 'createdAt']) &&
+        d.facilityId is string &&
+        d.kind is string && d.kind.matches('^[A-Za-z]{1,40}$') &&
+        d.promptVersion is string && d.promptVersion.matches('^[A-Za-z0-9._-]{1,40}$') &&
+        d.itemText is string && d.itemText.size() >= 1 && d.itemText.size() <= 500 &&
+        d.rating in ['good', 'bad'] &&
+        d.userId is string && d.userRole is string &&
+        d.createdAt == request.time;
     }
   }
 }

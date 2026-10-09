@@ -64,6 +64,73 @@ describe('buildPrompt', () => {
   });
 });
 
+describe('people lists', () => {
+  const story = (overrides) =>
+    sanitizeLifeStory({
+      hasChildren: true,
+      childrenList: [
+        { name: ' Ruth ', notes: 'visits Sundays', okToTalkAbout: true },
+        { name: 'Clara', notes: '', okToTalkAbout: true },
+      ],
+      importantPeopleList: [
+        { name: 'June', notes: 'sister', okToTalkAbout: true },
+        { name: 'Walter', notes: 'late husband', okToTalkAbout: false },
+      ],
+      ...overrides,
+    });
+
+  it('lists the people who are OK to talk about as facts', () => {
+    const prompt = buildPrompt('conversationStarters', story());
+    expect(prompt).toContain('- Children: Ruth (visits Sundays); Clara');
+    expect(prompt).toContain('- Important people: June (sister)');
+  });
+
+  it('names people who are not OK only in the never-mention instruction', () => {
+    const prompt = buildPrompt('conversationStarters', story());
+    const [facts, rule] = prompt.split('Important — ');
+    expect(facts).not.toContain('Walter');
+    expect(rule).toContain('These people: Walter (late husband)');
+  });
+
+  it('says nothing about children when none of them are OK to talk about', () => {
+    const prompt = buildPrompt(
+      'activityIdeas',
+      story({ childrenList: [{ name: 'Ruth', notes: '', okToTalkAbout: false }] })
+    );
+    expect(prompt).not.toContain('- Children');
+    expect(prompt).toContain('These people: Ruth; Walter (late husband)');
+  });
+
+  it('ignores a list whose Yes/No answer is not Yes', () => {
+    const prompt = buildPrompt('activityIdeas', story({ hasChildren: false }));
+    expect(prompt).not.toContain('Ruth');
+  });
+
+  it('still uses the older free-text answers of profiles without lists', () => {
+    const prompt = buildPrompt(
+      'activityIdeas',
+      sanitizeLifeStory({
+        hasChildren: true,
+        childrenDetails: 'Two sons',
+        hasGrandchildren: true,
+        importantPeople: 'Her sister June',
+      })
+    );
+    expect(prompt).toContain('- Children: Two sons');
+    expect(prompt).toContain('- Grandchildren: Yes');
+    expect(prompt).toContain('- Important people: Her sister June');
+    expect(prompt).not.toMatch(/never include/);
+  });
+
+  it('drops malformed entries instead of crashing', () => {
+    const clean = sanitizeLifeStory({
+      childrenList: [null, 'Ruth', { name: 42 }, { name: 'Leon', notes: 7 }],
+      grandchildrenList: 'lots',
+    });
+    expect(clean).toEqual({ childrenList: [{ name: 'Leon', notes: '', okToTalkAbout: true }] });
+  });
+});
+
 describe('KIND_PHRASES', () => {
   // generateSuggestions checks kinds with Object.hasOwn so inherited names
   // like "toString" aren't accepted as a suggestion kind.

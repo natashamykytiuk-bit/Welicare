@@ -12,11 +12,13 @@ import {
   View,
 } from 'react-native';
 import BackButton from '../components/BackButton';
+import LifeStoryPeopleEditor from '../components/LifeStoryPeopleEditor';
 import LoadError from '../components/LoadError';
 import ResidentPhotoEditor from '../components/ResidentPhotoEditor';
 import { db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { hasAnyLifeStoryData } from '../utils/lifeStory';
+import { PEOPLE_LIST_KEYS, cleanPeople, withLegacyPeople } from '../utils/lifeStoryPeople';
 import { MUSIC_GENRE_OPTIONS } from '../utils/musicLibrary';
 import { loadLifeStory, saveResidentProfile } from '../utils/residentLifeStory';
 
@@ -27,8 +29,15 @@ const EMPTY_LIFE_STORY = {
   otherPlacesLived: '',
   relationshipStatus: null,
   hasChildren: null,
-  childrenDetails: '',
+  childrenList: [],
   hasGrandchildren: null,
+  grandchildrenList: [],
+  importantPeopleList: [],
+  // Free-text answers from before the people lists above. No longer asked:
+  // on load they're moved into the lists (withLegacyPeople) and saved back
+  // as null. Still listed here so that save clears them — the saved story
+  // only ever holds the keys of this object.
+  childrenDetails: '',
   grandchildrenDetails: '',
   importantPeople: '',
   career: '',
@@ -82,13 +91,21 @@ const CREATIVE_HOBBY_OPTIONS = [
 const LIFE_STORY_FIELDS = Object.keys(EMPTY_LIFE_STORY);
 
 // The form's answers in the shape they're saved in: only the questionnaire's
-// fields (a story saved by an older app version could carry others), and
-// blank text stored as null.
+// fields (a story saved by an older app version could carry others), blank
+// text stored as null, and people lists without their blank entries.
 function toSavedShape(story) {
   const saved = {};
   for (const key of LIFE_STORY_FIELDS) {
     const value = story[key];
-    saved[key] = Array.isArray(value) ? value : value === '' || value === undefined ? null : value;
+    if (PEOPLE_LIST_KEYS.includes(key)) {
+      saved[key] = cleanPeople(value);
+    } else {
+      saved[key] = Array.isArray(value)
+        ? value
+        : value === '' || value === undefined
+          ? null
+          : value;
+    }
   }
   return saved;
 }
@@ -249,7 +266,10 @@ export default function BuildProfileScreen({ navigation, route }) {
         return;
       }
       if (hasAnyLifeStoryData(lifeStory)) {
-        setStory({ ...EMPTY_LIFE_STORY, ...lifeStory });
+        // Older free-text family answers become entries in the people lists.
+        // originalRef above keeps the story as it was saved, so the
+        // conversion counts as a change and is written on the next save.
+        setStory(withLegacyPeople({ ...EMPTY_LIFE_STORY, ...lifeStory }));
         setIsEdit(true);
       }
       setLoading(false);
@@ -415,10 +435,11 @@ export default function BuildProfileScreen({ navigation, route }) {
             onChange={(v) => set('hasChildren', v === null ? null : v === 'Yes')}
           />
           {story.hasChildren ? (
-            <TextField
-              value={story.childrenDetails}
-              onChangeText={(v) => set('childrenDetails', v)}
-              placeholder="Any names or details you'd like to share?"
+            <LifeStoryPeopleEditor
+              people={story.childrenList}
+              onChange={(v) => set('childrenList', v)}
+              noun="child"
+              notesPlaceholder="Any details you'd like to share?"
             />
           ) : null}
 
@@ -431,18 +452,22 @@ export default function BuildProfileScreen({ navigation, route }) {
             onChange={(v) => set('hasGrandchildren', v === null ? null : v === 'Yes')}
           />
           {story.hasGrandchildren ? (
-            <TextField
-              value={story.grandchildrenDetails}
-              onChangeText={(v) => set('grandchildrenDetails', v)}
-              placeholder="Tell us about them"
+            <LifeStoryPeopleEditor
+              people={story.grandchildrenList}
+              onChange={(v) => set('grandchildrenList', v)}
+              noun="grandchild"
+              notesPlaceholder="Tell us about them"
             />
           ) : null}
 
-          <TextField
-            label="Who are the most important people in your life?"
-            value={story.importantPeople}
-            onChangeText={(v) => set('importantPeople', v)}
-            placeholder="Family, friends, pets..."
+          <Text style={[styles.fieldLabel, styles.fieldLabelSpaced]}>
+            Who are the most important people in your life?
+          </Text>
+          <LifeStoryPeopleEditor
+            people={story.importantPeopleList}
+            onChange={(v) => set('importantPeopleList', v)}
+            noun="person"
+            notesPlaceholder="Family, friends, pets... who are they to you?"
           />
 
           <SectionHeader>Work &amp; Career</SectionHeader>

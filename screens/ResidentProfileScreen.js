@@ -22,6 +22,7 @@ import {
   loadResidentSessions,
   summarizeSessions,
 } from '../utils/engagementStats';
+import { cleanPeople, describePerson } from '../utils/lifeStoryPeople';
 import { loadLifeStory, residentHasLifeStory } from '../utils/residentLifeStory';
 import { withTimeout } from '../utils/withTimeout';
 
@@ -30,6 +31,9 @@ const LOAD_TIMEOUT_MS = 10000;
 // The life-story answers shown on the profile, in this order. A short
 // selection of the most useful ones for planning activities; the full
 // questionnaire is one tap away (Edit life story → BuildProfileScreen).
+// People answers are lists (utils/lifeStoryPeople.js): `legacyKey` is the
+// older free-text answer shown until the profile is next saved, and `hasKey`
+// the Yes/No answer a list belongs to (hidden unless it's Yes).
 const LIFE_STORY_FIELDS = [
   { key: 'preferredName', label: 'Preferred name' },
   { key: 'age', label: 'Age' },
@@ -38,7 +42,14 @@ const LIFE_STORY_FIELDS = [
   { key: 'hobbies', label: 'Hobbies' },
   { key: 'musicGenres', label: 'Music they enjoy' },
   { key: 'favouriteMusicians', label: 'Favourite musicians' },
-  { key: 'importantPeople', label: 'Important people' },
+  { key: 'childrenList', label: 'Children', legacyKey: 'childrenDetails', hasKey: 'hasChildren' },
+  {
+    key: 'grandchildrenList',
+    label: 'Grandchildren',
+    legacyKey: 'grandchildrenDetails',
+    hasKey: 'hasGrandchildren',
+  },
+  { key: 'importantPeopleList', label: 'Important people', legacyKey: 'importantPeople' },
   { key: 'specialPlace', label: 'A special place' },
 ];
 
@@ -160,7 +171,10 @@ export default function ResidentProfileScreen({ navigation, route }) {
   const longest = summary.activities[0]?.seconds ?? 0;
   const answers = LIFE_STORY_FIELDS.map((f) => ({
     ...f,
-    value: answerText(lifeStory?.[f.key]),
+    value:
+      f.hasKey && !lifeStory?.[f.hasKey]
+        ? ''
+        : answerText(lifeStory?.[f.key]) || answerText(lifeStory?.[f.legacyKey]),
   })).filter((f) => f.value);
 
   return (
@@ -381,8 +395,15 @@ export default function ResidentProfileScreen({ navigation, route }) {
   );
 }
 
-// A life-story answer as display text: lists joined, blanks skipped.
+// A life-story answer as display text: lists joined, blanks skipped. People
+// are listed one per line, and anyone not ticked "OK to talk about" is
+// flagged — staff reading the profile before a visit need to see that most.
 function answerText(value) {
+  if (Array.isArray(value) && value.some((v) => v && typeof v === 'object')) {
+    return cleanPeople(value)
+      .map((p) => `${describePerson(p)}${p.okToTalkAbout ? '' : ' — avoid talking about'}`)
+      .join('\n');
+  }
   if (Array.isArray(value)) return value.filter(Boolean).join(', ');
   if (typeof value === 'string') return value.trim();
   return '';
