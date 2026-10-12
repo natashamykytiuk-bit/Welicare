@@ -1,10 +1,12 @@
-// AI suggestions (Conversation and Activities briefs for staff): builds the
-// prompts from the resident's life story and safety notes
-// (suggestionPrompt.js), calls Anthropic server-side, so the API key never
-// ships in the app, and parses the reply into a structured brief.
+// AI suggestions (Conversation and Activities briefs for staff): loads the
+// resident's life story and safety notes itself (residentAccess.js), builds
+// the prompts from them (suggestionPrompt.js), calls Anthropic server-side,
+// so the API key never ships in the app, and parses the reply into a
+// structured brief.
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const { requireVerified, requireUsage } = require('./authChecks');
+const { loadResidentContext } = require('./residentAccess');
 const {
   PROMPT_VERSION,
   resolveKind,
@@ -34,8 +36,8 @@ const AI_CALLS_PER_DAY = 60;
 const AI_CALLS_GLOBAL_PER_DAY = 1000;
 
 // Longest prompt (in characters) we'll send. Each field is capped in
-// suggestionPrompt.js, but a caller bypassing the app could still fill every
-// field to its cap; this bounds the total. A request over it is refused
+// suggestionPrompt.js, but someone could still save a profile with every
+// field filled to its cap; this bounds the total. A request over it is refused
 // rather than cut short, because the caregivers' "never mention" rule is the
 // LAST thing in the prompt and truncating would silently drop it. A very
 // full real profile is well under half of this.
@@ -104,12 +106,50 @@ exports.generateSuggestions = onCall({ secrets: [anthropicApiKey] }, async (requ
     throw new HttpsError('invalid-argument', 'kind must be conversation or activities.');
   }
 
-  // topicsToAvoid: the resident's caregiver-written safety notes
-  // (utils/residentSafety.js), sent by the app alongside the life story.
-  // The sanitized life story stays in scope here so a later classifier call
-  // (POST /score) can be sent it too, if that's ever wanted.
-  const lifeStory = sanitizeLifeStory(request.data?.lifeStory);
-  const prompt = buildPrompt(kind, lifeStory, sanitizeTopicsToAvoid(request.data?.topicsToAvoid));
+  // The app sends only which resident this is for; the life story and
+  // safety notes are read here, as this caller may see them (see
+  // residentAccess.js for why). No residentId means general suggestions.
+  const residentId = request.data?.residentId ?? null;
+  // App builds from before this change sent the life story and safety notes
+  // themselves. Those are no longer trusted, and quietly ignoring them would
+  // mean suggestions that skip the resident's "never mention" notes — so an
+  // old build is told to update instead.
+  if (!residentId && (request.data?.lifeStory != null || request.data?.topicsToAvoid != null)) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Please update Welicare to the latest version to get suggestions.',
+      { reason: 'app-update-required' }
+    );
+  }
+
+  // Counted before anything else is read or the model is called, and
+  // whether or not the call then succeeds — it's the attempts that cost
+  // money, and this also limits guessing at resident ids.
+  const db = getDb();
+  await requireUsage(db, {
+    feature: 'ai',
+    uid: request.auth.uid,
+    perHour: AI_CALLS_PER_HOUR,
+    perDay: AI_CALLS_PER_DAY,
+    globalPerDay: AI_CALLS_GLOBAL_PER_DAY,
+    label: 'suggestions',
+  });
+
+  let context = { lifeStory: null, topicsToAvoid: null };
+  if (residentId) {
+    try {
+      context = await loadResidentContext(db, residentId, request.auth.uid);
+    } catch (e) {
+      if (e?.denied) throw new HttpsError('permission-denied', e.message);
+      throw e;
+    }
+  }
+  // Still cleaned and capped: what's saved is checked by firestore.rules,
+  // but rules can't check the items inside a list. The sanitized life story
+  // stays in scope here so a later classifier call (POST /score) can be sent
+  // it too, if that's ever wanted.
+  const lifeStory = sanitizeLifeStory(context.lifeStory);
+  const prompt = buildPrompt(kind, lifeStory, sanitizeTopicsToAvoid(context.topicsToAvoid));
   const system = buildSystemPrompt();
   if (prompt.length > MAX_PROMPT_CHARS) {
     throw new HttpsError(
@@ -119,24 +159,21 @@ exports.generateSuggestions = onCall({ secrets: [anthropicApiKey] }, async (requ
     );
   }
 
-  // Counted before the model is called, and whether or not the call then
-  // succeeds — it's the attempts that cost money.
-  await requireUsage(getDb(), {
-    feature: 'ai',
-    uid: request.auth.uid,
-    perHour: AI_CALLS_PER_HOUR,
-    perDay: AI_CALLS_PER_DAY,
-    globalPerDay: AI_CALLS_GLOBAL_PER_DAY,
-    label: 'suggestions',
-  });
-
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const reply = await callModel(system, prompt);
     const brief = parseBrief(reply);
     if (brief) {
       // `text` is the same brief as plain text, for app builds from before
       // v2 that still read it.
-      return { brief, text: briefToText(brief), promptVersion: PROMPT_VERSION, kind };
+      // hasProfile: whether personal details went into this brief — the app
+      // shows its "add a profile" note when they didn't.
+      return {
+        brief,
+        text: briefToText(brief),
+        promptVersion: PROMPT_VERSION,
+        kind,
+        hasProfile: lifeStory !== null,
+      };
     }
     // Only the length is logged: the reply can contain resident details.
     console.warn('[generateSuggestions] unusable reply, attempt', attempt, 'length', reply.length);

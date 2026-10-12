@@ -702,3 +702,34 @@ describe('search cache against Firestore', () => {
     expect(await readCachedSearch(adminDb, 'video', query)).toBeNull();
   });
 });
+
+// What generateSuggestions loads about a resident (functions/
+// residentAccess.js), against the real Firestore emulator and the Admin
+// SDK's own snapshots — the unit tests use a stand-in for both.
+describe('resident context for AI suggestions', () => {
+  const { loadResidentContext } = require('../../functions/residentAccess');
+
+  it('loads the life story and safety notes for staff, and refuses outsiders', async () => {
+    const orgId = `org-ctx-${Date.now()}`;
+    const residentRef = adminDb.collection('residents').doc();
+    await residentRef.set({ name: 'Ann', facilityId: orgId, createdBy: 'someone-else' });
+    await residentRef.collection('private').doc('lifeStory').set({ career: 'Farmer' });
+    await residentRef.collection('private').doc('safety').set({ topicsToAvoid: 'No water' });
+    await adminDb.doc(`users/staff-${orgId}`).set({ role: 'Caregiver', orgId });
+    await adminDb.doc(`users/vol-${orgId}`).set({ role: 'Volunteer', orgId });
+    await adminDb.doc(`users/out-${orgId}`).set({ role: 'Caregiver', orgId: 'another-org' });
+
+    expect(await loadResidentContext(adminDb, residentRef.id, `staff-${orgId}`)).toEqual({
+      lifeStory: { career: 'Farmer' },
+      topicsToAvoid: 'No water',
+    });
+    // No organizations doc at all here: a volunteer still gets the notes.
+    expect(await loadResidentContext(adminDb, residentRef.id, `vol-${orgId}`)).toEqual({
+      lifeStory: null,
+      topicsToAvoid: 'No water',
+    });
+    await expect(
+      loadResidentContext(adminDb, residentRef.id, `out-${orgId}`)
+    ).rejects.toMatchObject({ denied: true });
+  });
+});

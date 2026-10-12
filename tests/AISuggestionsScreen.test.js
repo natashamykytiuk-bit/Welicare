@@ -31,8 +31,8 @@ const props = {
 };
 
 /** A Cloud Function response holding a brief with the given ideas. */
-function briefResponse(ideas, tips = []) {
-  return { data: { brief: { ideas, tips }, promptVersion: 'v2' } };
+function briefResponse(ideas, tips = [], hasProfile = true) {
+  return { data: { brief: { ideas, tips }, promptVersion: 'v2', hasProfile } };
 }
 const idea = (title, lines) => ({ title, why: '', try: lines });
 
@@ -50,14 +50,14 @@ describe('AISuggestionsScreen', () => {
     spy.mockRestore();
   });
 
-  // The screen reads four docs (resident, the signed-in user, the life
-  // story, the safety notes), partly in parallel — so reads are answered by
-  // path rather than by call order. A value that's an Error is thrown.
-  function mockReads({ role = 'Caregiver', lifeStory, safety } = {}) {
+  // The screen reads two docs in parallel (the resident, for their name,
+  // and the signed-in user, for their role) — so reads are answered by path
+  // rather than by call order. `safety` is only read when "Not for" adds a
+  // line to it. A value that's an Error is thrown.
+  function mockReads({ role = 'Caregiver', safety } = {}) {
     const byPath = {
       'residents/resident-1': { name: 'Ann', hasLifeStory: true },
       'users/test-uid': { role, orgId: 'orgA' },
-      'residents/resident-1/private/lifeStory': lifeStory,
       'residents/resident-1/private/safety': safety,
     };
     firestore.getDoc.mockImplementation(async (ref) => {
@@ -68,7 +68,7 @@ describe('AISuggestionsScreen', () => {
   }
 
   it('shows the brief — ideas, why, lines and tips — when everything succeeds', async () => {
-    mockReads({ lifeStory: { career: 'Farmer' } });
+    mockReads();
     callable('generateSuggestions').mockResolvedValueOnce(
       briefResponse(
         [{ title: 'Farm life', why: 'He farmed for years.', try: ['Cows or chickens?'] }],
@@ -83,50 +83,50 @@ describe('AISuggestionsScreen', () => {
     expect(screen.getByText('Cows or chickens?')).toBeTruthy();
     expect(screen.getByText('Offer two choices.')).toBeTruthy();
     expect(screen.queryByTestId('ai-suggestions-loading')).toBeNull();
-    // The life story from Firestore is what gets sent to the function.
+    // Only who it's for is sent: the function loads the life story and
+    // safety notes itself, so nothing about the resident leaves the device.
     expect(callable('generateSuggestions')).toHaveBeenCalledWith({
       kind: 'conversation',
-      lifeStory: { career: 'Farmer' },
-      topicsToAvoid: null,
+      residentId: 'resident-1',
     });
+    // A profile was used, so there's no "add a profile" note.
+    expect(screen.queryByText(/Add a profile to get personalized/)).toBeNull();
   });
 
   it('gives general suggestions when the life story is off-limits (e.g. a volunteer)', async () => {
-    mockReads({
-      role: 'Volunteer',
-      lifeStory: Object.assign(new Error('denied'), { code: 'permission-denied' }),
-    });
+    mockReads({ role: 'Volunteer' });
+    // The function decides what this person may see; here it reports that
+    // no profile went into the brief.
     callable('generateSuggestions').mockResolvedValueOnce(
-      briefResponse([idea('Sing-along', ['Shall we sing?'])])
+      briefResponse([idea('Sing-along', ['Shall we sing?'])], [], false)
     );
 
     await render(<AISuggestionsScreen {...props} />);
 
     expect(await screen.findByText('Shall we sing?')).toBeTruthy();
-    // No personal details are sent to the AI for someone who can't see them.
     expect(callable('generateSuggestions')).toHaveBeenCalledWith({
       kind: 'conversation',
-      lifeStory: null,
-      topicsToAvoid: null,
+      residentId: 'resident-1',
     });
+    expect(screen.getByText(/Add a profile to get personalized/)).toBeTruthy();
     // Volunteers can't change safety notes, so no "Not for Ann" button…
     expect(screen.queryByLabelText('Not for Ann')).toBeNull();
     // …but they can rate suggestions.
     expect(screen.getByLabelText('Good suggestion')).toBeTruthy();
   });
 
-  it("sends the resident's topics to avoid with the request", async () => {
+  it('never sends resident details from the device, even when notes exist', async () => {
     mockReads({ safety: { topicsToAvoid: 'No water activities' } });
     callable('generateSuggestions').mockResolvedValueOnce(
-      briefResponse([idea('Garden', ['Lovely roses, aren\'t they?'])])
+      briefResponse([idea('Garden', ["Lovely roses, aren't they?"])])
     );
 
     await render(<AISuggestionsScreen {...props} />);
 
     expect(await screen.findByText('Garden')).toBeTruthy();
-    expect(callable('generateSuggestions')).toHaveBeenCalledWith(
-      expect.objectContaining({ topicsToAvoid: 'No water activities' })
-    );
+    // The safety notes are applied by the function, which reads them itself.
+    const [sent] = callable('generateSuggestions').mock.calls[0];
+    expect(Object.keys(sent).sort()).toEqual(['kind', 'residentId']);
   });
 
   it('lets staff mark an idea "Not for" the resident, adding it to topics to avoid', async () => {

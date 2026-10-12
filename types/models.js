@@ -148,10 +148,10 @@
  * Request body for the generateSuggestions Cloud Function.
  * @typedef {object} GenerateSuggestionsRequest
  * @property {SuggestionKind} kind
- * @property {LifeStory | null} lifeStory null → general, non-personal
- *   suggestions.
- * @property {string | null} [topicsToAvoid] Caregiver safety notes
- *   (residents/{id}/private/safety); never suggested.
+ * @property {string | null} residentId Who the suggestions are for. The
+ *   function loads their life story and safety notes itself, as the caller
+ *   may see them (functions/residentAccess.js); null → general,
+ *   non-personal suggestions.
  */
 
 /**
@@ -162,6 +162,8 @@
  * @property {string} promptVersion Which prompt produced it; stored with
  *   good/bad ratings (utils/suggestionFeedback.js).
  * @property {SuggestionKind} kind The kind actually used.
+ * @property {boolean} hasProfile Whether the resident's life story went
+ *   into this brief (false for general suggestions).
  */
 
 export {};

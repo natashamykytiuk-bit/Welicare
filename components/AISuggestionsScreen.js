@@ -16,17 +16,15 @@ import useActivitySession from '../hooks/useActivitySession';
 import { colors, fonts, radii } from '../theme';
 import { generateSuggestions } from '../utils/aiSuggestions';
 import { saveSuggestionFeedback } from '../utils/suggestionFeedback';
-import { hasAnyLifeStoryData } from '../utils/lifeStory';
-import { loadLifeStory } from '../utils/residentLifeStory';
-import { appendTopicToAvoid, loadTopicsToAvoid } from '../utils/residentSafety';
+import { appendTopicToAvoid } from '../utils/residentSafety';
 import BackButton from './BackButton';
 
 // Shared shell for the AI suggestion screens (Conversation Starters today;
 // an Activities screen would reuse it with kind="activities"). Each just
 // supplies a `kind` (matching the Cloud Function's expected values), a
-// title, and a description; this component handles fetching the resident's
-// life story (if any), calling generateSuggestions, and the
-// loading/error/no-profile states.
+// title, and a description; this component handles calling
+// generateSuggestions (which loads the resident's life story and safety
+// notes itself, on the server) and the loading/error/no-profile states.
 //
 // What comes back is a brief for staff, not a script: a few ideas, each with
 // a title, why it may suit this resident, and lines staff can adapt, plus
@@ -94,21 +92,16 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
       // call, so a Firestore failure also lands in catch/finally and the
       // spinner can't get stuck.
       try {
-        // Someone who can't see life stories (e.g. a volunteer) just gets
-        // general suggestions — loadLifeStory reports that as denied, not
-        // as an error.
-        let lifeStory = null;
-        let topicsToAvoid = '';
+        // Only what this screen itself shows is read here (the resident's
+        // name, and the signed-in person's role for the buttons). The life
+        // story and safety notes are loaded by the Cloud Function, which
+        // checks access itself — someone who can't see life stories (e.g. a
+        // volunteer) just gets general suggestions.
         if (residentId) {
           const [snapshot, userSnap] = await Promise.all([
             getDoc(doc(db, 'residents', residentId)),
             getDoc(doc(db, 'users', auth.currentUser?.uid ?? '-')),
           ]);
-          ({ lifeStory } = await loadLifeStory(residentId, snapshot.data()));
-          // Safety notes are readable by everyone linked to the resident.
-          // If they can't be loaded, this fails like any other load error
-          // rather than generating suggestions that might ignore them.
-          topicsToAvoid = await loadTopicsToAvoid(residentId);
           if (cancelled) return;
           setResidentName(snapshot.data()?.name ?? '');
           const role = userSnap.data()?.role;
@@ -119,9 +112,9 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
           setRaterProfile(userSnap.data() ?? null);
         }
         if (cancelled) return;
-        setHasProfile(hasAnyLifeStoryData(lifeStory));
-        const result = await generateSuggestions(kind, lifeStory, topicsToAvoid);
+        const result = await generateSuggestions(kind, residentId);
         if (!cancelled) {
+          setHasProfile(result.hasProfile);
           setBrief(result.brief);
           setPromptVersion(result.promptVersion);
         }
@@ -219,7 +212,10 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
         <Text style={styles.heading}>{title}</Text>
         <Text style={styles.body}>{description}</Text>
 
-        {!hasProfile ? (
+        {/* Only once the brief is back: whether a profile was used is the
+            function's answer (it decides what this person may see), so
+            there's nothing to say while it's still loading. */}
+        {!loading && !error && !hasProfile ? (
           <Text style={styles.note}>Add a profile to get personalized suggestions.</Text>
         ) : null}
 
