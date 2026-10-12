@@ -505,16 +505,19 @@ service cloud.firestore {
         // Photos are never edited — to change one, delete and re-upload.
         allow update: if false;
 
-        // The uploader can remove their own photo; Caregivers and
-        // Administrators of the resident's facility can remove any (for
-        // moderation). Administrators here also cover the resident
-        // cleanup, like the private/ docs above.
+        // Anyone who may add photos may also remove any photo in the album,
+        // not just their own — the same linked Family Caregivers, Caregivers
+        // and Administrators as `create` above, never volunteers. That's
+        // what lets a family member make room once the album reaches its
+        // 30-photo limit (MAX_PHOTOS_PER_RESIDENT in utils/residentPhotos.js)
+        // and covers caregiver moderation and the resident cleanup. The
+        // uploader can always take back their own photo, even if they've
+        // since been unlinked from the resident.
         allow delete: if verified() && (
           resource.data.uploadedBy == request.auth.uid ||
           (
-            get(/databases/$(database)/documents/residents/$(residentId)).data.get('facilityId', null) != null &&
-            me().orgId == get(/databases/$(database)/documents/residents/$(residentId)).data.facilityId &&
-            me().role in ['Caregiver', 'Administrator']
+            linkedToResident(get(/databases/$(database)/documents/residents/$(residentId)).data) &&
+            me().role in ['Family Caregiver', 'Caregiver', 'Administrator']
           )
         );
       }

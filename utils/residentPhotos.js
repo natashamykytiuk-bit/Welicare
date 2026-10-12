@@ -3,13 +3,13 @@ import {
   collection,
   deleteDoc,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
-  where,
 } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref } from 'firebase/storage';
 import { auth, db, storage } from '../firebaseConfig';
@@ -19,9 +19,9 @@ import { deleteFileIfExists, fitWithin, pickImages, uploadJpeg } from './imageUp
 export { fitWithin };
 
 // Everything about a resident's photo album, so the screens stay thin:
-// family members and caregivers add photos (ResidentPhotoUploadScreen),
-// caregivers moderate them (ResidentPhotoManageScreen), and the resident
-// sees them in Resident Mode (ResidentPhotoAlbumScreen).
+// family members and caregivers add and remove photos
+// (ResidentPhotoUploadScreen; caregivers also have ResidentPhotoManageScreen),
+// and the resident sees them in Resident Mode (ResidentPhotoAlbumScreen).
 //
 // Each photo is two things sharing one photoId:
 //   Storage:   residents/{residentId}/photos/{photoId}.jpg
@@ -36,6 +36,12 @@ export { fitWithin };
 
 /** Most photos picked in one go. */
 export const MAX_PHOTOS_PER_PICK = 10;
+/**
+ * Most photos one resident's album may hold. Checked by the upload screen
+ * only (ResidentPhotoUploadScreen) — security rules can't count documents,
+ * so nothing on the server enforces it.
+ */
+export const MAX_PHOTOS_PER_RESIDENT = 30;
 /** Longest edge after resizing, in pixels. */
 export const MAX_EDGE = 1600;
 /** Caption length limit — firestore.rules enforces the same. */
@@ -107,8 +113,7 @@ export async function uploadResidentPhoto({ residentId, photo, caption = '', upl
   // A fresh Firestore id doubles as the file name, so the two always match.
   const photoRef = doc(collection(db, 'residents', residentId, 'photos'));
   const storagePath = photoStoragePath(residentId, photoRef.id);
-  // Stamped with uploadedBy — storage.rules check it, and use it to let
-  // the uploader delete their own file later.
+  // Stamped with uploadedBy — storage.rules check it.
   const fileRef = await uploadJpeg(storagePath, photo);
 
   try {
@@ -146,14 +151,9 @@ function toPhoto(snap) {
   };
 }
 
-/** Newest first; a just-written doc with no server time yet counts as newest. */
-function newestFirst(a, b) {
-  return (b.uploadedAt?.getTime() ?? Infinity) - (a.uploadedAt?.getTime() ?? Infinity);
-}
-
 /**
- * Every photo for the resident, newest first — the Resident Mode album and
- * caregiver moderation.
+ * Every photo for the resident, newest first — the Resident Mode album, the
+ * "Photos in the album" list on the upload screen, and caregiver moderation.
  * @returns {Promise<ResidentPhoto[]>}
  */
 export async function listResidentPhotos(residentId) {
@@ -164,22 +164,21 @@ export async function listResidentPhotos(residentId) {
 }
 
 /**
- * Only the photos the signed-in user uploaded for this resident ("Your
- * uploads" on the upload screen). Sorted here rather than with orderBy so
- * the query doesn't need a composite index.
- * @returns {Promise<ResidentPhoto[]>}
+ * How many photos are in the resident's album, from everyone — for the
+ * MAX_PHOTOS_PER_RESIDENT check. A count query rather than listing the
+ * album: it costs one read however many photos there are, and the upload
+ * screen never shows other people's photos anyway. Always asks the server,
+ * so it includes photos someone else added a moment ago.
+ * @returns {Promise<number>}
  */
-export async function listMyUploads(residentId) {
-  const uid = auth.currentUser?.uid;
-  if (!uid) return [];
-  const snapshot = await getDocs(
-    query(collection(db, 'residents', residentId, 'photos'), where('uploadedBy', '==', uid))
-  );
-  return snapshot.docs.map(toPhoto).sort(newestFirst);
+export async function countResidentPhotos(residentId) {
+  const snapshot = await getCountFromServer(collection(db, 'residents', residentId, 'photos'));
+  return snapshot.data().count;
 }
 
 /**
- * Removes a photo: the file first, then the doc. If the file is already
+ * Removes a photo — anyone who may add photos to the album may remove any
+ * photo in it (firestore.rules / storage.rules). The file first, then the doc. If the file is already
  * gone that's fine. If removing the doc then fails, the album just skips
  * the missing file (see ResidentPhotoAlbumScreen) and a retry finishes it.
  * @param {string} residentId

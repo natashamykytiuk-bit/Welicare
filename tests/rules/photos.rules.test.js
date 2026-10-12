@@ -187,15 +187,31 @@ describe('deleting', () => {
     await assertSucceeds(deleteDoc(photoRef(fsAs('familyA'), 'existing')));
   });
 
-  it('another family member cannot', async () => {
-    // Link familyA2 so the refusal is about ownership, not linkage.
+  // Whoever may add photos may remove any of them, so a full album can
+  // always be cleared by the people using it.
+  it("another linked family member can delete someone else's photo", async () => {
     await env.withSecurityRulesDisabled(async (admin) => {
-      await updateDoc(doc(admin.firestore(), 'residents', RESIDENT), {
-        assignedCaregivers: ['caregiverA', 'familyA', 'familyA2'],
-      });
+      await setDoc(
+        doc(admin.firestore(), 'residents', RESIDENT),
+        { familyMembers: ['familyA2'] },
+        { merge: true }
+      );
     });
+    await assertSucceeds(stAs('familyA2').ref(photoPath('existing')).delete());
+    await assertSucceeds(deleteDoc(photoRef(fsAs('familyA2'), 'existing')));
+  });
+
+  it('a family member who is not linked to the resident cannot', async () => {
     await assertFails(stAs('familyA2').ref(photoPath('existing')).delete());
     await assertFails(deleteDoc(photoRef(fsAs('familyA2'), 'existing')));
+  });
+
+  it("the resident's own caregiver can delete any photo when there is no facility", async () => {
+    await env.withSecurityRulesDisabled(async (admin) => {
+      await updateDoc(doc(admin.firestore(), 'residents', RESIDENT), { facilityId: null });
+    });
+    await assertSucceeds(stAs('caregiverA').ref(photoPath('existing')).delete());
+    await assertSucceeds(deleteDoc(photoRef(fsAs('caregiverA'), 'existing')));
   });
 
   it("a caregiver in the resident's facility can delete any photo", async () => {

@@ -3,6 +3,7 @@
 import { firestore, storageModule } from './mocks/firebase';
 
 const {
+  countResidentPhotos,
   deleteResidentPhoto,
   fitWithin,
   photoStoragePath,
@@ -70,6 +71,14 @@ describe('uploadResidentPhoto', () => {
     expect(storageModule.deleteObject).toHaveBeenCalledWith({
       fullPath: photoStoragePath('r1', 'new-id'),
     });
+  });
+});
+
+describe('countResidentPhotos', () => {
+  it("counts the resident's whole album on the server", async () => {
+    firestore.getCountFromServer.mockResolvedValueOnce({ data: () => ({ count: 30 }) });
+    await expect(countResidentPhotos('r1')).resolves.toBe(30);
+    expect(firestore.getCountFromServer).toHaveBeenCalledWith({ path: 'residents/r1/photos' });
   });
 });
 

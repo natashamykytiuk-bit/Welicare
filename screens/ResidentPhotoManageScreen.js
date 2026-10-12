@@ -10,8 +10,8 @@ import { deleteResidentPhoto, listResidentPhotos } from '../utils/residentPhotos
 // "Manage photos" — every photo anyone shared for one resident, with
 // delete, so Caregivers and Administrators can take down anything
 // unsuitable. Reached from ResidentProfileScreen, which only shows the
-// link to those two roles; firestore.rules/storage.rules only let them
-// (or the uploader) delete anyway. Params: residentId, residentName.
+// link to those two roles. (The rules let anyone who may add photos delete
+// them; family members do that from ResidentPhotoUploadScreen.) Params: residentId, residentName.
 export default function ResidentPhotoManageScreen({ navigation, route }) {
   const residentId = route?.params?.residentId;
   const residentName = route?.params?.residentName || 'this resident';

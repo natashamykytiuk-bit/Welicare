@@ -133,14 +133,15 @@ service firebase.storage {
       // null` above, a photo can't be altered — delete and re-upload.
       allow update: if false;
 
-      // The uploader, or a Caregiver/Administrator of the resident's
-      // facility (moderation).
+      // The uploader, or anyone who may add photos to this album (the same
+      // linked Family Caregivers, Caregivers and Administrators as `create`
+      // above) — same as the photos delete rule in firestore.rules.
       allow delete: if verified() && (
         (resource.metadata != null && resource.metadata.get('uploadedBy', null) == request.auth.uid) ||
         (
-          residentDoc(residentId).get('facilityId', null) != null &&
-          me().get('orgId', null) == residentDoc(residentId).facilityId &&
-          me().role in ['Caregiver', 'Administrator']
+          firestore.exists(/databases/(default)/documents/residents/$(residentId)) &&
+          linkedToResident(residentId) &&
+          me().role in ['Family Caregiver', 'Caregiver', 'Administrator']
         )
       );
     }

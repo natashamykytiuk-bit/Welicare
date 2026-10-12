@@ -18,8 +18,10 @@ import { colors, fonts, radii } from '../theme';
 import {
   MAX_CAPTION,
   MAX_PHOTOS_PER_PICK,
+  MAX_PHOTOS_PER_RESIDENT,
+  countResidentPhotos,
   deleteResidentPhoto,
-  listMyUploads,
+  listResidentPhotos,
   loadUploaderName,
   pickAndPreparePhotos,
   uploadResidentPhoto,
@@ -30,11 +32,14 @@ import {
 // residentName.
 //
 // Pick up to 10 photos, add an optional caption to each, upload. Below,
-// "Your uploads" lists ONLY the photos this person shared (so they can
-// take one back) — never other people's photos and never the full album,
-// which is only shown to the resident in Resident Mode
-// (ResidentPhotoAlbumScreen). Caregivers moderate everyone's photos from
-// ResidentPhotoManageScreen instead.
+// "Photos in the album" lists every photo anyone shared, each with a
+// delete button: whoever may add photos may remove any of them, not just
+// their own (firestore.rules / storage.rules), so they can always make
+// room when the album is full.
+//
+// An album holds at most 30 photos (MAX_PHOTOS_PER_RESIDENT), counting
+// everyone's. Once it's full the screen says so and asks for some to be
+// deleted before more can be added.
 //
 // Firestore/Storage rules decide who may upload (not volunteers); this
 // screen is simply never linked for them.
@@ -48,28 +53,54 @@ export default function ResidentPhotoUploadScreen({ navigation, route }) {
   const [picking, setPicking] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState('');
-  const [myUploads, setMyUploads] = useState([]);
+  const [albumPhotos, setAlbumPhotos] = useState([]);
   const [uploadsLoading, setUploadsLoading] = useState(true);
   const [uploadsError, setUploadsError] = useState('');
+  // Photos in the whole album, from everyone. null until it's loaded, or if
+  // it couldn't be — the limit is then simply not applied, so a failed count
+  // never stops someone sharing photos.
+  const [albumCount, setAlbumCount] = useState(null);
 
-  const loadMyUploads = useCallback(async () => {
+  const loadAlbumPhotos = useCallback(async () => {
     if (!residentId) return;
     setUploadsError('');
     try {
-      setMyUploads(await listMyUploads(residentId));
+      setAlbumPhotos(await listResidentPhotos(residentId));
     } catch (e) {
       console.error('[ResidentPhotoUpload] failed to load uploads:', e.code, e.message, e);
-      setUploadsError('Could not load your uploads. Please try again later.');
+      setUploadsError('Could not load the album. Please try again later.');
     } finally {
       setUploadsLoading(false);
     }
   }, [residentId]);
 
+  // Returns the count as well as storing it, so upload() can act on a fresh
+  // number straight away instead of waiting for the next render.
+  const loadAlbumCount = useCallback(async () => {
+    if (!residentId) return null;
+    try {
+      const count = await countResidentPhotos(residentId);
+      setAlbumCount(count);
+      return count;
+    } catch (e) {
+      console.error('[ResidentPhotoUpload] failed to count photos:', e.code, e.message, e);
+      setAlbumCount(null);
+      return null;
+    }
+  }, [residentId]);
+
   useFocusEffect(
     useCallback(() => {
-      loadMyUploads();
-    }, [loadMyUploads])
+      loadAlbumPhotos();
+      loadAlbumCount();
+    }, [loadAlbumPhotos, loadAlbumCount])
   );
+
+  // How many more photos the album can take, and so how many may be lined
+  // up to upload at once (never more than 10 per batch either way).
+  const room = albumCount === null ? Infinity : Math.max(0, MAX_PHOTOS_PER_RESIDENT - albumCount);
+  const albumFull = room === 0;
+  const pickLimit = Math.min(MAX_PHOTOS_PER_PICK, room);
 
   async function pick() {
     setMessage('');
@@ -88,8 +119,13 @@ export default function ResidentPhotoUploadScreen({ navigation, route }) {
             status: 'ready',
             error: '',
           })),
-        ].slice(0, MAX_PHOTOS_PER_PICK)
+        ].slice(0, pickLimit)
       );
+      if (photos.length > 0 && pending.length + photos.length > pickLimit && isFinite(room)) {
+        setMessage(
+          `This album can hold ${MAX_PHOTOS_PER_RESIDENT} photos, so only ${room} more can be added. Delete some photos to add more.`
+        );
+      }
     } catch (e) {
       console.error('[ResidentPhotoUpload] pick failed:', e);
       setMessage(e.message || 'Those photos could not be opened. Please try again.');
@@ -108,6 +144,15 @@ export default function ResidentPhotoUploadScreen({ navigation, route }) {
   async function upload() {
     setMessage('');
     setUploading(true);
+    // Count again right before uploading: someone else may have added photos
+    // since this screen opened.
+    const count = await loadAlbumCount();
+    let roomLeft = count === null ? Infinity : Math.max(0, MAX_PHOTOS_PER_RESIDENT - count);
+    if (roomLeft === 0) {
+      setUploading(false);
+      setMessage(FULL_MESSAGE);
+      return;
+    }
     let uploaderName = '';
     try {
       uploaderName = await loadUploaderName();
@@ -115,8 +160,15 @@ export default function ResidentPhotoUploadScreen({ navigation, route }) {
       console.error('[ResidentPhotoUpload] could not load your name:', e);
     }
     let failures = 0;
+    let leftOut = 0;
     for (const item of pending) {
       if (item.status === 'done') continue;
+      // The album filled up partway: the rest stay in the list, ready to go
+      // up once some photos have been deleted.
+      if (roomLeft === 0) {
+        leftOut += 1;
+        continue;
+      }
       updatePending(item.key, { status: 'uploading', error: '' });
       try {
         await uploadResidentPhoto({
@@ -126,6 +178,7 @@ export default function ResidentPhotoUploadScreen({ navigation, route }) {
           uploaderName,
         });
         updatePending(item.key, { status: 'done' });
+        roomLeft -= 1;
       } catch (e) {
         failures += 1;
         console.error('[ResidentPhotoUpload] upload failed:', e.code, e.message, e);
@@ -143,15 +196,20 @@ export default function ResidentPhotoUploadScreen({ navigation, route }) {
     setMessage(
       failures
         ? `${failures} photo${failures === 1 ? '' : 's'} didn't upload. Tap Upload to try again.`
-        : 'Photos shared. Thank you!'
+        : leftOut
+          ? FULL_MESSAGE
+          : 'Photos shared. Thank you!'
     );
-    loadMyUploads();
+    loadAlbumPhotos();
+    loadAlbumCount();
   }
 
   async function remove(photo) {
     try {
       await deleteResidentPhoto(residentId, photo);
-      setMyUploads((prev) => prev.filter((p) => p.id !== photo.id));
+      setAlbumPhotos((prev) => prev.filter((p) => p.id !== photo.id));
+      // Deleting frees a place in the album.
+      loadAlbumCount();
     } catch (e) {
       console.error('[ResidentPhotoUpload] delete failed:', e.code, e.message, e);
       setMessage('That photo could not be deleted. Please try again.');
@@ -170,9 +228,9 @@ export default function ResidentPhotoUploadScreen({ navigation, route }) {
         </Text>
 
         <TouchableOpacity
-          style={[styles.secondaryButton, (picking || uploading) && styles.disabled]}
+          style={[styles.secondaryButton, (picking || uploading || albumFull) && styles.disabled]}
           onPress={pick}
-          disabled={picking || uploading || pending.length >= MAX_PHOTOS_PER_PICK}
+          disabled={picking || uploading || albumFull || pending.length >= pickLimit}
           accessibilityRole="button"
           accessibilityLabel="Choose photos"
         >
@@ -181,7 +239,18 @@ export default function ResidentPhotoUploadScreen({ navigation, route }) {
             {picking ? 'Preparing photos…' : 'Choose photos'}
           </Text>
         </TouchableOpacity>
-        <Text style={styles.hint}>Up to {MAX_PHOTOS_PER_PICK} at a time.</Text>
+        {albumFull ? (
+          <Text style={styles.message} accessibilityRole="alert">
+            {FULL_MESSAGE}
+          </Text>
+        ) : (
+          <Text style={styles.hint}>
+            Up to {MAX_PHOTOS_PER_PICK} at a time.
+            {albumCount === null
+              ? ''
+              : ` ${albumCount} of ${MAX_PHOTOS_PER_RESIDENT} photos in the album.`}
+          </Text>
+        )}
 
         {pending.map((item) => (
           <View key={item.key} style={styles.pendingRow}>
@@ -243,20 +312,23 @@ export default function ResidentPhotoUploadScreen({ navigation, route }) {
           </Text>
         ) : null}
 
-        <Text style={styles.sectionTitle}>Your uploads</Text>
+        <Text style={styles.sectionTitle}>Photos in the album</Text>
         {uploadsLoading ? (
           <ActivityIndicator color={colors.primary} />
         ) : uploadsError ? (
           <Text style={styles.muted}>{uploadsError}</Text>
-        ) : myUploads.length === 0 ? (
-          <Text style={styles.muted}>You haven't shared any photos for {residentName} yet.</Text>
+        ) : albumPhotos.length === 0 ? (
+          <Text style={styles.muted}>No photos have been shared for {residentName} yet.</Text>
         ) : (
-          <PhotoThumbGrid photos={myUploads} onDelete={remove} />
+          <PhotoThumbGrid photos={albumPhotos} onDelete={remove} showUploader />
         )}
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+// Shown whenever the album can't take another photo.
+const FULL_MESSAGE = `This album has reached its limit of ${MAX_PHOTOS_PER_RESIDENT} photos. Delete some photos to continue adding.`;
 
 // Per-photo progress line under each caption.
 function StatusLabel({ status, error }) {

@@ -59,6 +59,9 @@ const firestore = {
   // slow write really landed.
   getDocFromServer: jest.fn(),
   getDocs: jest.fn(),
+  // Count query (utils/residentPhotos.js). Tests set what it resolves to,
+  // e.g. mockResolvedValueOnce({ data: () => ({ count: 30 }) }).
+  getCountFromServer: jest.fn(),
   setDoc: jest.fn(),
   updateDoc: jest.fn(),
   addDoc: jest.fn(),

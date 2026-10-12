@@ -9,7 +9,7 @@ import UserAvatar from './UserAvatar';
 // A small grid of photo thumbnails, each with a delete button that asks
 // for confirmation first. Used by staff/family screens only — never in
 // Resident Mode, which has no delete controls at all.
-//   - ResidentPhotoUploadScreen: "Your uploads" (only the user's own).
+//   - ResidentPhotoUploadScreen: "Photos in the album" (every photo).
 //   - ResidentPhotoManageScreen: every photo, for caregiver moderation.
 //
 // Props:
