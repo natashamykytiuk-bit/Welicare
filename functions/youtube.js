@@ -3,6 +3,7 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const { requireVerified, requireUsage } = require('./authChecks');
+const { readCachedSearch, writeCachedSearch } = require('./searchCache');
 
 const youtubeApiKey = defineSecret('YOUTUBE_API_KEY');
 
@@ -40,7 +41,21 @@ exports.searchYouTube = onCall({ secrets: [youtubeApiKey] }, async (request) => 
     throw new HttpsError('invalid-argument', 'That search is too long. Please shorten it.');
   }
 
-  await requireUsage(getDb(), {
+  const category = request.data?.category === 'video' ? 'video' : 'music';
+
+  // A search someone made recently is answered from the saved copy (see
+  // searchCache.js): no YouTube quota is spent, so it isn't counted against
+  // the usage limits either. A cache problem must never break search — on
+  // any failure here it just carries on to YouTube.
+  const db = getDb();
+  try {
+    const cached = await readCachedSearch(db, category, query);
+    if (cached) return { results: cached };
+  } catch (e) {
+    console.error('[searchYouTube] cache read failed:', e);
+  }
+
+  await requireUsage(db, {
     feature: 'youtube',
     uid: request.auth.uid,
     perHour: SEARCHES_PER_HOUR,
@@ -48,8 +63,6 @@ exports.searchYouTube = onCall({ secrets: [youtubeApiKey] }, async (request) => 
     globalPerDay: SEARCHES_GLOBAL_PER_DAY,
     label: 'searches',
   });
-
-  const category = request.data?.category === 'video' ? 'video' : 'music';
 
   const params = new URLSearchParams({
     part: 'snippet',
@@ -91,6 +104,15 @@ exports.searchYouTube = onCall({ secrets: [youtubeApiKey] }, async (request) => 
       thumbnailUrl:
         item.snippet?.thumbnails?.medium?.url ?? item.snippet?.thumbnails?.default?.url ?? '',
     }));
+
+  // Saved for the next person who searches the same thing. Best-effort: the
+  // results are returned either way. Failed searches (above) are never
+  // saved, so a provider error isn't replayed for a week.
+  try {
+    await writeCachedSearch(db, category, query, results);
+  } catch (e) {
+    console.error('[searchYouTube] cache write failed:', e);
+  }
 
   return { results };
 });

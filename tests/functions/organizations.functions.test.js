@@ -684,3 +684,21 @@ describe('usage limits against Firestore', () => {
     expect(day.count).toBe(2);
   });
 });
+
+// The YouTube search cache (functions/searchCache.js) against the real
+// Firestore emulator: results written for a search come back for the same
+// search typed differently, as the plain data the app expects.
+describe('search cache against Firestore', () => {
+  const { readCachedSearch, writeCachedSearch } = require('../../functions/searchCache');
+
+  it('round-trips saved results', async () => {
+    const query = `Vera Lynn ${Date.now()}`;
+    const results = [
+      { videoId: 'abc12345678', title: "We'll Meet Again", channelTitle: 'Vera', thumbnailUrl: '' },
+    ];
+    expect(await readCachedSearch(adminDb, 'music', query)).toBeNull();
+    await writeCachedSearch(adminDb, 'music', query, results);
+    expect(await readCachedSearch(adminDb, 'music', `  ${query.toUpperCase()} `)).toEqual(results);
+    expect(await readCachedSearch(adminDb, 'video', query)).toBeNull();
+  });
+});
