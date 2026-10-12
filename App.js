@@ -48,6 +48,7 @@ import ResidentSafetyScreen from './screens/ResidentSafetyScreen';
 import ModeSelectionScreen from './screens/ModeSelectionScreen';
 import MemoryMatchScreen from './screens/MemoryMatchScreen';
 import MolehuntScreen from './screens/MolehuntScreen';
+import MoveResidentScreen from './screens/MoveResidentScreen';
 import MovieLibraryScreen from './screens/MovieLibraryScreen';
 import MoviesPlayerScreen from './screens/MoviesPlayerScreen';
 import MoviesSelectionScreen from './screens/MoviesSelectionScreen';
@@ -224,9 +225,9 @@ export default function App() {
                 options={({ route }) => ({ animation: route.params?.animation ?? 'default' })}
               />
               <Stack.Screen name="Settings" component={SettingsScreen} />
-              {/* Reached from Settings' "Organization" row — only shown
-                while the signed-in user's org is a personal one (see
-                createPersonalOrganization / OrganizationSettingsScreen). */}
+              {/* Reached from Settings' "Connecting with a Care Home" row —
+                only shown to a Family Caregiver on their family organization
+                (see createPersonalOrganization / OrganizationSettingsScreen). */}
               <Stack.Screen name="OrganizationSettings" component={OrganizationSettingsScreen} />
               {/* "Change Username" on SettingsScreen. */}
               <Stack.Screen name="ChangeUsername" component={ChangeUsernameScreen} />
@@ -252,6 +253,8 @@ export default function App() {
               {/* Family Mode */}
               <Stack.Screen name="FamilyMode" component={FamilyModeScreen} />
               <Stack.Screen name="FamilyResidents" component={FamilyResidentsScreen} />
+              {/* My Residents → "Move to an organization" on an at-home resident. */}
+              <Stack.Screen name="MoveResident" component={MoveResidentScreen} />
               {/* View-only activity time for the residents they're linked to. */}
               <Stack.Screen name="FamilyStats" component={FamilyStatsScreen} />
 

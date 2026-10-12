@@ -273,29 +273,321 @@ describe('regenerateInviteCode', () => {
   });
 });
 
-describe('upgradePersonalOrganization', () => {
-  it('turns a personal org into a real one with its first code', async () => {
+// A Family Caregiver's organization is always their own family one. They
+// never join or create a facility — they connect one resident at a time
+// (family codes, or the resident moves below) — and the old "upgrade my
+// personal organization" function is gone.
+describe('family accounts and organizations', () => {
+  it('a Family Caregiver cannot join an organization with its invite code', async () => {
+    await newUser({ role: 'Administrator' });
+    const { inviteCode } = (await call('createOrganization', { name: 'Cedar' })).data;
+    const uid = await newUser({ role: 'Family Caregiver' });
+
+    expect(await outcome(call('joinOrganization', { code: inviteCode }))).toBe(
+      'functions/permission-denied'
+    );
+    const user = (await adminDb.doc(`users/${uid}`).get()).data();
+    expect(user.pendingOrgId).toBeUndefined();
+    expect((await adminDb.doc(`inviteCodes/${inviteCode}`).get()).data().uses).toBe(0);
+  });
+
+  it('a Family Caregiver cannot create an organization', async () => {
+    const uid = await newUser({ role: 'Family Caregiver' });
+    const orgsBefore = await count('organizations');
+    expect(await outcome(call('createOrganization', { name: 'Mine' }))).toBe(
+      'functions/permission-denied'
+    );
+    expect(await count('organizations')).toBe(orgsBefore);
+    expect((await adminDb.doc(`users/${uid}`).get()).data().orgId).toBeUndefined();
+  });
+
+  it('there is no way to turn a family organization into a real one', async () => {
     const personal = adminDb.collection('organizations').doc();
     const uid = await newUser({ role: 'Family Caregiver', orgId: personal.id });
     await personal.set({ name: null, isPersonal: true, createdBy: uid, adminId: uid });
 
-    const { inviteCode } = (await call('upgradePersonalOrganization', { name: 'Home' })).data;
+    expect(await outcome(call('upgradePersonalOrganization', { name: 'Home' }))).toBe(
+      'functions/not-found'
+    );
+    expect((await personal.get()).data().isPersonal).toBe(true);
+  });
+});
 
-    expect((await personal.get()).data()).toMatchObject({ name: 'Home', isPersonal: false });
-    expect((await adminDb.doc(`inviteCodes/${inviteCode}`).get()).data().orgId).toBe(personal.id);
+// Moving one at-home resident into a facility: the family member asks with
+// the facility's invite code (after a confirmation step that writes
+// nothing), and the facility's administrator approves.
+describe('moving an at-home resident into an organization', () => {
+  // A facility with its owner signed in last-but-one, and a family member
+  // (signed in last) with a family organization and one at-home resident.
+  async function scene() {
+    const ownerUid = await newUser({ role: 'Administrator', fullName: 'Olive' });
+    const owner = auth.currentUser;
+    const { orgId, inviteCode } = (await call('createOrganization', { name: 'Maple Court' })).data;
+
+    const famOrg = adminDb.collection('organizations').doc();
+    const famUid = await newUser({ role: 'Family Caregiver', fullName: 'Susan', orgId: famOrg.id });
+    const family = auth.currentUser;
+    await famOrg.set({ name: null, isPersonal: true, createdBy: famUid, adminId: famUid });
+    const residentRef = adminDb.collection('residents').doc();
+    await residentRef.set({
+      name: 'Dad',
+      caregiverId: famUid,
+      createdBy: famUid,
+      facilityId: famOrg.id,
+      assignedCaregivers: [famUid],
+    });
+    const resident = async () => (await residentRef.get()).data();
+    const as = async (user) => {
+      await signOut(auth);
+      await auth.updateCurrentUser(user);
+    };
+    return {
+      ownerUid,
+      owner,
+      orgId,
+      inviteCode,
+      famOrgId: famOrg.id,
+      famUid,
+      family,
+      residentId: residentRef.id,
+      resident,
+      as,
+    };
+  }
+
+  it('the first call only names the organization — nothing is written until confirmed', async () => {
+    const { inviteCode, residentId, resident, famOrgId } = await scene();
+    const preview = (await call('requestResidentMove', { residentId, code: inviteCode })).data;
+    expect(preview).toEqual({ needsConfirmation: true, pending: false, orgName: 'Maple Court' });
+    expect((await resident()).pendingFacilityId).toBeUndefined();
+    expect((await resident()).facilityId).toBe(famOrgId);
+    expect((await adminDb.doc(`inviteCodes/${inviteCode}`).get()).data().uses).toBe(0);
   });
 
-  it('writes nothing when the org is already upgraded', async () => {
-    const real = adminDb.collection('organizations').doc();
-    const uid = await newUser({ role: 'Administrator', orgId: real.id });
-    await real.set({ name: 'Pine', isPersonal: false, createdBy: uid, adminId: uid });
-    const codesBefore = await count('inviteCodes');
+  it('confirming records a request; the resident stays at home until approved', async () => {
+    const { inviteCode, residentId, resident, famOrgId, famUid, orgId, owner, as } = await scene();
+    const sent = (
+      await call('requestResidentMove', { residentId, code: inviteCode, confirmed: true })
+    ).data;
+    expect(sent).toEqual({ needsConfirmation: false, pending: true, orgName: 'Maple Court' });
+    expect(await resident()).toMatchObject({
+      facilityId: famOrgId,
+      createdBy: famUid,
+      pendingFacilityId: orgId,
+      pendingMoveBy: famUid,
+    });
 
-    expect(await outcome(call('upgradePersonalOrganization', { name: 'Renamed' }))).toBe(
-      'functions/failed-precondition'
+    // The administrator sees it in Manage Users, by name only.
+    await as(owner);
+    const listed = (await call('listOrgMembers', { orgId })).data;
+    expect(listed.pendingMoves).toMatchObject([
+      { residentId, residentName: 'Dad', requestedByUid: famUid, requestedByName: 'Susan' },
+    ]);
+  });
+
+  it('approving moves the resident and leaves the family member view-only', async () => {
+    const s = await scene();
+    await call('requestResidentMove', {
+      residentId: s.residentId,
+      code: s.inviteCode,
+      confirmed: true,
+    });
+    // The family member can't approve their own request.
+    expect(
+      await outcome(call('approveResidentMove', { orgId: s.orgId, residentId: s.residentId }))
+    ).toBe('functions/permission-denied');
+
+    await s.as(s.owner);
+    expect(
+      await outcome(call('approveResidentMove', { orgId: s.orgId, residentId: s.residentId }))
+    ).toBe('ok');
+    const moved = await s.resident();
+    expect(moved).toMatchObject({
+      facilityId: s.orgId,
+      // Ownership passes to the facility; the family member keeps only the
+      // view-only link a family code gives.
+      createdBy: s.ownerUid,
+      caregiverId: s.ownerUid,
+      assignedCaregivers: [],
+      familyMembers: [s.famUid],
+    });
+    expect(moved.pendingFacilityId).toBeUndefined();
+    expect(moved.pendingMoveBy).toBeUndefined();
+    // Approving again finds nothing waiting.
+    expect(
+      await outcome(call('approveResidentMove', { orgId: s.orgId, residentId: s.residentId }))
+    ).toBe('functions/not-found');
+  });
+
+  it('denying, or the family member cancelling, leaves the resident at home', async () => {
+    const s = await scene();
+    const request = () =>
+      call('requestResidentMove', {
+        residentId: s.residentId,
+        code: s.inviteCode,
+        confirmed: true,
+      });
+    await request();
+    expect(await outcome(call('cancelResidentMove', { residentId: s.residentId }))).toBe('ok');
+    expect((await s.resident()).pendingFacilityId).toBeUndefined();
+
+    await request();
+    await s.as(s.owner);
+    expect(
+      await outcome(call('denyResidentMove', { orgId: s.orgId, residentId: s.residentId }))
+    ).toBe('ok');
+    expect(await s.resident()).toMatchObject({
+      facilityId: s.famOrgId,
+      createdBy: s.famUid,
+      assignedCaregivers: [s.famUid],
+    });
+    expect((await s.resident()).pendingFacilityId).toBeUndefined();
+  });
+
+  it("only the family member who added an at-home resident can ask, and only with a real facility's code", async () => {
+    const s = await scene();
+    // A bad code gets the same answer as an unknown one.
+    expect(
+      await outcome(
+        call('requestResidentMove', {
+          residentId: s.residentId,
+          code: 'ZZZZ-9999',
+          confirmed: true,
+        })
+      )
+    ).toBe('functions/not-found');
+
+    // Another family member can't move someone else's resident.
+    await newUser({ role: 'Family Caregiver' });
+    expect(
+      await outcome(
+        call('requestResidentMove', {
+          residentId: s.residentId,
+          code: s.inviteCode,
+          confirmed: true,
+        })
+      )
+    ).toBe('functions/permission-denied');
+
+    // Nor can staff use this to pull in a resident.
+    await s.as(s.owner);
+    expect(
+      await outcome(
+        call('requestResidentMove', {
+          residentId: s.residentId,
+          code: s.inviteCode,
+          confirmed: true,
+        })
+      )
+    ).toBe('functions/permission-denied');
+    expect((await s.resident()).pendingFacilityId).toBeUndefined();
+  });
+
+  it('a resident already in a facility cannot be moved again', async () => {
+    const s = await scene();
+    await adminDb.doc(`residents/${s.residentId}`).update({ facilityId: s.orgId });
+    expect(
+      await outcome(
+        call('requestResidentMove', {
+          residentId: s.residentId,
+          code: s.inviteCode,
+          confirmed: true,
+        })
+      )
+    ).toBe('functions/failed-precondition');
+  });
+});
+
+// Permanent deletion goes through deleteResident, because the app can't
+// reach everything that has to go (firestore.rules refuse client deletes).
+describe('deleteResident', () => {
+  async function facilityResident() {
+    const adminUid = await newUser({ role: 'Administrator', fullName: 'Olive' });
+    const admin = auth.currentUser;
+    const { orgId } = (await call('createOrganization', { name: 'Rowan House' })).data;
+    const ref = adminDb.collection('residents').doc();
+    await ref.set({ name: 'Gus', facilityId: orgId, createdBy: adminUid, assignedCaregivers: [] });
+    await ref.collection('private').doc('lifeStory').set({ career: 'Farmer' });
+    await ref.collection('private').doc('safety').set({ topicsToAvoid: 'War' });
+    await ref.collection('photos').doc('p1').set({ caption: 'Garden' });
+    await adminDb.doc(`familyCodes/GUS${Date.now() % 10}-CODE`).set({ residentId: ref.id });
+    const session = adminDb.collection('activitySessions').doc();
+    await session.set({
+      facilityId: orgId,
+      residentId: ref.id,
+      isGuest: false,
+      activityId: 'music',
+      durationSeconds: 600,
+      userId: 'vol-1',
+    });
+    return { adminUid, admin, orgId, ref, session };
+  }
+
+  it('removes the resident and everything held about them, but keeps anonymised activity time', async () => {
+    const { adminUid, orgId, ref, session } = await facilityResident();
+    expect(await outcome(call('deleteResident', { residentId: ref.id }))).toBe('ok');
+
+    expect((await ref.get()).exists).toBe(false);
+    expect((await ref.collection('private').get()).size).toBe(0);
+    expect((await ref.collection('photos').get()).size).toBe(0);
+    expect(
+      (await adminDb.collection('familyCodes').where('residentId', '==', ref.id).get()).size
+    ).toBe(0);
+    // The visit still counts towards the facility's totals and the
+    // volunteer's hours, but no longer points at the resident.
+    expect((await session.get()).data()).toMatchObject({
+      residentId: null,
+      durationSeconds: 600,
+      userId: 'vol-1',
+      facilityId: orgId,
+    });
+
+    // Recorded once in the activity log, naming who did it.
+    const entries = (
+      await adminDb.collection('auditLog').where('orgId', '==', orgId).get()
+    ).docs.map((d) => d.data());
+    expect(entries.filter((e) => e.action === 'resident.deleted')).toMatchObject([
+      { actorUid: adminUid, actorName: 'Olive', targetName: 'Gus' },
+    ]);
+  });
+
+  it('only an Administrator of the facility can — not caregivers, volunteers or other facilities', async () => {
+    const { orgId, ref } = await facilityResident();
+    for (const user of [
+      { role: 'Caregiver', orgId },
+      { role: 'Volunteer', orgId },
+      { role: 'Administrator', orgId: 'another-org' },
+      { role: 'Family Caregiver' },
+    ]) {
+      await newUser(user);
+      expect(await outcome(call('deleteResident', { residentId: ref.id }))).toBe(
+        'functions/permission-denied'
+      );
+    }
+    expect((await ref.get()).exists).toBe(true);
+    expect((await ref.collection('private').get()).size).toBe(2);
+  });
+
+  it('a Family Caregiver can delete their own at-home resident, but not one that moved into a facility', async () => {
+    const famUid = await newUser({ role: 'Family Caregiver' });
+    const home = adminDb.collection('residents').doc();
+    await home.set({ name: 'Dad', facilityId: null, createdBy: famUid, caregiverId: famUid });
+    const moved = adminDb.collection('residents').doc();
+    await moved.set({ name: 'Mum', facilityId: 'some-facility', familyMembers: [famUid] });
+
+    expect(await outcome(call('deleteResident', { residentId: moved.id }))).toBe(
+      'functions/permission-denied'
     );
-    expect((await real.get()).data().name).toBe('Pine');
-    expect(await count('inviteCodes')).toBe(codesBefore);
+    expect(await outcome(call('deleteResident', { residentId: home.id }))).toBe('ok');
+    expect((await home.get()).exists).toBe(false);
+    expect((await moved.get()).exists).toBe(true);
+  });
+
+  it("answers the same for a resident that doesn't exist", async () => {
+    await newUser({ role: 'Administrator', orgId: 'x' });
+    expect(await outcome(call('deleteResident', { residentId: 'no-such-resident' }))).toBe(
+      'functions/permission-denied'
+    );
   });
 });
 
@@ -559,14 +851,21 @@ describe('activity log', () => {
     expect(JSON.stringify(entries)).not.toContain(inviteCode);
   });
 
-  it('records a resident deleted from the app (trigger)', async () => {
+  // The auditResidentDeleted trigger only records deletes made directly by
+  // an app user (which firestore.rules no longer allow). A server-side
+  // delete like this one must NOT add an entry, or deleteResident — which
+  // writes its own, see the deleteResident tests — would be logged twice.
+  it('does not log server-side resident deletes through the trigger', async () => {
     await newUser({ role: 'Administrator' });
     const { orgId } = (await call('createOrganization', { name: 'Ash' })).data;
     await adminDb.doc('residents/gone').set({ name: 'Gus', facilityId: orgId });
     await adminDb.doc('residents/gone').delete();
-
-    const entry = await waitForEntry(orgId, 'resident.deleted');
-    expect(entry).toMatchObject({ targetName: 'Gus' });
+    // Give the trigger time to run, then make something else happen and
+    // check it's the only entry.
+    await new Promise((r) => setTimeout(r, 3000));
+    await call('regenerateInviteCode', { orgId });
+    expect(await waitForEntry(orgId, 'inviteCode.regenerated')).toBeTruthy();
+    expect((await entriesFor(orgId)).map((e) => e.action)).toEqual(['inviteCode.regenerated']);
   });
 
   it('deleting the organization removes its activity log too', async () => {

@@ -128,6 +128,14 @@ export function describeEntry(entry) {
       return `${who} used a family code to link to ${entry.detail || 'a resident'}.`;
     case 'family.unlinked':
       return `${who} removed ${entry.targetName || 'a family member'}'s access to ${entry.detail || 'a resident'}.`;
+    // Moving an at-home resident into the organization (functions/index.js):
+    // `detail` is the resident's name, the target is the family member.
+    case 'resident.moveRequested':
+      return `${who} asked to move ${entry.detail || 'a resident'} into the organization.`;
+    case 'resident.moved':
+      return `${who} approved moving ${entry.detail || 'a resident'} into the organization (requested by ${entry.targetName || 'a family member'}).`;
+    case 'resident.moveDenied':
+      return `${who} declined moving ${entry.detail || 'a resident'} into the organization.`;
     default:
       return `${who}: ${entry.action}`;
   }

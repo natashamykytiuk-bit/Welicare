@@ -28,10 +28,11 @@ const navigation = { navigate: jest.fn(), goBack: jest.fn() };
 const never = () => new Promise(() => {});
 const notFound = () => Object.assign(new Error('missing'), { code: 'permission-denied' });
 
-// Renders the form for a user with no organization (so it goes straight to
-// the name field), types a name and taps Create.
+// Renders the form for a Family Caregiver with no organization — someone
+// who may add residents (utils/residentPermissions.js) and needs only the
+// one user-doc read — then types a name and taps Create.
 async function fillAndSubmit() {
-  firestore.getDoc.mockResolvedValueOnce(docSnap({ role: 'Caregiver' })); // user doc, no orgId
+  firestore.getDoc.mockResolvedValueOnce(docSnap({ role: 'Family Caregiver' })); // user doc, no orgId
   await render(<AddResidentScreen navigation={navigation} />);
   await fireEvent.changeText(await screen.findByPlaceholderText("Resident's full name"), 'Ann');
   await fireEvent.press(screen.getByLabelText('Create resident'));

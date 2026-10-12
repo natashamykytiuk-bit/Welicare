@@ -118,8 +118,11 @@ const ORGS = {
 // join with the invite code and are waiting for approval: they get
 // pendingOrgId instead of orgId (see joinOrganization), so they have no
 // access to the org yet and log no sessions.
-// `org: null` + orgStepSkipped is the family member who skipped the
-// organization step (nextOnboardingRoute lets non-admins through with it).
+// Family Caregivers never belong to a facility (they can't join one): `org`
+// on them only says which facility their linked residents live in, for the
+// activity history. Their users doc gets orgStepSkipped and no orgId, and
+// they're linked to residents through familyMembers, as a family code does.
+// family3 has no linked residents at all.
 const PEOPLE = [
   {
     id: 'admin1',
@@ -177,21 +180,21 @@ const PEOPLE = [
     org: 'A',
     role: 'Family Caregiver',
     fullName: 'Ruth Thornbury-Hale',
-    intendedStatus: 'approved',
+    intendedStatus: 'family account (linked by family code)',
   },
   {
     id: 'family2',
     org: 'A',
     role: 'Family Caregiver',
     fullName: 'Leon Achterberg',
-    intendedStatus: 'approved',
+    intendedStatus: 'family account (linked by family code)',
   },
   {
     id: 'family3',
     org: null,
     role: 'Family Caregiver',
     fullName: 'Imogen Farrow',
-    intendedStatus: 'no org (skipped org step)',
+    intendedStatus: 'family account (no linked residents)',
   },
   {
     id: 'cedar-admin1',
@@ -249,8 +252,9 @@ const EMPTY_LIFE_STORY = {
 };
 
 // Residents. `creator` makes the resident (caregiverId/createdBy, as in
-// AddResidentScreen); `assigned` are extra people on assignedCaregivers —
-// that list is how a family member is linked to a resident (firestore.rules
+// AddResidentScreen); `assigned` are extra people linked to them — staff go
+// on assignedCaregivers, Family Caregivers on familyMembers (the view-only
+// link redeemFamilyCode writes; see residentDoc and firestore.rules
 // linkedToResident). `weight` sets how often they appear in the activity
 // history. Choice values (age, relationshipStatus, hobbies, genres) come
 // from BuildProfileScreen's option lists.
@@ -489,10 +493,12 @@ function userDoc(person, uid, orgIds, pinHash) {
     createdAt: CREATED_AT,
     pinHash,
   };
-  if (person.org && person.pending) {
-    d.pendingOrgId = orgIds[person.org];
+  // Family accounts never get a facility's orgId (see the PEOPLE comment).
+  const facility = person.role === 'Family Caregiver' ? null : person.org;
+  if (facility && person.pending) {
+    d.pendingOrgId = orgIds[facility];
     d.pendingSince = Timestamp.fromDate(new Date(NOW - 2 * DAY_MS));
-  } else if (person.org) d.orgId = orgIds[person.org];
+  } else if (facility) d.orgId = orgIds[facility];
   else d.orgStepSkipped = true;
   return d;
 }
@@ -515,12 +521,20 @@ function orgDoc(org, creatorUid) {
 // copies saveResidentProfile keeps on the resident after a life story save.
 function residentDoc(r, uidOf, orgIds) {
   const creatorUid = uidOf[r.creator];
+  // Linked family members are view-only (familyMembers), never on
+  // assignedCaregivers — the same split redeemFamilyCode makes.
+  const isFamily = (id) => PEOPLE.find((p) => p.id === id)?.role === 'Family Caregiver';
+  const family = r.assigned.filter(isFamily).map((id) => uidOf[id]);
   const d = {
     name: r.name,
     caregiverId: creatorUid,
     createdBy: creatorUid,
     facilityId: orgIds[r.org],
-    assignedCaregivers: [creatorUid, ...r.assigned.map((id) => uidOf[id])],
+    assignedCaregivers: [
+      creatorUid,
+      ...r.assigned.filter((id) => !isFamily(id)).map((id) => uidOf[id]),
+    ],
+    ...(family.length ? { familyMembers: family } : {}),
     createdAt: CREATED_AT,
     hasLifeStory: !!r.lifeStory,
     musicProvider: 'youtube',
@@ -686,9 +700,18 @@ logged by caregivers, volunteers, an administrator and linked family members, wi
       \`caregiver3\` and reach Caregiver Mode; as \`volunteer2\`, see "Your request wasn't
       approved".
 - [ ] **Family view-only restrictions** — as \`family1\`: only Margaret Thornbury and Evelyn
-      Castellanos-Mayhew are visible; "Select from organization" is not offered; no other Maple
-      Grove residents appear; the resident profile photo can't be changed; safety notes are
-      read-only; Overall Stats / organization settings aren't reachable.
+      Castellanos-Mayhew are visible, each marked "In a care home · view only"; there is no
+      Edit Profile, Archive or Move button for them and no options menu in Resident Mode; no
+      other Maple Grove residents appear; the profile photo can't be changed; Add Photos and
+      the favourite hearts still work; Overall Stats / organization settings aren't reachable.
+- [ ] **Volunteers can't create or edit** — as \`volunteer1\`: Resident Mode has no "Add
+      Resident" and no options menu on any resident; My Residents opens profiles with no Edit
+      life story, Archive or photo buttons. The favourite hearts still work in a session.
+- [ ] **Archive, restore and permanent delete** — as \`caregiver1\`: archive a resident from
+      Resident Mode's options menu; they leave the picker and appear under "Archived" in My
+      Residents, where Restore brings them back. Caregivers have no "Delete Permanently". As
+      \`admin1\`: Delete Permanently shows a warning that it can't be undone; after confirming,
+      the resident, their life story and photos are gone (check with the dry-run teardown).
 - [ ] **Volunteer activity logging** — as \`volunteer1\`: run a Resident Mode activity for a
       resident for at least 10 seconds, then confirm it shows up in the Hour Tracker and in the
       resident's stats (as a caregiver). Life stories are hidden unless the org turns on
@@ -698,10 +721,15 @@ logged by caregivers, volunteers, an administrator and linked family members, wi
       hours but not change any resident's stats.
 - [ ] **Resident Mode PIN exit** — enter Resident Mode on a resident, try to leave, and confirm
       the shared test PIN is required (and a wrong PIN keeps the lock).
-- [ ] **Family member with no org joins by code** — sign in as \`family3\`, open organization
-      settings, ask to join with Org A's code (\`${codes.A}\`), then approve them as \`admin1\`
-      in Manage Users. Afterwards they see *no* residents until linked to one (family members
-      never see the whole facility).
+- [ ] **Family member moves an at-home resident into an organization** — sign in as
+      \`family3\`, add a resident in Resident Mode and edit their profile (allowed: they're at
+      home). In Family Mode → My Residents choose "Move to an organization", enter Org A's code
+      (\`${codes.A}\`): a confirmation names the organization and says they'll be able to view
+      but not edit. Cancel changes nothing; confirming shows "Waiting for the organization to
+      approve the move" with Cancel request. As \`admin1\` → Manage Users, approve it under
+      "Residents waiting to move in". Back as \`family3\` the resident is view-only; as
+      \`caregiver1\` they appear in My Residents and can be edited. (\`family3\` can't join the
+      organization itself: Settings only explains how to connect.)
 - [ ] **Cross-org isolation** — as \`cedar-admin1\` / \`cedar-caregiver1\`: no Maple Grove
       residents, stats, members, library entries or activity log appear. As \`admin1\` /
       \`caregiver1\`: no Cedar House data appears. Also try Org B's join code while signed in

@@ -47,19 +47,27 @@ service firebase.storage {
           me().role in ['Caregiver', 'Administrator', 'Volunteer']);
     }
 
-    // May change this resident's profile photo — mirrors the photo branches
-    // of the residents update rule in firestore.rules: the creator, a
-    // Caregiver/Administrator directly linked to the resident, or a
-    // Caregiver/Administrator in the resident's facility. Never volunteers,
-    // and never an assigned family member who didn't create the resident.
+    // A Family Caregiver's auto-created family organization (isPersonal),
+    // as opposed to a care facility — isFamilyOrg() in firestore.rules.
+    function isFamilyOrg(facilityId) {
+      return firestore.get(/databases/(default)/documents/organizations/$(facilityId)).data.get('isPersonal', false) == true;
+    }
+
+    // May change this resident's profile photo — the same people who may
+    // edit the profile, mayEditResident() in firestore.rules: a
+    // Caregiver/Administrator in the resident's facility, or a Family
+    // Caregiver for a resident they added that is still at home (in no
+    // organization, or in their family organization). Never volunteers, and
+    // never family once the resident has moved into a facility.
     function mayEditResidentPhoto(residentId) {
       let r = residentDoc(residentId);
-      return r.get('createdBy', null) == request.auth.uid || (
-        me().role in ['Caregiver', 'Administrator'] && (
-          r.get('caregiverId', null) == request.auth.uid ||
-          (r.get('assignedCaregivers', null) is list && request.auth.uid in r.assignedCaregivers) ||
-          (r.get('facilityId', null) != null && me().get('orgId', null) == r.facilityId)
-        )
+      return (
+        me().role in ['Caregiver', 'Administrator'] &&
+        r.get('facilityId', null) != null && me().get('orgId', null) == r.facilityId
+      ) || (
+        me().role == 'Family Caregiver' &&
+        (r.get('caregiverId', null) == request.auth.uid || r.get('createdBy', null) == request.auth.uid) &&
+        (r.get('facilityId', null) == null || isFamilyOrg(r.facilityId))
       );
     }
 

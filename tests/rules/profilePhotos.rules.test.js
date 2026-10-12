@@ -131,18 +131,43 @@ describe('resident profile photo: who can set it', () => {
     await assertFails(stAs('volunteerA').ref(profilePath(RES)).delete());
   });
 
-  it("an assigned family member who isn't the creator cannot — though they can still edit the name", async () => {
+  it('a family member linked to a facility resident cannot — nor edit the name', async () => {
     await assertFails(put(stAs('familyA'), profilePath(RES), JPEG, meta('familyA')));
     await assertFails(setPhoto('familyA', RES));
     await assertFails(stAs('familyA').ref(profilePath(RES)).delete());
-    await assertSucceeds(updateDoc(doc(fsAs('familyA'), 'residents', RES), { name: 'Annie' }));
+    await assertFails(updateDoc(doc(fsAs('familyA'), 'residents', RES), { name: 'Annie' }));
   });
 
-  it('the family member who created the resident can', async () => {
+  it('the family member who created an at-home resident can', async () => {
     await assertSucceeds(
       put(stAs('familyCreator'), profilePath(FAM_RES), JPEG, meta('familyCreator'))
     );
     await assertSucceeds(setPhoto('familyCreator', FAM_RES));
+  });
+
+  // Once the resident is in a facility the family member is view-only,
+  // even though they're still recorded as its creator here.
+  it('but not once that resident is in a facility', async () => {
+    await env.withSecurityRulesDisabled((admin) =>
+      updateDoc(doc(admin.firestore(), 'residents', FAM_RES), { facilityId: 'orgA' })
+    );
+    await assertFails(
+      put(stAs('familyCreator'), profilePath(FAM_RES), JPEG, meta('familyCreator'))
+    );
+    await assertFails(setPhoto('familyCreator', FAM_RES));
+  });
+
+  // A volunteer never changes a profile photo, even for a resident they
+  // created back when the rules allowed volunteers to add residents.
+  it('a volunteer cannot even for a resident they created', async () => {
+    await env.withSecurityRulesDisabled((admin) =>
+      updateDoc(doc(admin.firestore(), 'residents', RES), {
+        createdBy: 'volunteerA',
+        caregiverId: 'volunteerA',
+      })
+    );
+    await assertFails(put(stAs('volunteerA'), profilePath(RES), JPEG, meta('volunteerA')));
+    await assertFails(setPhoto('volunteerA', RES));
   });
 
   it('rejects a photoPath pointing anywhere else', async () => {

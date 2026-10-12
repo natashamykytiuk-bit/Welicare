@@ -149,14 +149,17 @@ export function summarizeFacility(sessions, residents, options) {
   let guestSessions = 0;
   for (const s of kept) {
     const seconds = Math.max(0, s.durationSeconds || 0);
-    if (s.isGuest || !s.residentId) {
+    // Older records have no isGuest flag; for those, no resident means guest.
+    if (s.isGuest ?? !s.residentId) {
       guestSeconds += seconds;
       guestSessions += 1;
       continue;
     }
-    // A session for a resident who's since been removed isn't listed,
-    // though its time still counts in the facility total.
-    const entry = byResident.get(s.residentId);
+    // A session for a resident who's since been deleted isn't listed (and
+    // isn't a guest visit either), though its time still counts in the
+    // facility total. deleteResident clears residentId on those records, so
+    // it can be null here.
+    const entry = s.residentId ? byResident.get(s.residentId) : undefined;
     if (!entry) continue;
     const startedAt = toDate(s.startedAt);
     entry.seconds += seconds;

@@ -1,11 +1,4 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocFromServer,
-  serverTimestamp,
-  setDoc,
-} from 'firebase/firestore';
+import { collection, doc, getDocFromServer, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -23,6 +16,8 @@ import ResidentAvatar from '../components/ResidentAvatar';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { pickResidentPhoto, setResidentPhoto } from '../utils/profilePhotos';
+import { canCreateResident } from '../utils/residentPermissions';
+import { loadViewer } from '../utils/viewer';
 import { isTimeoutError, withTimeout } from '../utils/withTimeout';
 
 // How long the "photo didn't upload" note stays up before carrying on.
@@ -42,8 +37,17 @@ const CHECK_TIMEOUT_MS = 10000;
 // every resident in their facility automatically (see loadRoleResidents in
 // ResidentModeScreen), and family members only ever see residents they're
 // linked to, so this screen only creates brand-new residents.
+//
+// Who may add a resident (utils/residentPermissions.js, enforced by
+// firestore.rules): Caregivers and Administrators, into their organization;
+// Family Caregivers, at home (their family organization, or none). Resident
+// Mode only shows "Add Resident" to them, but this screen checks again and
+// shows a short explanation instead of a form that would fail on save —
+// e.g. for a volunteer who reaches it some other way.
 export default function AddResidentScreen({ navigation }) {
   const [orgId, setOrgId] = useState(undefined); // undefined = loading, null = no org
+  // False once we know this person may not add residents.
+  const [mayCreate, setMayCreate] = useState(true);
 
   const [name, setName] = useState('');
   // Optional profile photo, picked and resized locally; only uploaded
@@ -74,10 +78,10 @@ export default function AddResidentScreen({ navigation }) {
       setLoadError(false);
       setOrgId(undefined);
       try {
-        const userSnap = await getDoc(doc(db, 'users', uid));
-        const id = userSnap.data()?.orgId ?? null;
+        const { viewer, org } = await loadViewer();
         if (cancelled) return;
-        setOrgId(id);
+        setMayCreate(canCreateResident(viewer, org));
+        setOrgId(viewer.orgId ?? null);
       } catch (e) {
         console.error('[AddResident] failed to load organization:', e.code, e.message, e);
         if (!cancelled) setLoadError(true);
@@ -265,6 +269,14 @@ export default function AddResidentScreen({ navigation }) {
           <LoadError onRetry={() => setReloadKey((k) => k + 1)} />
         ) : orgId === undefined ? (
           <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
+        ) : !mayCreate ? (
+          <>
+            <Text style={styles.heading}>Add a resident</Text>
+            <Text style={styles.body}>
+              Residents are added by your organization’s caregivers and administrators. Once they’ve
+              added someone, you’ll see them in your list.
+            </Text>
+          </>
         ) : (
           <>
             <Text style={styles.heading}>Add a resident</Text>

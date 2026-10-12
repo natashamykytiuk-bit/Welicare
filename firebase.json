@@ -16,7 +16,6 @@
       "gcloud run services add-iam-policy-binding listorgmembers --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
       "gcloud run services add-iam-policy-binding transferorgadmin --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
       "gcloud run services add-iam-policy-binding createorganization --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding upgradepersonalorganization --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
       "gcloud run services add-iam-policy-binding regenerateinvitecode --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
       "gcloud run services add-iam-policy-binding joinorganization --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
       "gcloud run services add-iam-policy-binding resolvesigninemail --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
@@ -26,7 +25,12 @@
       "gcloud run services add-iam-policy-binding listfamilymembers --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
       "gcloud run services add-iam-policy-binding unlinkfamilymember --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
       "gcloud run services add-iam-policy-binding approveorgmember --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
-      "gcloud run services add-iam-policy-binding denyorgmember --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare"
+      "gcloud run services add-iam-policy-binding denyorgmember --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding deleteresident --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding requestresidentmove --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding cancelresidentmove --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding approveresidentmove --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare",
+      "gcloud run services add-iam-policy-binding denyresidentmove --region=northamerica-northeast1 --member=allUsers --role=roles/run.invoker --project=welicare"
     ]
   },
   "emulators": {

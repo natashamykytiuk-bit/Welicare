@@ -30,6 +30,7 @@ const {
   getDocs,
   query,
   setDoc,
+  serverTimestamp,
   setLogLevel,
   updateDoc,
   where,
@@ -522,12 +523,16 @@ describe('life stories and Manage Volunteer Permissions', () => {
     );
   });
 
-  it('deleting a resident with its life story works for the facility admin', async () => {
+  // Deleting goes through the deleteResident Cloud Function, which also
+  // removes photos and files the app can't reach — so the app's own delete
+  // is refused even for the facility's administrator.
+  it('nobody can delete a resident or its life story from the app, not even the admin', async () => {
     const db = as('adminA');
     const batch = writeBatch(db);
     batch.delete(lifeStoryDoc(db));
     batch.delete(doc(db, 'residents', 'residentA'));
-    await assertSucceeds(batch.commit());
+    await assertFails(batch.commit());
+    await assertFails(deleteDoc(lifeStoryDoc(db)));
   });
 });
 
@@ -745,9 +750,9 @@ describe('unauthenticated', () => {
 });
 
 describe('role restrictions the rules enforce today', () => {
-  it('only an Administrator of the same facility can delete a resident', async () => {
+  it('no role can delete a resident from the app (deleteResident does it server-side)', async () => {
     await assertFails(deleteDoc(doc(as('caregiverA'), 'residents', 'residentA')));
-    await assertSucceeds(deleteDoc(doc(as('adminA'), 'residents', 'residentA')));
+    await assertFails(deleteDoc(doc(as('adminA'), 'residents', 'residentA')));
   });
 
   it('a Volunteer in the facility can read but not edit a resident they are not assigned to', async () => {
@@ -760,14 +765,14 @@ describe('role restrictions the rules enforce today', () => {
     await assertFails(updateDoc(doc(as('familyA'), 'residents', 'residentA'), { name: 'x' }));
   });
 
-  // Intended (owner decision, Sept 2026): family members may edit the
-  // profiles of residents they're assigned to — they often know the life
-  // story best. Unassigned residents stay off-limits (test above).
-  it("an assigned Family Caregiver can edit that resident's profile", async () => {
-    await assertSucceeds(
+  // Owner decision, Oct 2026 (replaces the Sept 2026 one): once a resident
+  // is in a facility, family are view-only — the facility's caregivers and
+  // administrators keep the profile. See 'who may create and edit residents'.
+  it("a Family Caregiver linked to a facility resident cannot edit that resident's profile", async () => {
+    await assertFails(
       updateDoc(doc(as('familyA'), 'residents', 'residentFamily'), { preferredName: 'Fay' })
     );
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(as('familyA'), 'residents', 'residentFamily', 'private', 'lifeStory'), {
         career: 'Teacher',
       })
@@ -802,19 +807,25 @@ describe('family members see only linked residents (security fix)', () => {
     await assertSucceeds(getDocs(q));
   });
 
-  // Joining a facility only moves the family member's orgId; residents they
-  // created under their personal organization stay there (facilityId is
-  // still the personal org) and remain theirs through createdBy.
-  it('a Family Caregiver keeps residents from their personal organization after joining', async () => {
-    await env.withSecurityRulesDisabled((ctx) =>
-      setDoc(doc(ctx.firestore(), 'residents', 'residentPersonal'), {
+  // A resident the family member added in their own family (personal)
+  // organization stays theirs to read and edit through createdBy, for as
+  // long as it hasn't been moved into a facility.
+  it('a Family Caregiver keeps residents in their family organization', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'organizations', 'personalFamilyA'), {
+        name: null,
+        isPersonal: true,
+        createdBy: 'familyA',
+        adminId: 'familyA',
+      });
+      await setDoc(doc(ctx.firestore(), 'residents', 'residentPersonal'), {
         name: 'Mum',
         caregiverId: 'familyA',
         createdBy: 'familyA',
         facilityId: 'personalFamilyA',
         assignedCaregivers: ['familyA'],
-      })
-    );
+      });
+    });
     const db = as('familyA');
     await assertSucceeds(getDoc(doc(db, 'residents', 'residentPersonal')));
     await assertSucceeds(
@@ -1130,5 +1141,237 @@ describe('family members linked by a family code (familyMembers)', () => {
 
   it('a family member who is not linked still sees nothing', async () => {
     await assertFails(getDoc(doc(as('familyA'), 'residents', 'residentA')));
+  });
+});
+
+// Owner decisions, Oct 2026: who may create a resident and change the
+// profile (name, life story, profile photo, music/movie picks, archive).
+//   - Caregivers and Administrators: residents in their own facility.
+//   - Family Caregivers: only residents they added that are still at home
+//     (no organization, or their family organization) — view-only once the
+//     resident is in a facility.
+//   - Volunteers: never, not even a resident they created or are assigned to.
+// Favourites (the hearts) stay open to everyone linked to the resident.
+describe('who may create and edit residents', () => {
+  // familyHome has a family (personal) organization, as sign-up gives every
+  // Family Caregiver; familyNoOrg skipped that step and has none.
+  beforeEach(() =>
+    env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'users', 'familyHome'), { role: 'Family Caregiver', orgId: 'famOrg' });
+      await setDoc(doc(db, 'users', 'familyNoOrg'), { role: 'Family Caregiver' });
+      await setDoc(doc(db, 'organizations', 'famOrg'), {
+        name: null,
+        isPersonal: true,
+        createdBy: 'familyHome',
+        adminId: 'familyHome',
+      });
+      await setDoc(doc(db, 'residents', 'residentHome'), {
+        name: 'Dad',
+        caregiverId: 'familyHome',
+        createdBy: 'familyHome',
+        facilityId: 'famOrg',
+        assignedCaregivers: ['familyHome'],
+      });
+      await setDoc(doc(db, 'residents', 'residentNoOrg'), {
+        name: 'Gran',
+        caregiverId: 'familyNoOrg',
+        createdBy: 'familyNoOrg',
+        facilityId: null,
+        assignedCaregivers: ['familyNoOrg'],
+      });
+      // A resident a volunteer created back when the rules allowed it.
+      await setDoc(doc(db, 'residents', 'residentVol'), {
+        name: 'Val',
+        caregiverId: 'volunteerA',
+        createdBy: 'volunteerA',
+        facilityId: 'orgA',
+        assignedCaregivers: ['volunteerA'],
+      });
+      // As approveResidentMove leaves a resident that moved into orgA: the
+      // family member is on familyMembers, no longer the creator.
+      await setDoc(doc(db, 'residents', 'residentMoved'), {
+        name: 'Mo',
+        caregiverId: 'adminA',
+        createdBy: 'adminA',
+        facilityId: 'orgA',
+        assignedCaregivers: [],
+        familyMembers: ['familyHome'],
+      });
+    })
+  );
+
+  const newResident = (uid, facilityId) => ({
+    name: 'New',
+    caregiverId: uid,
+    createdBy: uid,
+    facilityId,
+    assignedCaregivers: [uid],
+  });
+  const create = (uid, facilityId) =>
+    addDoc(collection(as(uid), 'residents'), newResident(uid, facilityId));
+  const lifeStory = (uid, id) => doc(as(uid), 'residents', id, 'private', 'lifeStory');
+
+  describe('creating', () => {
+    it('a Volunteer cannot, in their facility or outside one', async () => {
+      await assertFails(create('volunteerA', 'orgA'));
+      await assertFails(create('volunteerA', null));
+    });
+
+    it('Caregivers and Administrators can, in their own facility only', async () => {
+      await assertSucceeds(create('caregiverA', 'orgA'));
+      await assertSucceeds(create('adminA', 'orgA'));
+      await assertFails(create('caregiverA', 'orgB'));
+      // Never facility-less: staff residents must belong to a facility.
+      await assertFails(create('caregiverA', null));
+      await assertFails(create('adminA', null));
+    });
+
+    it('a Family Caregiver can, at home: in their family organization or in none', async () => {
+      await assertSucceeds(create('familyHome', 'famOrg'));
+      await assertSucceeds(create('familyHome', null));
+      await assertSucceeds(create('familyNoOrg', null));
+    });
+
+    it('a Family Caregiver cannot create inside a facility', async () => {
+      // familyA's orgId is a real facility (an account from before family
+      // members stopped joining organizations).
+      await assertFails(create('familyA', 'orgA'));
+      await assertFails(create('familyHome', 'orgA'));
+    });
+  });
+
+  describe('editing the profile', () => {
+    it('a Volunteer cannot, even for a resident they created and are assigned to', async () => {
+      const resident = doc(as('volunteerA'), 'residents', 'residentVol');
+      await assertSucceeds(getDoc(resident));
+      await assertFails(updateDoc(resident, { name: 'Changed' }));
+      await assertFails(updateDoc(resident, { preferredName: 'V' }));
+      await assertFails(updateDoc(resident, { selectedMusicVideoIds: ['v'] }));
+      await assertFails(updateDoc(resident, { archived: true }));
+      await assertFails(updateDoc(resident, { photoPath: 'residents/residentVol/profile.jpg' }));
+      await assertFails(setDoc(lifeStory('volunteerA', 'residentVol'), { career: 'x' }));
+    });
+
+    it('Caregivers and Administrators can, for any resident in their facility', async () => {
+      await assertSucceeds(
+        updateDoc(doc(as('caregiverA'), 'residents', 'residentVol'), { name: 'Valerie' })
+      );
+      await assertSucceeds(setDoc(lifeStory('adminA', 'residentVol'), { career: 'Baker' }));
+      await assertSucceeds(
+        updateDoc(doc(as('adminA'), 'residents', 'residentMoved'), { selectedMovieVideoIds: ['m'] })
+      );
+    });
+
+    it('a Family Caregiver can, for their own at-home resident', async () => {
+      await assertSucceeds(
+        updateDoc(doc(as('familyHome'), 'residents', 'residentHome'), {
+          name: 'Dad',
+          preferredName: 'Pops',
+          selectedMusicVideoIds: ['v'],
+        })
+      );
+      await assertSucceeds(setDoc(lifeStory('familyHome', 'residentHome'), { career: 'Welder' }));
+      // No organization at all.
+      await assertSucceeds(
+        updateDoc(doc(as('familyNoOrg'), 'residents', 'residentNoOrg'), { name: 'Granny' })
+      );
+      await assertSucceeds(setDoc(lifeStory('familyNoOrg', 'residentNoOrg'), { career: 'Nurse' }));
+    });
+
+    it("a Family Caregiver cannot edit another family's at-home resident", async () => {
+      await assertFails(getDoc(doc(as('familyNoOrg'), 'residents', 'residentHome')));
+      await assertFails(
+        updateDoc(doc(as('familyNoOrg'), 'residents', 'residentHome'), { name: 'x' })
+      );
+    });
+
+    it('a Family Caregiver is view-only once their resident has moved into a facility', async () => {
+      const resident = doc(as('familyHome'), 'residents', 'residentMoved');
+      await assertSucceeds(getDoc(resident));
+      await assertFails(updateDoc(resident, { name: 'Changed' }));
+      await assertFails(updateDoc(resident, { archived: true }));
+      await assertFails(setDoc(lifeStory('familyHome', 'residentMoved'), { career: 'x' }));
+    });
+
+    it('even as the creator, a Family Caregiver cannot edit a resident that is in a facility', async () => {
+      // residentHome is still created by familyHome, but now sits in orgA.
+      await env.withSecurityRulesDisabled((ctx) =>
+        updateDoc(doc(ctx.firestore(), 'residents', 'residentHome'), { facilityId: 'orgA' })
+      );
+      await assertFails(
+        updateDoc(doc(as('familyHome'), 'residents', 'residentHome'), { name: 'Changed' })
+      );
+      await assertFails(setDoc(lifeStory('familyHome', 'residentHome'), { career: 'x' }));
+    });
+
+    it('nobody can move a resident or start a move request from the app', async () => {
+      const resident = doc(as('familyHome'), 'residents', 'residentHome');
+      await assertFails(updateDoc(resident, { facilityId: 'orgA' }));
+      await assertFails(updateDoc(resident, { pendingFacilityId: 'orgA' }));
+      await assertFails(
+        updateDoc(doc(as('adminA'), 'residents', 'residentHome'), { facilityId: 'orgA' })
+      );
+    });
+  });
+
+  describe('favourites', () => {
+    const heart = (uid, id) =>
+      updateDoc(doc(as(uid), 'residents', id), {
+        favouriteMusicVideoIds: ['v'],
+        favouriteMovieVideoIds: ['m'],
+      });
+
+    it('anyone linked to the resident can change them, volunteers and view-only family included', async () => {
+      await assertSucceeds(heart('volunteerA', 'residentA'));
+      await assertSucceeds(heart('familyHome', 'residentMoved'));
+      await assertSucceeds(heart('familyA', 'residentFamily'));
+      await assertSucceeds(heart('caregiverA', 'residentA'));
+      await assertSucceeds(heart('familyHome', 'residentHome'));
+    });
+
+    it('but nothing else can ride along with them', async () => {
+      await assertFails(
+        updateDoc(doc(as('volunteerA'), 'residents', 'residentA'), {
+          favouriteMusicVideoIds: ['v'],
+          name: 'Changed',
+        })
+      );
+    });
+
+    it('people not linked to the resident cannot', async () => {
+      await assertFails(heart('caregiverB', 'residentA'));
+      await assertFails(heart('familyA', 'residentA'));
+    });
+  });
+
+  describe('archiving', () => {
+    const archive = (uid, id, archived = true) =>
+      updateDoc(doc(as(uid), 'residents', id), {
+        archived,
+        archivedAt: archived ? serverTimestamp() : deleteField(),
+      });
+
+    it('Caregivers and Administrators can archive and restore in their facility', async () => {
+      await assertSucceeds(archive('caregiverA', 'residentA'));
+      await assertSucceeds(archive('adminA', 'residentA', false));
+    });
+
+    it('a Family Caregiver can archive and restore their own at-home resident', async () => {
+      await assertSucceeds(archive('familyHome', 'residentHome'));
+      await assertSucceeds(archive('familyHome', 'residentHome', false));
+    });
+
+    it('Volunteers, view-only family and other facilities cannot', async () => {
+      await assertFails(archive('volunteerA', 'residentA'));
+      await assertFails(archive('familyHome', 'residentMoved'));
+      await assertFails(archive('caregiverB', 'residentA'));
+    });
+
+    it('archived must be true or false', async () => {
+      await assertFails(
+        updateDoc(doc(as('caregiverA'), 'residents', 'residentA'), { archived: 'yes' })
+      );
+    });
   });
 });

@@ -146,3 +146,32 @@ describe('weekStart', () => {
     expect(weekStart(new Date(2026, 8, 21, 9))).toEqual(new Date(2026, 8, 21));
   });
 });
+
+// deleteResident keeps a deleted resident's visits (so hours and totals stay
+// right) but clears their residentId. Those must not be mistaken for Guest
+// Mode visits just because they have no resident.
+describe('summarizeFacility after a resident is deleted', () => {
+  it('counts the time in the facility total, not as a guest visit', () => {
+    const sessions = [
+      {
+        activityId: 'music',
+        durationSeconds: 600,
+        residentId: null,
+        isGuest: false,
+        startedAt: daysAgo(1),
+      },
+      {
+        activityId: 'music',
+        durationSeconds: 60,
+        residentId: null,
+        isGuest: true,
+        startedAt: daysAgo(1),
+      },
+    ];
+    const s = summarizeFacility(sessions, [{ id: 'a', name: 'Ann' }], { days: 30, now: NOW });
+    expect(s.totalSeconds).toBe(660);
+    expect(s.guestSessions).toBe(1);
+    expect(s.guestSeconds).toBe(60);
+    expect(s.residents).toMatchObject([{ residentId: 'a', seconds: 0 }]);
+  });
+});

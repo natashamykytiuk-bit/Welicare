@@ -15,7 +15,12 @@
 // fakeDb() stands in for Firestore: doc(path).get() over a plain object.
 // Residents here are fictional.
 
-import { linkedToResident, loadResidentContext } from '../functions/residentAccess';
+import {
+  isAtHomeResident,
+  linkedToResident,
+  loadResidentContext,
+  mayDeleteResident,
+} from '../functions/residentAccess';
 
 function fakeDb(docs) {
   return {
@@ -129,5 +134,53 @@ describe('loadResidentContext', () => {
       )
     );
     await expect(loadResidentContext(db, 'r1', 'me')).rejects.toThrow('unavailable');
+  });
+});
+
+// Who may permanently delete a resident (the deleteResident function), and
+// what counts as "at home" for a family member.
+describe('mayDeleteResident', () => {
+  const facility = { name: 'Maple', isPersonal: false, createdBy: 'admin' };
+  const familyOrg = { name: null, isPersonal: true, createdBy: 'fam' };
+  const inFacility = { name: 'Ann', facilityId: 'orgA', createdBy: 'care' };
+  const atHome = { name: 'Dad', facilityId: 'famOrg', createdBy: 'fam', caregiverId: 'fam' };
+
+  it('an Administrator of the resident’s own facility can', () => {
+    const admin = { role: 'Administrator', orgId: 'orgA' };
+    expect(mayDeleteResident(inFacility, admin, 'admin', facility)).toBe(true);
+    expect(mayDeleteResident(inFacility, { ...admin, orgId: 'orgB' }, 'admin', facility)).toBe(
+      false
+    );
+  });
+
+  it('Caregivers and Volunteers cannot, even in the facility or as the creator', () => {
+    expect(
+      mayDeleteResident(inFacility, { role: 'Caregiver', orgId: 'orgA' }, 'care', facility)
+    ).toBe(false);
+    expect(
+      mayDeleteResident(inFacility, { role: 'Volunteer', orgId: 'orgA' }, 'vol', facility)
+    ).toBe(false);
+  });
+
+  it('a Family Caregiver can for a resident they added that is still at home', () => {
+    const family = { role: 'Family Caregiver', orgId: 'famOrg' };
+    expect(mayDeleteResident(atHome, family, 'fam', familyOrg)).toBe(true);
+    expect(mayDeleteResident({ ...atHome, facilityId: null }, family, 'fam', null)).toBe(true);
+  });
+
+  it('a Family Caregiver cannot once the resident is in a facility, or for someone else’s', () => {
+    const family = { role: 'Family Caregiver', orgId: 'famOrg' };
+    // Still recorded as the creator, but the resident now lives in orgA.
+    expect(mayDeleteResident({ ...atHome, facilityId: 'orgA' }, family, 'fam', facility)).toBe(
+      false
+    );
+    expect(mayDeleteResident(atHome, family, 'someone-else', familyOrg)).toBe(false);
+    // Someone else's family organization doesn't count as home either.
+    expect(isAtHomeResident(atHome, { ...familyOrg, createdBy: 'other' }, 'fam')).toBe(false);
+  });
+
+  it('is false for a missing resident or profile', () => {
+    expect(mayDeleteResident(undefined, { role: 'Administrator' }, 'x', null)).toBe(false);
+    expect(mayDeleteResident(inFacility, undefined, 'x', facility)).toBe(false);
   });
 });

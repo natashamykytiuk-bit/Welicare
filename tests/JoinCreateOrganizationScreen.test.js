@@ -17,7 +17,14 @@
 // outside of those helpers (here, resolving our hand-made promise).
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import JoinCreateOrganizationScreen from '../screens/JoinCreateOrganizationScreen';
+import { createPersonalOrganization } from '../utils/inviteCode';
 import { docSnap, firestore } from './mocks/firebase';
+
+// The family path retries setting up the family organization; that has its
+// own tests (tests/helpers.test.js), so here it's just a spy.
+jest.mock('../utils/inviteCode', () => ({
+  createPersonalOrganization: jest.fn(async () => 'fam'),
+}));
 
 // The screen only uses navigation.navigate/reset; a plain object with
 // jest.fn()s is enough, and lets us check where it tried to go.
@@ -40,10 +47,34 @@ describe('JoinCreateOrganizationScreen', () => {
     // While the load is still pending, the options aren't there yet.
     expect(screen.queryByLabelText('Join an organization')).toBeNull();
 
-    // Now let the load finish: options appear, and a Caregiver may skip.
-    await act(async () => finishLoad(docSnap({ role: 'Family Caregiver' })));
+    // Now let the load finish: the options appear, with no way to skip.
+    await act(async () => finishLoad(docSnap({ role: 'Caregiver' })));
     expect(await screen.findByLabelText('Join an organization')).toBeTruthy();
-    expect(screen.getByLabelText('Skip this step')).toBeTruthy();
+    expect(screen.getByLabelText('Create an organization')).toBeTruthy();
+    expect(screen.queryByLabelText('Skip this step')).toBeNull();
+  });
+
+  // Family accounts never join or create an organization, so they get an
+  // explanation and Continue instead of the two cards.
+  it('gives a Family Caregiver Continue instead of Join / Create', async () => {
+    firestore.getDoc.mockResolvedValueOnce(docSnap({ role: 'Family Caregiver' }));
+    await render(<JoinCreateOrganizationScreen navigation={navigation} />);
+    const next = await screen.findByLabelText('Continue');
+    expect(screen.queryByLabelText('Join an organization')).toBeNull();
+    expect(screen.queryByLabelText('Create an organization')).toBeNull();
+
+    await fireEvent.press(next);
+    // One more try at the family organization sign-up couldn't create.
+    expect(createPersonalOrganization).toHaveBeenCalledTimes(1);
+    expect(firestore.setDoc).toHaveBeenCalledWith(
+      expect.anything(),
+      { orgStepSkipped: true },
+      { merge: true }
+    );
+    expect(navigation.reset).toHaveBeenCalledWith({
+      index: 0,
+      routes: [{ name: 'ModeSelection' }],
+    });
   });
 
   it('hides Skip for administrators', async () => {
@@ -53,7 +84,7 @@ describe('JoinCreateOrganizationScreen', () => {
     expect(screen.queryByLabelText('Skip this step')).toBeNull();
   });
 
-  it('hides Skip for volunteers — only Family Caregivers can skip', async () => {
+  it('hides Skip for volunteers — nobody who works for a facility can skip', async () => {
     firestore.getDoc.mockResolvedValueOnce(docSnap({ role: 'Volunteer' }));
     await render(<JoinCreateOrganizationScreen navigation={navigation} />);
     await screen.findByLabelText('Join an organization');

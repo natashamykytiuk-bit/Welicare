@@ -85,4 +85,40 @@ async function loadResidentContext(db, residentId, uid) {
   return { lifeStory, topicsToAvoid };
 }
 
-module.exports = { linkedToResident, loadResidentContext };
+// Whether a resident is still "at home" with the family member `uid`: in no
+// organization, or in that person's own family (personal) organization.
+// `org` is the resident's organization doc, or null. Same idea as atHome()
+// in firestore.rules, with the extra check that the family organization is
+// really this person's.
+function isAtHomeResident(resident, org, uid) {
+  if (resident.facilityId == null) return true;
+  return org?.isPersonal === true && org.createdBy === uid;
+}
+
+// Who may permanently delete a resident (the deleteResident function in
+// index.js — the app itself can't delete residents at all):
+// - an Administrator of the resident's own facility. Not Caregivers, who
+//   archive instead: deleting removes the resident for everyone.
+// - the Family Caregiver who added an at-home resident. Nobody else has any
+//   claim on it, so it's theirs to remove.
+// `org` is the resident's organization doc, or null if it has none.
+function mayDeleteResident(resident, user, uid, org) {
+  if (!resident || !user) return false;
+  if (user.role === 'Administrator') {
+    return (
+      resident.facilityId != null &&
+      user.orgId === resident.facilityId &&
+      // A family organization has no administrator to speak of.
+      org?.isPersonal !== true
+    );
+  }
+  if (user.role === 'Family Caregiver') {
+    return (
+      (resident.createdBy === uid || resident.caregiverId === uid) &&
+      isAtHomeResident(resident, org, uid)
+    );
+  }
+  return false;
+}
+
+module.exports = { linkedToResident, loadResidentContext, isAtHomeResident, mayDeleteResident };

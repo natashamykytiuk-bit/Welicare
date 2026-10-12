@@ -15,6 +15,7 @@ setGlobalOptions({ region: 'northamerica-northeast1', maxInstances: 10 });
 
 const { requireVerified, requireRecentLogin } = require('./authChecks');
 const { ACTIONS, logAudit, orgIsLogged, auditTriggers } = require('./auditLog');
+const { isAtHomeResident, mayDeleteResident } = require('./residentAccess');
 
 // AI suggestions and YouTube search live in their own files; exported here
 // so Firebase deploys them. They're required AFTER setGlobalOptions above,
@@ -330,13 +331,30 @@ exports.listOrgMembers = onCall(async (request) => {
   const db = getAdmin().firestore();
   const orgId = request.data?.orgId;
   await requireOrgOwner(db, orgId, request.auth.uid);
-  const [snap, residents, pendingSnap] = await Promise.all([
+  const [snap, residents, pendingSnap, movesSnap] = await Promise.all([
     db.collection('users').where('orgId', '==', orgId).get(),
     db.collection('residents').where('facilityId', '==', orgId).get(),
     // People who used the invite code and are waiting for approval (see
     // joinOrganization) — shown at the top of Manage Users.
     db.collection('users').where('pendingOrgId', '==', orgId).get(),
+    // At-home residents a family member has asked to move into this
+    // organization (see requestResidentMove) — also approved in Manage Users.
+    db.collection('residents').where('pendingFacilityId', '==', orgId).get(),
   ]);
+  // Who asked for each move. Looked up here because firestore.rules only let
+  // a user read their own profile; names only, like the member list.
+  const requesterIds = [
+    ...new Set(movesSnap.docs.map((d) => d.data().pendingMoveBy).filter(Boolean)),
+  ];
+  const requesterSnaps = requesterIds.length
+    ? await db.getAll(...requesterIds.map((id) => db.doc(`users/${id}`)))
+    : [];
+  const requesterName = Object.fromEntries(
+    requesterSnaps.map((s) => [
+      s.id,
+      (s.exists && (s.data().fullName || s.data().username)) || 'A family member',
+    ])
+  );
   // How many of the facility's residents each member is assigned to — shown
   // on Manage Users so an admin can review who has access to whom.
   const assignedCount = {};
@@ -364,6 +382,17 @@ exports.listOrgMembers = onCall(async (request) => {
       }))
       // Oldest request first, so nobody waits at the bottom of the list.
       .sort((a, b) => (a.requestedAt ?? 0) - (b.requestedAt ?? 0)),
+    // Only the resident's name and who is asking: the administrator decides
+    // whether to take the resident on, and sees the profile once they have.
+    pendingMoves: movesSnap.docs
+      .map((d) => ({
+        residentId: d.id,
+        residentName: d.data().name || 'Unnamed resident',
+        requestedByUid: d.data().pendingMoveBy ?? null,
+        requestedByName: requesterName[d.data().pendingMoveBy] ?? 'A family member',
+        requestedAt: d.data().pendingMoveAt?.toMillis?.() ?? null,
+      }))
+      .sort((a, b) => (a.requestedAt ?? 0) - (b.requestedAt ?? 0)),
   };
 });
 
@@ -372,8 +401,7 @@ exports.listOrgMembers = onCall(async (request) => {
 // trusts, so only from this moment can they see the facility's residents.
 // Owner-only and checked in one transaction against current data, so a
 // request that was cancelled, denied or replaced a moment ago isn't
-// approved by mistake. A Family Caregiver on a personal organization moves
-// to this one, the same as joining used to do.
+// approved by mistake.
 exports.approveOrgMember = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
@@ -620,12 +648,19 @@ exports.deleteOrganization = onCall(async (request) => {
     // People still waiting for approval: their request is dropped so they
     // aren't left on the pending screen for an org that no longer exists.
     const pending = await db.collection('users').where('pendingOrgId', '==', orgId).get();
+    // Same for at-home residents waiting to move in (requestResidentMove):
+    // the request is dropped and the resident simply stays at home.
+    const pendingMoves = await db
+      .collection('residents')
+      .where('pendingFacilityId', '==', orgId)
+      .get();
     const found =
       residents.size +
       music.size +
       movies.size +
       members.size +
       pending.size +
+      pendingMoves.size +
       codes.size +
       familyCodes.size +
       audit.size;
@@ -654,6 +689,13 @@ exports.deleteOrganization = onCall(async (request) => {
       writer.update(snap.ref, {
         pendingOrgId: FieldValue.delete(),
         pendingSince: FieldValue.delete(),
+      });
+    }
+    for (const snap of pendingMoves.docs) {
+      writer.update(snap.ref, {
+        pendingFacilityId: FieldValue.delete(),
+        pendingMoveBy: FieldValue.delete(),
+        pendingMoveAt: FieldValue.delete(),
       });
     }
     // Its invite codes go too, so an old code can't point at a deleted org.
@@ -687,8 +729,8 @@ exports.deleteOrganization = onCall(async (request) => {
 //   organizations/{orgId}/private/invite  { code } — the current code,
 //                         readable only by the org's own members, so
 //                         OrgIdBadge and the settings screens can show it.
-// Both are written only here, which is why creating an organization and
-// upgrading a personal one are Cloud Functions too.
+// Both are written only here, which is why creating an organization is a
+// Cloud Function too.
 // ---------------------------------------------------------------------------
 
 // Invite codes are 8 characters (decided over the original 6-character
@@ -781,6 +823,10 @@ async function readUserRequiringNoRealOrg(tx, db, uid, message) {
   return user;
 }
 
+// Shown when a Family Caregiver tries to create or join an organization.
+const FAMILY_NO_ORGANIZATION =
+  'Family accounts connect to a care home one resident at a time. Ask the care team for a family code, or use "Move to an organization" on a resident in My Residents.';
+
 // Creates a real (non-personal) organization owned by the caller and links
 // them to it. Server-side because the org needs an invite code minted in
 // the same step, and firestore.rules only let the app create personal orgs.
@@ -805,7 +851,18 @@ exports.createOrganization = onCall(async (request) => {
 
   const code = await db.runTransaction(async (tx) => {
     // Reads
-    await readUserRequiringNoRealOrg(tx, db, uid, "You're already part of an organization.");
+    const user = await readUserRequiringNoRealOrg(
+      tx,
+      db,
+      uid,
+      "You're already part of an organization."
+    );
+    // A Family Caregiver's organization is always their own family one (made
+    // at sign-up). They reach a care home one resident at a time instead —
+    // a family code, or requestResidentMove — so they never run a facility.
+    if (user.role === 'Family Caregiver') {
+      throw new HttpsError('permission-denied', FAMILY_NO_ORGANIZATION);
+    }
     const newCode = await pickFreeInviteCode(tx, db);
     // Writes (all-or-nothing)
     tx.create(orgRef, {
@@ -830,46 +887,6 @@ exports.createOrganization = onCall(async (request) => {
     return newCode;
   });
   return { orgId: orgRef.id, inviteCode: code };
-});
-
-// Turns the caller's personal organization into a real, shareable one in
-// place (same orgId, so its residents and library entries carry over).
-// One transaction: rename + un-personal the org + its first invite code.
-exports.upgradePersonalOrganization = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'You must be signed in.');
-  }
-  requireVerified(request);
-  const uid = request.auth.uid;
-  const name = typeof request.data?.name === 'string' ? request.data.name.trim() : '';
-  if (!name) {
-    throw new HttpsError('invalid-argument', 'Please enter an organization name.');
-  }
-  const db = getAdmin().firestore();
-
-  return db.runTransaction(async (tx) => {
-    // Reads
-    const orgId = (await tx.get(db.doc(`users/${uid}`))).data()?.orgId;
-    const orgRef = orgId ? db.doc(`organizations/${orgId}`) : null;
-    const org = orgRef ? (await tx.get(orgRef)).data() : null;
-    if (!org || org.createdBy !== uid) {
-      throw new HttpsError('failed-precondition', 'No organization to upgrade.');
-    }
-    if (org.isPersonal !== true) {
-      throw new HttpsError('failed-precondition', 'Your organization has already been upgraded.');
-    }
-    const code = await pickFreeInviteCode(tx, db);
-    // Writes
-    tx.update(orgRef, { name, isPersonal: false });
-    // Now running their own org, so drop any request waiting elsewhere.
-    const { FieldValue } = require('firebase-admin/firestore');
-    tx.update(db.doc(`users/${uid}`), {
-      pendingOrgId: FieldValue.delete(),
-      pendingSince: FieldValue.delete(),
-    });
-    writeInviteCode(tx, db, { orgId, code, uid, previous: null });
-    return { orgId, inviteCode: code };
-  });
 });
 
 // Revokes the organization's current invite code and issues a new one —
@@ -1030,12 +1047,19 @@ exports.joinOrganization = onCall(async (request) => {
   // The request itself — one transaction: record it + count the code's use.
   const result = await db.runTransaction(async (tx) => {
     // Reads
-    await readUserRequiringNoRealOrg(
+    const user = await readUserRequiringNoRealOrg(
       tx,
       db,
       uid,
       "You're already part of an organization. Contact an administrator if you need to switch."
     );
+    // Family Caregivers never become members of a facility: membership
+    // would be the wrong shape for them (staff see every resident). Their
+    // two routes are a family code and requestResidentMove, both of which
+    // link them to one resident, view-only.
+    if (user.role === 'Family Caregiver') {
+      throw new HttpsError('permission-denied', FAMILY_NO_ORGANIZATION);
+    }
     const invite = (await tx.get(codeRef)).data();
     if (!invite || invite.revoked === true) throw notFound;
     if (invite.expiresAt && invite.expiresAt.toMillis() < Timestamp.now().toMillis()) {
@@ -1295,6 +1319,367 @@ exports.unlinkFamilyMember = onCall(async (request) => {
     actorUid: request.auth.uid,
     targetUid: memberUid,
     detail: resident.name ?? null,
+  });
+  return { ok: true };
+});
+
+// ---------------------------------------------------------------------------
+// Residents: permanent deletion, and moving an at-home resident into a
+// facility.
+//
+// Both are Cloud Functions because the app can't do either under
+// firestore.rules, on purpose:
+// - Deleting has to remove far more than the resident doc (see
+//   deleteResident), including files in Storage and other people's records.
+// - Moving changes facilityId and who is linked to the resident — fields the
+//   rules never let the app write, since they decide who has access.
+// ---------------------------------------------------------------------------
+
+// Checks a residentId from the app is a plain document id (never a path).
+function requireResidentId(residentId) {
+  if (typeof residentId !== 'string' || !residentId || residentId.includes('/')) {
+    throw new HttpsError('invalid-argument', 'residentId is required.');
+  }
+  return residentId;
+}
+
+// Permanently deletes a resident and everything held about them:
+// - the life story and safety notes (residents/{id}/private/*),
+// - the photo album and profile photo: the photos/* docs and every file
+//   under residents/{id}/ in Cloud Storage,
+// - their family codes, so an unused code can't point at nothing,
+// - the resident doc itself, last — so if anything above fails, the
+//   resident is still there and the delete can simply be run again.
+//
+// Activity records (activitySessions) are kept, because the facility's
+// totals and volunteers' hours are counted from them — but each one's
+// residentId is cleared, so nothing in them points at the person any more.
+// They never held a name or any profile details to begin with.
+//
+// Who may delete is decided by mayDeleteResident (residentAccess.js): an
+// Administrator of the resident's facility, or the Family Caregiver who
+// added an at-home resident. The app shows a "this is permanent" warning
+// first; nothing here can be undone.
+exports.deleteResident = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  requireVerified(request);
+  const uid = request.auth.uid;
+  const residentId = requireResidentId(request.data?.residentId);
+  const admin = getAdmin();
+  const db = admin.firestore();
+  const residentRef = db.doc(`residents/${residentId}`);
+
+  const [residentSnap, userSnap] = await Promise.all([
+    residentRef.get(),
+    db.doc(`users/${uid}`).get(),
+  ]);
+  const resident = residentSnap.data();
+  // One message whether the resident doesn't exist or the caller isn't
+  // allowed, so the reply doesn't confirm which ids are real.
+  const refused = new HttpsError('permission-denied', "You can't delete this resident.");
+  if (!resident) throw refused;
+  const org = resident.facilityId
+    ? ((await db.doc(`organizations/${resident.facilityId}`).get()).data() ?? null)
+    : null;
+  if (!mayDeleteResident(resident, userSnap.data(), uid, org)) throw refused;
+
+  // Everything except the resident doc, every write checked
+  // (trackedBulkWriter). All of it is safe to repeat.
+  const writer = trackedBulkWriter(db, 'deleteResident');
+  await deleteResidentPhotos(admin, writer, residentRef);
+  writer.delete(residentRef.collection('private').doc('lifeStory'));
+  writer.delete(residentRef.collection('private').doc('safety'));
+  // Single-field queries, so no composite index is needed.
+  const [codes, sessions] = await Promise.all([
+    db.collection('familyCodes').where('residentId', '==', residentId).get(),
+    db.collection('activitySessions').where('residentId', '==', residentId).get(),
+  ]);
+  for (const snap of codes.docs) writer.delete(snap.ref);
+  for (const snap of sessions.docs) writer.update(snap.ref, { residentId: null });
+  await writer.finish();
+
+  // Only now the resident itself.
+  await residentRef.delete();
+
+  // Logged here (with who did it) rather than by the auditResidentDeleted
+  // trigger, which can't tell who called a function.
+  if (await orgIsLogged(db, resident.facilityId)) {
+    await logAudit(db, {
+      orgId: resident.facilityId,
+      action: ACTIONS.residentDeleted,
+      actorUid: uid,
+      targetUid: null,
+      targetName: resident.name ?? null,
+    });
+  }
+  return { ok: true, sessionsKept: sessions.size };
+});
+
+// Clears a move request from a resident doc (cancelled, denied, or done).
+function clearedMoveRequest(FieldValue) {
+  return {
+    pendingFacilityId: FieldValue.delete(),
+    pendingMoveBy: FieldValue.delete(),
+    pendingMoveAt: FieldValue.delete(),
+  };
+}
+
+// Asks to move one at-home resident into a care facility, using the
+// facility's invite code. This is how a Family Caregiver connects a relative
+// they've been looking after at home to the care home they're moving into —
+// per resident, so another relative can stay at home and fully theirs.
+//
+// Two steps, because the family member is giving something up:
+//   1. Called without `confirmed`: checks everything and returns the
+//      organization's name with needsConfirmation — nothing is written. The
+//      app then shows the "you'll be able to view but not edit" warning.
+//   2. Called again with confirmed: true: records the request on the
+//      resident (pendingFacilityId / pendingMoveBy / pendingMoveAt).
+// Even then nothing moves: the facility's administrator approves it in
+// Manage Users (approveResidentMove), the same way a staff join request is
+// approved — otherwise anyone holding a facility's code could push
+// residents into it.
+//
+// Shares joinOrganization's rate limit, since both guess at invite codes,
+// and gives the same reply for every "this code doesn't work" case.
+exports.requestResidentMove = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  requireVerified(request);
+  const uid = request.auth.uid;
+  const residentId = requireResidentId(request.data?.residentId);
+  const confirmed = request.data?.confirmed === true;
+  const code = normalizeInviteCode(request.data?.code);
+  if (!code) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Please enter the 8-character code from the organization, like MGK7-4TXR.'
+    );
+  }
+  const db = getAdmin().firestore();
+  const { FieldValue, Timestamp } = require('firebase-admin/firestore');
+
+  // Rate limit — committed even when the request below fails (see
+  // joinOrganization, whose counter this shares).
+  const limitRef = db.doc(`rateLimits/join_${uid}`);
+  await db.runTransaction(async (tx) => {
+    const now = Date.now();
+    const data = (await tx.get(limitRef)).data();
+    const inWindow = !!data && now - data.windowStart < JOIN_WINDOW_MS;
+    const count = inWindow ? data.count : 0;
+    if (count >= JOIN_MAX_ATTEMPTS) {
+      throw new HttpsError(
+        'resource-exhausted',
+        'Too many attempts. Please wait 15 minutes and try again.'
+      );
+    }
+    tx.set(limitRef, { windowStart: inWindow ? data.windowStart : now, count: count + 1 });
+  });
+
+  const notFound = new HttpsError(
+    'not-found',
+    'No organization found with that code. Please check it and try again.'
+  );
+  const codeRef = db.doc(`inviteCodes/${code}`);
+  const residentRef = db.doc(`residents/${residentId}`);
+
+  const result = await db.runTransaction(async (tx) => {
+    // Reads
+    const [residentSnap, userSnap] = await Promise.all([
+      tx.get(residentRef),
+      tx.get(db.doc(`users/${uid}`)),
+    ]);
+    const resident = residentSnap.data();
+    const isCreator = !!resident && (resident.createdBy === uid || resident.caregiverId === uid);
+    if (userSnap.data()?.role !== 'Family Caregiver' || !isCreator) {
+      throw new HttpsError(
+        'permission-denied',
+        'Only the family member who added this resident can move them.'
+      );
+    }
+    const homeOrg = resident.facilityId
+      ? ((await tx.get(db.doc(`organizations/${resident.facilityId}`))).data() ?? null)
+      : null;
+    if (!isAtHomeResident(resident, homeOrg, uid)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'This resident is already part of an organization.'
+      );
+    }
+    if (resident.archived === true) {
+      throw new HttpsError(
+        'failed-precondition',
+        'This resident is archived. Restore them before moving them.'
+      );
+    }
+    const invite = (await tx.get(codeRef)).data();
+    if (!invite || invite.revoked === true) throw notFound;
+    if (invite.expiresAt && invite.expiresAt.toMillis() < Timestamp.now().toMillis()) {
+      throw notFound;
+    }
+    if (typeof invite.maxUses === 'number' && (invite.uses ?? 0) >= invite.maxUses) {
+      throw notFound;
+    }
+    // A deleted org, or one being deleted right now, can't take residents;
+    // nor can somebody's family organization.
+    const targetOrg = await tx.get(db.doc(`organizations/${invite.orgId}`));
+    if (
+      !targetOrg.exists ||
+      targetOrg.data().status === 'deleting' ||
+      targetOrg.data().isPersonal === true
+    ) {
+      throw notFound;
+    }
+    const orgName = targetOrg.data().name ?? null;
+    // Step 1: everything checks out, but the family member hasn't seen the
+    // warning yet — tell the app what to ask, and write nothing.
+    if (!confirmed) return { needsConfirmation: true, pending: false, orgId: null, orgName };
+    // Step 2 writes. A new request replaces an earlier one for this resident.
+    tx.update(residentRef, {
+      pendingFacilityId: invite.orgId,
+      pendingMoveBy: uid,
+      pendingMoveAt: FieldValue.serverTimestamp(),
+    });
+    tx.update(codeRef, { uses: FieldValue.increment(1) });
+    return {
+      needsConfirmation: false,
+      pending: true,
+      orgId: invite.orgId,
+      orgName,
+      residentName: resident.name ?? null,
+    };
+  });
+
+  // A working code clears the counter, so honest typos don't pile up.
+  await limitRef.delete();
+  if (result.pending) {
+    await logAudit(db, {
+      orgId: result.orgId,
+      action: ACTIONS.residentMoveRequested,
+      actorUid: uid,
+      detail: result.residentName,
+    });
+  }
+  return {
+    needsConfirmation: result.needsConfirmation,
+    pending: result.pending,
+    orgName: result.orgName,
+  };
+});
+
+// Withdraws a move request that hasn't been decided yet (My Residents →
+// Cancel request). Only the family member who made it; the resident simply
+// stays at home.
+exports.cancelResidentMove = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  requireVerified(request);
+  const uid = request.auth.uid;
+  const residentId = requireResidentId(request.data?.residentId);
+  const db = getAdmin().firestore();
+  const { FieldValue } = require('firebase-admin/firestore');
+  const residentRef = db.doc(`residents/${residentId}`);
+  await db.runTransaction(async (tx) => {
+    const resident = (await tx.get(residentRef)).data();
+    if (!resident || resident.pendingMoveBy !== uid || !resident.pendingFacilityId) {
+      throw new HttpsError('not-found', 'That request is no longer waiting for approval.');
+    }
+    tx.update(residentRef, clearedMoveRequest(FieldValue));
+  });
+  return { ok: true };
+});
+
+// Approves a move request (Manage Users → Approve): the resident joins this
+// facility, and from this moment its Caregivers and Administrators keep the
+// profile.
+// - facilityId becomes this organization, so staff (and volunteers) see the
+//   resident like any other.
+// - Ownership (createdBy / caregiverId) passes to the administrator and the
+//   family member comes off assignedCaregivers — the rules treat a creator
+//   specially, and the family member must not keep that.
+// - The family member goes on familyMembers instead: exactly the view-only
+//   link a family code gives (see redeemFamilyCode), which staff can see and
+//   remove from the resident's Family access card.
+// Owner-only, and checked in one transaction against current data, so a
+// request that was cancelled a moment ago isn't approved by mistake.
+exports.approveResidentMove = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  requireVerified(request);
+  const ownerUid = request.auth.uid;
+  const orgId = request.data?.orgId;
+  const residentId = requireResidentId(request.data?.residentId);
+  const db = getAdmin().firestore();
+  const { FieldValue } = require('firebase-admin/firestore');
+  const residentRef = db.doc(`residents/${residentId}`);
+  const moved = await db.runTransaction(async (tx) => {
+    await requireOrgOwnerTx(tx, db, orgId, ownerUid);
+    const resident = (await tx.get(residentRef)).data();
+    if (!resident || resident.pendingFacilityId !== orgId || !resident.pendingMoveBy) {
+      throw new HttpsError('not-found', 'That request is no longer waiting for approval.');
+    }
+    // It may have been moved somewhere else since the request was made.
+    const homeOrg = resident.facilityId
+      ? ((await tx.get(db.doc(`organizations/${resident.facilityId}`))).data() ?? null)
+      : null;
+    if (!isAtHomeResident(resident, homeOrg, resident.pendingMoveBy)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'This resident is already part of an organization.'
+      );
+    }
+    tx.update(residentRef, {
+      facilityId: orgId,
+      createdBy: ownerUid,
+      caregiverId: ownerUid,
+      assignedCaregivers: [],
+      familyMembers: FieldValue.arrayUnion(resident.pendingMoveBy),
+      ...clearedMoveRequest(FieldValue),
+    });
+    return { familyUid: resident.pendingMoveBy, name: resident.name ?? null };
+  });
+  await logAudit(db, {
+    orgId,
+    action: ACTIONS.residentMoved,
+    actorUid: ownerUid,
+    targetUid: moved.familyUid,
+    detail: moved.name,
+  });
+  return { ok: true };
+});
+
+// Declines a move request (Manage Users → Deny). Only the request is
+// cleared; the resident stays at home with their family member, unchanged.
+exports.denyResidentMove = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  requireVerified(request);
+  const orgId = request.data?.orgId;
+  const residentId = requireResidentId(request.data?.residentId);
+  const db = getAdmin().firestore();
+  const { FieldValue } = require('firebase-admin/firestore');
+  const residentRef = db.doc(`residents/${residentId}`);
+  const denied = await db.runTransaction(async (tx) => {
+    await requireOrgOwnerTx(tx, db, orgId, request.auth.uid);
+    const resident = (await tx.get(residentRef)).data();
+    if (!resident || resident.pendingFacilityId !== orgId) {
+      throw new HttpsError('not-found', 'That request is no longer waiting for approval.');
+    }
+    tx.update(residentRef, clearedMoveRequest(FieldValue));
+    return { familyUid: resident.pendingMoveBy ?? null, name: resident.name ?? null };
+  });
+  await logAudit(db, {
+    orgId,
+    action: ACTIONS.residentMoveDenied,
+    actorUid: request.auth.uid,
+    targetUid: denied.familyUid,
+    detail: denied.name,
   });
   return { ok: true };
 });

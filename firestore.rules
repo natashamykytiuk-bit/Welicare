@@ -29,14 +29,62 @@ service cloud.firestore {
     // creator, on its assignedCaregivers list, or on its familyMembers list
     // (a family member who redeemed a family code, see redeemFamilyCode) —
     // or is facility staff in the same facility (see seesWholeFacility).
-    // `r` is the resident doc's data. familyMembers grants reading (and the
-    // photo album) only: it's in none of the residents update branches.
+    // `r` is the resident doc's data. familyMembers grants reading, the
+    // photo album and favourites only — never profile edits (see
+    // mayEditResident below).
     function linkedToResident(r) {
       return r.caregiverId == request.auth.uid ||
         r.createdBy == request.auth.uid ||
         (r.assignedCaregivers is list && request.auth.uid in r.assignedCaregivers) ||
         (r.get('familyMembers', null) is list && request.auth.uid in r.familyMembers) ||
         (r.facilityId != null && me().orgId == r.facilityId && seesWholeFacility());
+    }
+
+    // --- Who may create and change a resident's profile ---------------------
+    // (utils/residentPermissions.js is the app's copy of these, used to hide
+    // buttons; storage.rules repeats mayEditResident for the profile photo.)
+    //
+    // - Caregivers and Administrators ("staff"): every resident in their own
+    //   facility, and nowhere else.
+    // - Family Caregivers: only residents they added themselves that are
+    //   still "at home" — in no organization, or in their own family
+    //   (personal) organization. Once a resident has moved into a facility
+    //   (approveResidentMove in functions/index.js) the family member is
+    //   view-only, like anyone linked by a family code.
+    // - Volunteers: never, not even a resident they created or are assigned
+    //   to. They run sessions; the care team keeps the profile.
+
+    function isStaff() {
+      return me().role in ['Caregiver', 'Administrator'];
+    }
+
+    // Staff of the facility this resident lives in.
+    function staffOf(r) {
+      return r.get('facilityId', null) != null &&
+        me().get('orgId', null) == r.facilityId && isStaff();
+    }
+
+    // A Family Caregiver's auto-created family organization (isPersonal),
+    // as opposed to a care facility.
+    function isFamilyOrg(facilityId) {
+      return get(/databases/$(database)/documents/organizations/$(facilityId)).data.get('isPersonal', false) == true;
+    }
+
+    // Not (yet) in a care facility.
+    function atHome(r) {
+      return r.get('facilityId', null) == null || isFamilyOrg(r.facilityId);
+    }
+
+    // A Family Caregiver looking after their own at-home resident.
+    function familyOwner(r) {
+      return me().role == 'Family Caregiver' &&
+        (r.get('caregiverId', null) == request.auth.uid ||
+          r.get('createdBy', null) == request.auth.uid) &&
+        atHome(r);
+    }
+
+    function mayEditResident(r) {
+      return staffOf(r) || familyOwner(r);
     }
 
     // False while an organization is being deleted (the deleteOrganization
@@ -87,7 +135,10 @@ service cloud.firestore {
         optList(d, 'selectedMovieVideoIds', 500) &&
         optList(d, 'favouriteMovieVideoIds', 500) &&
         optText(d, 'photoPath', 200) &&
-        (!('photoUpdatedAt' in d) || d.photoUpdatedAt == null || d.photoUpdatedAt is timestamp);
+        (!('photoUpdatedAt' in d) || d.photoUpdatedAt == null || d.photoUpdatedAt is timestamp) &&
+        // Archiving (utils/residentManagement.js): a flag and when it was set.
+        optBool(d, 'archived') &&
+        (!('archivedAt' in d) || d.archivedAt == null || d.archivedAt is timestamp);
     }
 
     // A resident update that touches the profile photo may only remove it
@@ -324,6 +375,15 @@ service cloud.firestore {
       // the creator, and assignedCaregivers must be exactly [creator] — so
       // nobody can pre-assign other people (which would grant them access
       // through the assignment rules) or forge who created it.
+      //
+      // Who may create, and where:
+      // - Caregivers and Administrators: only inside their own organization
+      //   (never facility-less), so staff residents always belong to a
+      //   facility that can manage them.
+      // - Family Caregivers: only at home — no organization, or their own
+      //   family organization. A resident reaches a facility through the
+      //   approved move (requestResidentMove), never by being created there.
+      // - Volunteers: never.
       allow create: if verified() &&
         request.resource.data.keys().hasOnly(['name', 'caregiverId', 'createdBy', 'facilityId', 'assignedCaregivers', 'createdAt', 'hasLifeStory', 'musicProvider']) &&
         validResidentFields(request.resource.data) &&
@@ -331,29 +391,39 @@ service cloud.firestore {
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.assignedCaregivers == [request.auth.uid] &&
         (
-          request.resource.data.get('facilityId', null) == null ||
           (
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == request.resource.data.facilityId &&
+            isStaff() &&
+            request.resource.data.get('facilityId', null) != null &&
+            me().get('orgId', null) == request.resource.data.facilityId &&
             orgAcceptingNewData(request.resource.data.facilityId)
+          ) ||
+          (
+            me().role == 'Family Caregiver' &&
+            (
+              request.resource.data.get('facilityId', null) == null ||
+              (
+                me().get('orgId', null) == request.resource.data.facilityId &&
+                orgAcceptingNewData(request.resource.data.facilityId) &&
+                isFamilyOrg(request.resource.data.facilityId)
+              )
+            )
           )
         );
 
       // Every update must leave the resident's fields well-typed.
       allow update: if verified() && validResidentFields(request.resource.data) &&
         validResidentPhotoChange(residentId) && (
-        // The creator or an already-assigned caregiver may edit the
-        // resident's profile fields only (name, life story, music picks and
-        // favourites — everything BuildProfile, CurateResidentMusic and the
-        // music screens write). Never facilityId, createdBy, caregiverId or
-        // the assignedCaregivers list, so an assigned caregiver can't move
-        // a resident to another org, take ownership, or add/remove others.
+        // Profile editing (BuildProfile, the profile photo, the Curate
+        // screens' music and movie picks, archiving and restoring): the
+        // facility's Caregivers and Administrators, or a Family Caregiver
+        // for their own at-home resident — see mayEditResident. Profile
+        // fields only: never facilityId, createdBy, caregiverId or the
+        // assignedCaregivers / familyMembers lists, so nobody can move a
+        // resident to another organization, take ownership, or add or
+        // remove other people this way.
         (
-          (
-            resource.data.caregiverId == request.auth.uid ||
-            resource.data.createdBy == request.auth.uid ||
-            (resource.data.assignedCaregivers is list && request.auth.uid in resource.data.assignedCaregivers)
-          ) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'preferredName', 'hasLifeStory', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds', 'selectedMovieVideoIds', 'favouriteMovieVideoIds']) &&
+          mayEditResident(resource.data) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'preferredName', 'hasLifeStory', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds', 'selectedMovieVideoIds', 'favouriteMovieVideoIds', 'photoPath', 'photoUpdatedAt', 'archived', 'archivedAt']) &&
           // The life story itself now lives in private/lifeStory; the old
           // field may only be removed (by a save), never written. Leaving it
           // untouched is fine — residents not migrated yet still have it.
@@ -362,28 +432,14 @@ service cloud.firestore {
             request.resource.data.get('lifeStory', null) == null
           )
         ) ||
-        // The profile photo (photoPath / photoUpdatedAt, see
-        // utils/profilePhotos.js) plus the usual profile fields: only the
-        // resident's creator, or a Caregiver/Administrator directly linked
-        // to them (caregiverId or assignedCaregivers). Kept apart from the
-        // branch above so an assigned Family Caregiver who didn't create
-        // the resident can edit their profile but NOT change their photo.
-        // (Staff in the same facility get it through the facility branch
-        // below.)
+        // Favourites (the hearts in the music and movie screens): anyone
+        // linked to the resident, volunteers and view-only family included.
+        // Whoever is running the session taps the heart for the resident,
+        // so it isn't treated as editing the profile — but it's these two
+        // fields and nothing else.
         (
-          (
-            resource.data.createdBy == request.auth.uid ||
-            (
-              (resource.data.caregiverId == request.auth.uid ||
-                (resource.data.assignedCaregivers is list && request.auth.uid in resource.data.assignedCaregivers)) &&
-              me().role in ['Caregiver', 'Administrator']
-            )
-          ) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'preferredName', 'hasLifeStory', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds', 'selectedMovieVideoIds', 'favouriteMovieVideoIds', 'photoPath', 'photoUpdatedAt']) &&
-          (
-            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['lifeStory']) ||
-            request.resource.data.get('lifeStory', null) == null
-          )
+          linkedToResident(resource.data) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['favouriteMusicVideoIds', 'favouriteMovieVideoIds'])
         ) ||
         // Self-assignment: a caregiver in the same organization who isn't
         // assigned yet may add themselves to assignedCaregivers and change
@@ -397,38 +453,16 @@ service cloud.firestore {
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignedCaregivers']) &&
           request.resource.data.assignedCaregivers == resource.data.assignedCaregivers.concat([request.auth.uid])
-        ) ||
-        // Profile editing from CaregiverResidentsScreen ("My Residents"):
-        // any Caregiver/Administrator in the same facility may update a
-        // resident's profile fields, even if not assigned to them — the
-        // same field list as above, so ownership/facility/sharing fields
-        // can't be changed this way. Family Members and Volunteers are
-        // excluded. Includes the profile photo fields.
-        (
-          resource.data.facilityId != null &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Caregiver', 'Administrator'] &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'preferredName', 'hasLifeStory', 'lifeStory', 'selectedMusicVideoIds', 'favouriteMusicVideoIds', 'selectedMovieVideoIds', 'favouriteMovieVideoIds', 'photoPath', 'photoUpdatedAt']) &&
-          // The life story itself now lives in private/lifeStory; the old
-          // field may only be removed (by a save), never written. Leaving it
-          // untouched is fine — residents not migrated yet still have it.
-          (
-            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['lifeStory']) ||
-            request.resource.data.get('lifeStory', null) == null
-          )
         )
       );
 
-      // Deleting removes the resident for every caregiver it's shared
-      // with, so it's restricted to Administrators rather than the
-      // creator — and only Administrators of the resident's own facility,
-      // never another organization's. Both role and orgId are read from
-      // the requester's own user doc, which they can't forge (see the
-      // users rules above).
-      allow delete: if verified() &&
-        resource.data.facilityId != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Administrator' &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == resource.data.facilityId;
+      // No deletes from the app. Deleting a resident has to remove far more
+      // than this doc — the life story and safety notes, the photo album
+      // and its files in Storage, the profile photo, unused family codes —
+      // and the app can't reach all of that, so a client delete would leave
+      // personal information behind. The deleteResident Cloud Function does
+      // the whole job (and checks who is asking).
+      allow delete: if false;
 
       // The resident's life story — kept in its own doc so it can have
       // stricter rules than the resident's name and activity info (Firestore
@@ -459,24 +493,18 @@ service cloud.firestore {
           request.resource.data.topicsToAvoid.size() <= 2000 &&
           request.resource.data.get('updatedBy', null) == request.auth.uid;
 
-        // Writing the life story (BuildProfile's save) follows the same
-        // people who may edit the resident's profile, but never volunteers.
-        allow create, update: if verified() && docId == 'lifeStory' && me().role != 'Volunteer' &&
-          validLifeStory(request.resource.data) && (
-          get(/databases/$(database)/documents/residents/$(residentId)).data.caregiverId == request.auth.uid ||
-          get(/databases/$(database)/documents/residents/$(residentId)).data.createdBy == request.auth.uid ||
-          request.auth.uid in get(/databases/$(database)/documents/residents/$(residentId)).data.get('assignedCaregivers', []) ||
-          (
-            get(/databases/$(database)/documents/residents/$(residentId)).data.facilityId != null &&
-            me().orgId == get(/databases/$(database)/documents/residents/$(residentId)).data.facilityId &&
-            me().role in ['Caregiver', 'Administrator']
-          )
-        );
+        // Writing the life story (BuildProfile's save): exactly the people
+        // who may edit the resident's profile (mayEditResident) — the
+        // facility's Caregivers and Administrators, or a Family Caregiver
+        // for their own at-home resident. Never volunteers, and never family
+        // once the resident is in a facility.
+        allow create, update: if verified() && docId == 'lifeStory' &&
+          validLifeStory(request.resource.data) &&
+          mayEditResident(get(/databases/$(database)/documents/residents/$(residentId)).data);
 
-        // Deleted together with the resident, by the same people.
-        allow delete: if verified() &&
-          me().role == 'Administrator' &&
-          me().orgId == get(/databases/$(database)/documents/residents/$(residentId)).data.facilityId;
+        // Deleted together with the resident, by deleteResident (see the
+        // residents delete rule above) — never from the app.
+        allow delete: if false;
       }
 
       // The resident's photo album (utils/residentPhotos.js). Each doc is

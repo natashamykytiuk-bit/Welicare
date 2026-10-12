@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { collection, doc, getDoc, getDocs, query, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,9 +18,15 @@ import BackButton from '../components/BackButton';
 import ResidentAvatar from '../components/ResidentAvatar';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import { deleteResident, isArchived, setResidentArchived } from '../utils/residentManagement';
+import {
+  canArchiveResident,
+  canCreateResident,
+  canDeleteResident,
+  canEditResident,
+} from '../utils/residentPermissions';
+import { loadViewer } from '../utils/viewer';
 import { withTimeout } from '../utils/withTimeout';
-import { lifeStoryRef } from '../utils/residentLifeStory';
-import { safetyRef } from '../utils/residentSafety';
 
 const LOAD_TIMEOUT_MS = 10000;
 
@@ -67,6 +73,18 @@ export async function loadRoleResidents(uid) {
 // same screen ModeSelectionScreen and AppJS route to as "ResidentMode" —
 // the route name is unchanged even though the screen itself now does real
 // work (it used to just simulate picking a resident via a hardcoded name).
+//
+// What each person is offered follows utils/residentPermissions.js (the
+// app's copy of firestore.rules):
+//   - Add Resident: Caregivers and Administrators (into their organization)
+//     and Family Caregivers (at home). Volunteers never see it.
+//   - A resident's options menu — Edit Profile, Archive, Delete permanently
+//     — only lists what that person may do for that resident, and isn't
+//     shown at all when that's nothing (volunteers, and family members for
+//     a resident who lives in a care facility).
+// Archived residents are left off this screen: it's for starting a session,
+// and an archived resident isn't having any. They're restored from My
+// Residents.
 export default function ResidentModeScreen({ navigation }) {
   const [residents, setResidents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,10 +92,12 @@ export default function ResidentModeScreen({ navigation }) {
   const [menuFor, setMenuFor] = useState(null);
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [removing, setRemoving] = useState(false);
-  // undefined while loading, then either the role string or null. Deleting
-  // is Administrator-only (see firestore.rules), so the menu item is hidden
-  // for everyone else rather than shown and then failing on tap.
-  const [role, setRole] = useState(undefined);
+  // Shown after archiving, so it's clear the resident wasn't deleted.
+  const [notice, setNotice] = useState('');
+  // Who is signed in ({ viewer, org } from loadViewer), or null until that
+  // has loaded. Every create/edit/archive/delete control is decided from it,
+  // so they stay hidden rather than shown and then failing on tap.
+  const [access, setAccess] = useState(null);
   // False once we know the user has no organization. Guest Mode visits are
   // filed under the user's organization (utils/activitySessions.js), so
   // without one they can't be recorded — the Guest Mode card says so,
@@ -87,24 +107,22 @@ export default function ResidentModeScreen({ navigation }) {
 
   useEffect(() => {
     let cancelled = false;
-    async function loadRole() {
-      const uid = auth.currentUser?.uid;
-      if (!uid) return;
-      // Role only decides whether the admin-only Delete option shows, so a
-      // failed read falls back to null — Delete stays hidden (the safe
-      // default) and the resident list itself is unaffected.
+    async function loadAccess() {
+      if (!auth.currentUser?.uid) return;
+      // This only decides which controls show, so a failed read leaves
+      // `access` null — Add Resident and the options menus stay hidden (the
+      // safe default) and the resident list itself is unaffected.
       try {
-        const snap = await getDoc(doc(db, 'users', uid));
+        const loaded = await loadViewer();
         if (!cancelled) {
-          setRole(snap.data()?.role ?? null);
-          setHasOrg(!!snap.data()?.orgId);
+          setAccess(loaded);
+          setHasOrg(!!loaded.viewer.orgId);
         }
       } catch (e) {
-        console.error('[ResidentMode] failed to load role:', e.code, e.message, e);
-        if (!cancelled) setRole(null);
+        console.error('[ResidentMode] failed to load permissions:', e.code, e.message, e);
       }
     }
-    loadRole();
+    loadAccess();
     return () => {
       cancelled = true;
     };
@@ -179,9 +197,11 @@ export default function ResidentModeScreen({ navigation }) {
           [...ownedSnap.docs, ...assignedSnap.docs, ...facilityDocs].forEach((d) =>
             merged.set(d.id, { id: d.id, ...d.data() })
           );
-          const list = Array.from(merged.values()).sort(
-            (a, b) => (a.createdAt?.toMillis?.() ?? 0) - (b.createdAt?.toMillis?.() ?? 0)
-          );
+          // Archived residents aren't offered for a session (see the header
+          // comment); filtered here because the list rules can't do it.
+          const list = Array.from(merged.values())
+            .filter((r) => !isArchived(r))
+            .sort((a, b) => (a.createdAt?.toMillis?.() ?? 0) - (b.createdAt?.toMillis?.() ?? 0));
           console.log('[ResidentMode] loaded', list.length, 'residents');
           setResidents(list);
         } catch (e) {
@@ -198,35 +218,59 @@ export default function ResidentModeScreen({ navigation }) {
     }, [])
   );
 
-  function canDelete() {
-    return role === 'Administrator';
+  // What the signed-in person may do for one resident. All false until
+  // `access` has loaded.
+  function optionsFor(resident) {
+    if (!access) return { edit: false, archive: false, remove: false };
+    return {
+      edit: canEditResident(access.viewer, access.org, resident),
+      archive: canArchiveResident(access.viewer, access.org, resident),
+      remove: canDeleteResident(access.viewer, access.org, resident),
+    };
   }
+  const hasOptions = (resident) => Object.values(optionsFor(resident)).some(Boolean);
+  const canAdd = !!access && canCreateResident(access.viewer, access.org);
 
   // A custom Modal rather than Alert.alert — Alert.alert is a no-op on web
   // (react-native-web ships it as an empty stub), which made this
   // confirmation, and therefore the whole remove flow, silently do nothing
   // when the app runs in a browser.
+  //
+  // Deleting runs in the deleteResident Cloud Function: it has to remove the
+  // life story, safety notes, photo album, the files in Storage and any
+  // family codes along with the resident, which the app can't do itself
+  // (firestore.rules refuse deletes from the app for exactly that reason).
   async function performRemove() {
     if (!confirmTarget) return;
     setRemoving(true);
     try {
-      // The resident and its private docs (life story, safety notes) go
-      // together in one batch, so deleting never leaves either behind (see
-      // utils/residentLifeStory.js, utils/residentSafety.js). The rules check both against the
-      // resident as it is before the batch.
-      const batch = writeBatch(db);
-      batch.delete(lifeStoryRef(confirmTarget.id));
-      batch.delete(safetyRef(confirmTarget.id));
-      batch.delete(doc(db, 'residents', confirmTarget.id));
-      await batch.commit();
+      await deleteResident(confirmTarget.id);
       setResidents((prev) => prev.filter((r) => r.id !== confirmTarget.id));
       setConfirmTarget(null);
     } catch (e) {
-      console.error('[ResidentMode] failed to remove resident:', e.code, e.message, e);
-      setError('Could not remove resident. Please try again.');
+      console.error('[ResidentMode] failed to delete resident:', e.code, e.message, e);
+      setError('Could not delete this resident. Nothing was removed — please try again.');
       setConfirmTarget(null);
     } finally {
       setRemoving(false);
+    }
+  }
+
+  // Archiving needs no confirmation: nothing is deleted and it's undone
+  // with Restore in My Residents — the notice says so.
+  async function handleArchive(resident) {
+    setMenuFor(null);
+    setError('');
+    setNotice('');
+    try {
+      await setResidentArchived(resident.id, true);
+      setResidents((prev) => prev.filter((r) => r.id !== resident.id));
+      setNotice(
+        `${resident.name || 'This resident'} was archived. Nothing was deleted — you can restore them from My Residents.`
+      );
+    } catch (e) {
+      console.error('[ResidentMode] failed to archive resident:', e.code, e.message, e);
+      setError('Could not archive this resident. Please try again.');
     }
   }
 
@@ -263,6 +307,7 @@ export default function ResidentModeScreen({ navigation }) {
                 {error}
               </Text>
             ) : null}
+            {notice ? <Text style={styles.noticeBanner}>{notice}</Text> : null}
             {loading ? <ActivityIndicator style={styles.spinner} color={colors.primary} /> : null}
           </>
         }
@@ -283,16 +328,20 @@ export default function ResidentModeScreen({ navigation }) {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => navigation.navigate('AddResident')}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Add Resident"
-            >
-              <Text style={styles.actionTitle}>Add Resident</Text>
-              <Text style={styles.actionSubtitle}>Create a new resident profile</Text>
-            </TouchableOpacity>
+            {/* Only for people who may create residents (canCreateResident):
+                volunteers never see it. */}
+            {canAdd ? (
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={() => navigation.navigate('AddResident')}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Add Resident"
+              >
+                <Text style={styles.actionTitle}>Add Resident</Text>
+                <Text style={styles.actionSubtitle}>Create a new resident profile</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         }
         renderItem={({ item }) => (
@@ -321,10 +370,10 @@ export default function ResidentModeScreen({ navigation }) {
                 {item.name}
               </Text>
             </TouchableOpacity>
-            {/* Volunteers may only edit residents they created themselves
-                (firestore.rules), so facility residents shown to them get no
-                options menu rather than an Edit that fails on save. */}
-            {role === 'Volunteer' && item.createdBy !== auth.currentUser?.uid ? null : (
+            {/* No options menu when there's nothing this person may do for
+                the resident (volunteers; family for a facility resident),
+                rather than a menu whose items would fail. */}
+            {hasOptions(item) ? (
               <TouchableOpacity
                 style={styles.menuButton}
                 onPress={() => setMenuFor(item)}
@@ -334,7 +383,7 @@ export default function ResidentModeScreen({ navigation }) {
               >
                 <Ionicons name="ellipsis-vertical" size={18} color={colors.textMuted} />
               </TouchableOpacity>
-            )}
+            ) : null}
           </View>
         )}
       />
@@ -347,14 +396,29 @@ export default function ResidentModeScreen({ navigation }) {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setMenuFor(null)}>
           <View style={styles.menuSheet}>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => menuFor && handleEdit(menuFor)}
-            >
-              <Ionicons name="create-outline" size={20} color={colors.textPrimary} />
-              <Text style={styles.menuItemText}>Edit Profile</Text>
-            </TouchableOpacity>
-            {menuFor && canDelete() ? (
+            {menuFor && optionsFor(menuFor).edit ? (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => handleEdit(menuFor)}
+                accessibilityRole="button"
+                accessibilityLabel="Edit Profile"
+              >
+                <Ionicons name="create-outline" size={20} color={colors.textPrimary} />
+                <Text style={styles.menuItemText}>Edit Profile</Text>
+              </TouchableOpacity>
+            ) : null}
+            {menuFor && optionsFor(menuFor).archive ? (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => handleArchive(menuFor)}
+                accessibilityRole="button"
+                accessibilityLabel="Archive Resident"
+              >
+                <Ionicons name="archive-outline" size={20} color={colors.textPrimary} />
+                <Text style={styles.menuItemText}>Archive Resident</Text>
+              </TouchableOpacity>
+            ) : null}
+            {menuFor && optionsFor(menuFor).remove ? (
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => {
@@ -362,10 +426,12 @@ export default function ResidentModeScreen({ navigation }) {
                   setMenuFor(null);
                   if (resident) setConfirmTarget(resident);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Delete Permanently"
               >
                 <Ionicons name="trash-outline" size={20} color={colors.destructive} />
                 <Text style={[styles.menuItemText, { color: colors.destructive }]}>
-                  Remove Resident
+                  Delete Permanently
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -381,9 +447,11 @@ export default function ResidentModeScreen({ navigation }) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.confirmSheet}>
-            <Text style={styles.confirmTitle}>Remove resident</Text>
+            <Text style={styles.confirmTitle}>Delete {confirmTarget?.name} permanently?</Text>
             <Text style={styles.confirmBody}>
-              Are you sure you want to remove {confirmTarget?.name}? This cannot be undone.
+              This permanently deletes {confirmTarget?.name}’s profile, life story, safety notes and
+              photos for everyone. It cannot be undone. To hide them without deleting anything, use
+              Archive instead.
             </Text>
             <View style={styles.confirmActions}>
               <TouchableOpacity
@@ -400,13 +468,13 @@ export default function ResidentModeScreen({ navigation }) {
                 onPress={performRemove}
                 disabled={removing}
                 accessibilityRole="button"
-                accessibilityLabel="Remove"
+                accessibilityLabel="Delete permanently"
               >
                 {removing ? (
                   <ActivityIndicator color={colors.white} size="small" />
                 ) : (
                   <Text style={[styles.confirmButtonText, styles.confirmButtonTextDestructive]}>
-                    Remove
+                    Delete permanently
                   </Text>
                 )}
               </TouchableOpacity>
@@ -447,6 +515,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radii.sm,
     color: colors.destructive,
+    fontSize: 15,
+    padding: 14,
+    margin: 16,
+    marginBottom: 0,
+    lineHeight: 21,
+  },
+  // Calm, non-error styling: archiving worked and nothing was lost.
+  noticeBanner: {
+    fontFamily: fonts.sansRegular,
+    backgroundColor: colors.mistBackground,
+    borderColor: colors.primary,
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    color: colors.primary,
     fontSize: 15,
     padding: 14,
     margin: 16,

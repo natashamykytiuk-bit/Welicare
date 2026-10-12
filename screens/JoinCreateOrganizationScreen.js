@@ -12,6 +12,7 @@ import {
 import LoadError from '../components/LoadError';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import { createPersonalOrganization } from '../utils/inviteCode';
 
 // Shown once during onboarding, after PINSetupScreen, for every role.
 // Role isn't threaded through as a navigation param — this screen is
@@ -21,9 +22,17 @@ import { colors, fonts, radii } from '../theme';
 // user's own Firestore doc, which SignUpScreen already wrote at account
 // creation.
 //
-// Only Family Caregivers can skip and connect later from Settings.
 // Administrators, Caregivers and Volunteers all work for a facility, so an
-// account with no organization has nothing for them (see utils/onboarding.js).
+// account with no organization has nothing for them (see utils/onboarding.js):
+// they must join or create one here.
+//
+// Family Caregivers are different: they never join or create an
+// organization (the server refuses both — see joinOrganization and
+// createOrganization in functions/index.js). They normally never see this
+// screen at all, because sign-up gives them a family organization; they
+// only land here if that step failed. So for them the Join/Create cards are
+// replaced by a short explanation and a Continue button, which tries once
+// more to set up the family organization and carries on either way.
 export default function JoinCreateOrganizationScreen({ navigation }) {
   // undefined while loading, then either the role string or null
   const [role, setRole] = useState(undefined);
@@ -53,7 +62,7 @@ export default function JoinCreateOrganizationScreen({ navigation }) {
     };
   }, [reloadKey]);
 
-  const canSkip = role === 'Family Caregiver';
+  const isFamily = role === 'Family Caregiver';
 
   // Skipping is recorded on the user's own doc (not just a navigation
   // shortcut) so App.js's onboarding-status check treats it as a durable
@@ -62,6 +71,14 @@ export default function JoinCreateOrganizationScreen({ navigation }) {
   async function handleSkip() {
     const uid = auth.currentUser?.uid;
     if (uid) {
+      // Second attempt at what sign-up tried. Best-effort: without it they
+      // can still add at-home residents (with no organization), so a
+      // failure mustn't keep them on this screen.
+      try {
+        await createPersonalOrganization();
+      } catch (e) {
+        console.log('Family organization creation failed again:', e);
+      }
       try {
         await setDoc(doc(db, 'users', uid), { orgStepSkipped: true }, { merge: true });
       } catch (e) {
@@ -75,10 +92,12 @@ export default function JoinCreateOrganizationScreen({ navigation }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.stepIndicator}>STEP 3 OF 3</Text>
-        <Text style={styles.heading}>Join or create an organization</Text>
+        <Text style={styles.heading}>
+          {isFamily ? 'You’re all set' : 'Join or create an organization'}
+        </Text>
         <Text style={styles.body}>
-          {canSkip
-            ? 'Connect to your care facility to start using Welicare.'
+          {isFamily
+            ? 'Family accounts don’t join an organization. You can add the person you care for at home, or link to someone in a care home with a family code from their care team — both from inside the app.'
             : 'Connect to your care facility to continue — this step can’t be skipped.'}
         </Text>
 
@@ -86,6 +105,16 @@ export default function JoinCreateOrganizationScreen({ navigation }) {
           <LoadError onRetry={() => setReloadKey((k) => k + 1)} />
         ) : role === undefined ? (
           <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
+        ) : isFamily ? (
+          <TouchableOpacity
+            style={styles.continueButton}
+            onPress={handleSkip}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Continue"
+          >
+            <Text style={styles.continueButtonText}>Continue</Text>
+          </TouchableOpacity>
         ) : (
           <>
             <TouchableOpacity
@@ -125,17 +154,6 @@ export default function JoinCreateOrganizationScreen({ navigation }) {
                 Set up a new Welicare facility for your care home.
               </Text>
             </TouchableOpacity>
-
-            {canSkip ? (
-              <TouchableOpacity
-                style={styles.skipLink}
-                onPress={handleSkip}
-                accessibilityRole="link"
-                accessibilityLabel="Skip this step"
-              >
-                <Text style={styles.skipLinkText}>Skip this step →</Text>
-              </TouchableOpacity>
-            ) : null}
           </>
         )}
       </ScrollView>
@@ -188,14 +206,16 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     lineHeight: 22,
   },
-  skipLink: {
+  continueButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radii.sm,
+    minHeight: 56,
     alignItems: 'center',
-    paddingVertical: 14,
-    marginTop: 8,
+    justifyContent: 'center',
   },
-  skipLinkText: {
+  continueButtonText: {
     fontFamily: fonts.sansBold,
-    fontSize: 15,
-    color: colors.textMuted,
+    fontSize: 17,
+    color: colors.white,
   },
 });

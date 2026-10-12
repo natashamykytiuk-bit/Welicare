@@ -1,21 +1,17 @@
-import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { auth, db } from '../firebaseConfig';
 import { colors, fonts } from '../theme';
-import {
-  canEditResidentPhoto,
-  pickResidentPhoto,
-  removeResidentPhoto,
-  setResidentPhoto,
-} from '../utils/profilePhotos';
+import { pickResidentPhoto, removeResidentPhoto, setResidentPhoto } from '../utils/profilePhotos';
+import { canEditResident } from '../utils/residentPermissions';
+import { loadViewer } from '../utils/viewer';
 import PhotoPickerCircle from './PhotoPickerCircle';
 import ResidentAvatar from './ResidentAvatar';
 
 // A resident's profile photo with Add / Change / Remove for the people
-// allowed to change it (canEditResidentPhoto — the creator, or linked /
-// same-facility Caregivers and Administrators), and read-only for everyone
-// else. Used at the top of BuildProfileScreen and ResidentProfileScreen.
+// allowed to edit the resident's profile (canEditResident — the facility's
+// Caregivers and Administrators, or a Family Caregiver for their own
+// at-home resident), and read-only for everyone else. Used at the top of
+// BuildProfileScreen and ResidentProfileScreen.
 //
 // Props: residentId, resident (the resident doc's data, as the screen
 // already loaded it), size. Works on its own copy of photoPath /
@@ -26,7 +22,8 @@ export default function ResidentPhotoEditor({ residentId, resident, size = 96 })
     photoPath: resident?.photoPath ?? null,
     photoUpdatedAt: resident?.photoUpdatedAt ?? null,
   });
-  const [user, setUser] = useState(null);
+  // Who is looking, for canEditResident: { viewer, org } once loaded.
+  const [access, setAccess] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -41,19 +38,17 @@ export default function ResidentPhotoEditor({ residentId, resident, size = 96 })
   // they simply see the photo read-only.
   useEffect(() => {
     let cancelled = false;
-    const uid = auth.currentUser?.uid;
-    if (!uid) return undefined;
     // Wrapped so even a synchronous throw ends up in .catch.
     Promise.resolve()
-      .then(() => getDoc(doc(db, 'users', uid)))
-      .then((snap) => !cancelled && setUser(snap?.data?.() ?? null))
+      .then(() => loadViewer())
+      .then((loaded) => !cancelled && setAccess(loaded))
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const editable = canEditResidentPhoto(resident, auth.currentUser?.uid, user ?? undefined);
+  const editable = !!access && canEditResident(access.viewer, access.org, resident);
 
   async function pick() {
     setMessage('');

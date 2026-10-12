@@ -21,6 +21,8 @@ import { hasAnyLifeStoryData } from '../utils/lifeStory';
 import { PEOPLE_LIST_KEYS, cleanPeople, withLegacyPeople } from '../utils/lifeStoryPeople';
 import { MUSIC_GENRE_OPTIONS } from '../utils/musicLibrary';
 import { loadLifeStory, saveResidentProfile } from '../utils/residentLifeStory';
+import { canEditResident } from '../utils/residentPermissions';
+import { loadViewer } from '../utils/viewer';
 
 const EMPTY_LIFE_STORY = {
   preferredName: '',
@@ -197,6 +199,13 @@ function ChipRow({ options, value, onChange, multi }) {
 // life-story profile, used to personalize the AI-generated activity ideas,
 // conversation starters, and music/movie recs. Nothing here is required —
 // residents answer as much or as little as they like.
+//
+// Only people who may edit this resident's profile get the form
+// (utils/residentPermissions.js: the facility's Caregivers and
+// Administrators, or a Family Caregiver for their own at-home resident).
+// Anyone else who lands here — e.g. a volunteer following the "Complete
+// Profile" prompt in Resident Mode — sees a short note instead of a form
+// whose Save would be refused by firestore.rules.
 export default function BuildProfileScreen({ navigation, route }) {
   const { residentId, returnTo = 'ActivityMenu' } = route.params ?? {};
   const [name, setName] = useState('');
@@ -217,6 +226,8 @@ export default function BuildProfileScreen({ navigation, route }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [saveError, setSaveError] = useState('');
   const [lifeStoryDenied, setLifeStoryDenied] = useState(false);
+  // True once we know this person may not edit this resident's profile.
+  const [viewOnly, setViewOnly] = useState(false);
   // The name and answers as loaded (see load below).
   const originalRef = useRef({ name: '', lifeStory: toSavedShape(EMPTY_LIFE_STORY) });
 
@@ -231,6 +242,16 @@ export default function BuildProfileScreen({ navigation, route }) {
       let denied;
       try {
         snapshot = await getDoc(doc(db, 'residents', residentId));
+        // Checked before the life story is fetched: someone who can't edit
+        // has no use for the form, and may not be allowed to read the story.
+        const { viewer, org } = await loadViewer();
+        if (!canEditResident(viewer, org, snapshot.data())) {
+          if (!cancelled) {
+            setViewOnly(true);
+            setLoading(false);
+          }
+          return;
+        }
         // The life story is a separate, more restricted doc (see
         // utils/residentLifeStory.js).
         ({ lifeStory, denied } = await loadLifeStory(residentId, snapshot.data()));
@@ -320,6 +341,22 @@ export default function BuildProfileScreen({ navigation, route }) {
   }
 
   if (loading) return <SafeAreaView style={styles.flex} />;
+
+  if (viewOnly) {
+    return (
+      <SafeAreaView style={styles.flex}>
+        <View style={styles.headerRow}>
+          <BackButton navigation={navigation} style={styles.iconNoMargin} />
+        </View>
+        <View style={styles.loadErrorWrap}>
+          <Text style={styles.viewOnlyText}>
+            This profile is kept up to date by the resident’s caregivers and administrators. If
+            something should change, please let one of them know.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (lifeStoryDenied) {
     return (
@@ -646,6 +683,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   loadErrorWrap: { paddingHorizontal: 24 },
+  viewOnlyText: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 18,
+    color: colors.textPrimary,
+    lineHeight: 26,
+    marginTop: 24,
+  },
   fieldError: {
     fontFamily: fonts.sansRegular,
     fontSize: 14,

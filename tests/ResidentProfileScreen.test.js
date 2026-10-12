@@ -12,6 +12,11 @@ jest.mock('@react-navigation/native', () => {
   return { useFocusEffect: (cb) => useEffect(cb, [cb]) };
 });
 
+// The Family access card (shown to staff for a facility resident) loads its
+// own list through a Cloud Function and has its own tests; left out here so
+// these tests are only about the profile screen.
+jest.mock('../components/FamilyAccessCard', () => () => null);
+
 const navigation = { navigate: jest.fn(), goBack: jest.fn(), canGoBack: () => true };
 const route = { params: { residentId: 'r1' } };
 
@@ -22,12 +27,23 @@ const SESSIONS = [
   { activityId: 'wordGames', durationSeconds: 3600, roundsCompleted: 5, startedAt: daysAgo(90) },
 ];
 
-// getDoc answers by path: the user, the resident and the life story.
-function setUp({ user = { orgId: 'orgA', role: 'Caregiver' }, sessions = SESSIONS } = {}) {
+// getDoc answers by path: the user, the resident and the life story. The
+// resident lives in orgA unless a test passes other `residentExtra` fields;
+// organization docs come back missing, which is all a facility needs here.
+function setUp({
+  user = { orgId: 'orgA', role: 'Caregiver' },
+  sessions = SESSIONS,
+  residentExtra = { facilityId: 'orgA' },
+} = {}) {
   firestore.getDoc.mockImplementation(async (ref) => {
     if (ref.path === 'users/test-uid') return docSnap(user);
     if (ref.path === 'residents/r1')
-      return docSnap({ name: 'Margaret', preferredName: 'Peggy', hasLifeStory: true });
+      return docSnap({
+        name: 'Margaret',
+        preferredName: 'Peggy',
+        hasLifeStory: true,
+        ...residentExtra,
+      });
     if (ref.path === 'residents/r1/private/lifeStory')
       return docSnap({ grewUpIn: 'Lethbridge', hobbies: ['Gardening', 'Baking'], career: '' });
     return docSnap(undefined);
@@ -87,6 +103,37 @@ describe('ResidentProfileScreen', () => {
     expect(screen.getByLabelText('Safety notes')).toBeTruthy();
   });
 
+  // A family member linked to a resident in a care home: they can share
+  // photos, but the facility's staff keep the profile.
+  it('is view-only for family once the resident lives in a facility', async () => {
+    setUp({
+      user: { orgId: 'famOrg', role: 'Family Caregiver' },
+      residentExtra: { facilityId: 'orgA', familyMembers: ['test-uid'] },
+    });
+    await render(<ResidentProfileScreen navigation={navigation} route={route} />);
+    expect(await screen.findByText('Margaret')).toBeTruthy();
+    expect(screen.queryByLabelText('Edit life story')).toBeNull();
+    expect(screen.queryByLabelText('Archive resident')).toBeNull();
+    expect(screen.getByLabelText('Add photos')).toBeTruthy();
+  });
+
+  it('lets staff archive a resident', async () => {
+    setUp();
+    await render(<ResidentProfileScreen navigation={navigation} route={route} />);
+    await fireEvent.press(await screen.findByLabelText('Archive resident'));
+    expect(firestore.updateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'residents/r1' }),
+      expect.objectContaining({ archived: true })
+    );
+  });
+
+  it('shows Restore, not Archive, on an archived resident', async () => {
+    setUp({ residentExtra: { facilityId: 'orgA', archived: true } });
+    await render(<ResidentProfileScreen navigation={navigation} route={route} />);
+    expect(await screen.findByLabelText('Restore resident')).toBeTruthy();
+    expect(screen.queryByLabelText('Archive resident')).toBeNull();
+  });
+
   it('queries only this facility and resident', async () => {
     setUp();
     await render(<ResidentProfileScreen navigation={navigation} route={route} />);
@@ -120,7 +167,7 @@ describe('ResidentProfileScreen', () => {
   });
 
   it('explains engagement needs an organization', async () => {
-    setUp({ user: { role: 'Caregiver' } });
+    setUp({ user: { role: 'Caregiver' }, residentExtra: {} });
     await render(<ResidentProfileScreen navigation={navigation} route={route} />);
     expect(await screen.findByText(/Join or create one to see it here/)).toBeTruthy();
     expect(firestore.getDocs).not.toHaveBeenCalled();

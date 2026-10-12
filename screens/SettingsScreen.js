@@ -28,10 +28,10 @@ export default function SettingsScreen({ navigation }) {
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarMessage, setAvatarMessage] = useState('');
   const [orgName, setOrgName] = useState('');
-  // Only true for a Family Caregiver still on their auto-created personal
-  // organization (see utils/inviteCode.js's createPersonalOrganization) —
-  // gates the "Organization" row below, since joining/creating a real org
-  // only makes sense from that state.
+  // True for a Family Caregiver on their auto-created family organization
+  // (see utils/inviteCode.js's createPersonalOrganization) — gates the
+  // "Connecting with a care home" row below, which explains how a family
+  // account links to a facility's residents (it never joins one).
   const [orgIsPersonal, setOrgIsPersonal] = useState(false);
 
   // Load failure → LoadError at the top with Try again. The rest of
@@ -210,10 +210,10 @@ export default function SettingsScreen({ navigation }) {
 
         {orgIsPersonal ? (
           <>
-            <Text style={styles.sectionLabel}>Organization</Text>
+            <Text style={styles.sectionLabel}>Care home</Text>
             <View style={styles.card}>
               <Row
-                label="Join or Create an Organization"
+                label="Connecting with a Care Home"
                 onPress={() => navigation.navigate('OrganizationSettings')}
                 showArrow
                 last

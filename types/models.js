@@ -25,7 +25,8 @@
  * @property {Role} role
  * @property {string} [orgId] The organization (facility) this user belongs
  *   to. Only settable to an org they created, or via the joinOrganization
- *   Cloud Function.
+ *   Cloud Function. For a Family Caregiver it's always their own family
+ *   (personal) organization — they never join a facility.
  * @property {string} [pinHash] Hashed 4-digit PIN; missing until PINSetup.
  * @property {boolean} [orgStepSkipped] Family Caregivers who skipped joining an org.
  * @property {string} [pendingOrgId] An organization this user asked to join
@@ -85,14 +86,26 @@
  * @typedef {object} Resident
  * @property {string} name
  * @property {string} caregiverId Creator's uid (checked by rules on create).
+ *   Becomes the facility's administrator when an at-home resident moves in.
  * @property {string} createdBy Same as caregiverId; kept for older docs.
  * @property {string | null} facilityId The organization this resident belongs
- *   to (an organizations/{orgId} id), or null if created outside one.
+ *   to (an organizations/{orgId} id), or null if created outside one. A
+ *   care facility, or a Family Caregiver's own family organization ("at
+ *   home"). Changed only by the approveResidentMove Cloud Function.
  * @property {string[]} assignedCaregivers uids who have this resident on
  *   their own list.
  * @property {string[]} [familyMembers] Family Caregivers linked by a family
- *   code (redeemFamilyCode) — view-only access plus photo uploads. Written
- *   only by Cloud Functions.
+ *   code (redeemFamilyCode), or who moved this resident into the facility
+ *   (approveResidentMove) — view-only access plus photo uploads and
+ *   favourites. Written only by Cloud Functions.
+ * @property {boolean} [archived] Hidden from Resident Mode and the everyday
+ *   lists without deleting anything (utils/residentManagement.js).
+ * @property {import('firebase/firestore').Timestamp} [archivedAt]
+ * @property {string} [pendingFacilityId] An organization a family member has
+ *   asked to move this at-home resident into, waiting for its administrator
+ *   (requestResidentMove). Written only by Cloud Functions.
+ * @property {string} [pendingMoveBy] uid of the family member who asked.
+ * @property {import('firebase/firestore').Timestamp} [pendingMoveAt]
  * @property {string | null} [preferredName] Copied from the life story on
  *   save, so everyone who runs sessions (incl. volunteers) can use it.
  * @property {boolean} [hasLifeStory] Whether a life story has been filled
@@ -114,7 +127,7 @@
  * @property {string | null} [province]
  * @property {string | null} [city]
  * @property {boolean} [isPersonal] true for a Family Caregiver's auto-created
- *   single-person org.
+ *   family organization. It never becomes a real one.
  * @property {string} createdBy Owner uid — the admin who can edit it.
  * @property {string} adminId Mirrors createdBy.
  * @property {{ canViewLifeStories?: boolean }} [volunteerPermissions]

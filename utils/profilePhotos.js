@@ -16,10 +16,11 @@ import {
 // Resident photo:
 //   Storage:   residents/{residentId}/profile.jpg
 //   Firestore: residents/{residentId}.photoPath / .photoUpdatedAt
-//   Set/removed by Caregivers and Administrators who may edit the resident,
-//   and by the resident's creator — never volunteers, and never an
-//   assigned family member who didn't create the resident (firestore.rules
-//   and storage.rules both enforce this).
+//   Set/removed by whoever may edit the resident's profile — Caregivers
+//   and Administrators in the resident's facility, or a Family Caregiver
+//   for their own at-home resident (utils/residentPermissions.js). Never
+//   volunteers, and never family once the resident is in a facility
+//   (firestore.rules and storage.rules both enforce this).
 //
 // User avatar (optional, any role):
 //   Storage:   users/{uid}/avatar.jpg
@@ -138,25 +139,4 @@ export function avatarUrlFor(uid) {
 /** Drops a remembered avatar URL (after the user changes their own). */
 export function forgetAvatarUrl(uid) {
   avatarUrls.delete(uid);
-}
-
-/**
- * Whether this user may change the resident's profile photo — the same
- * people firestore.rules/storage.rules allow: the resident's creator, or a
- * Caregiver/Administrator who is linked to them or in their facility.
- * Everyone else sees the photo read-only. (The rules are the real check;
- * this only decides whether to show the buttons.)
- * @param {any} resident resident doc data
- * @param {string | undefined} uid
- * @param {{ role?: string, orgId?: string } | undefined} user the viewer's users doc
- */
-export function canEditResidentPhoto(resident, uid, user) {
-  if (!resident || !uid) return false;
-  if (resident.createdBy === uid) return true;
-  if (!['Caregiver', 'Administrator'].includes(user?.role ?? '')) return false;
-  return (
-    resident.caregiverId === uid ||
-    (Array.isArray(resident.assignedCaregivers) && resident.assignedCaregivers.includes(uid)) ||
-    (!!resident.facilityId && user?.orgId === resident.facilityId)
-  );
 }

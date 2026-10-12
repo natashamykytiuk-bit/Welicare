@@ -43,6 +43,12 @@ const ACTIONS = {
   familyCodeCreated: 'familyCode.created',
   familyLinked: 'family.linked',
   familyUnlinked: 'family.unlinked',
+  // A family member asking to move an at-home resident into the facility
+  // (index.js: requestResidentMove / approveResidentMove / denyResidentMove).
+  // The resident's name goes in `detail`; `target` is the family member.
+  residentMoveRequested: 'resident.moveRequested',
+  residentMoved: 'resident.moved',
+  residentMoveDenied: 'resident.moveDenied',
 };
 
 // A person's display name for the log, from their users doc: the same
@@ -107,12 +113,17 @@ function actorFromEvent(event) {
  */
 function auditTriggers(getAdmin) {
   return {
-    // A resident deleted from the app (Resident Mode → Remove, Administrators
-    // only). Deletions made by deleteOrganization are skipped — the org is
-    // marked "deleting" first, so orgIsLogged is false by then.
+    // A resident doc deleted directly by a signed-in app user. firestore.rules
+    // no longer allow that — deleting goes through the deleteResident
+    // function in index.js, which writes its own entry naming who did it —
+    // so this is a safety net in case a rule ever lets one through again.
+    // Deletions by Cloud Functions (deleteResident, deleteOrganization,
+    // deleteAccount) have no app user and are skipped, so nothing is logged
+    // twice.
     auditResidentDeleted: onDocumentDeletedWithAuthContext(
       'residents/{residentId}',
       async (event) => {
+        if (!actorFromEvent(event)) return;
         const db = getAdmin().firestore();
         const resident = event.data?.data() ?? {};
         if (!(await orgIsLogged(db, resident.facilityId))) return;

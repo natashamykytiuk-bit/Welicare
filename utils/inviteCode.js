@@ -12,8 +12,8 @@ import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from '../firebaseConfig';
 
 // Organization membership and invite codes are server-controlled: creating
-// a real organization, upgrading a personal one, joining by code and
-// issuing a new code all run in Cloud Functions (see functions/index.js).
+// a real organization, joining by code and issuing a new code all run in
+// Cloud Functions (see functions/index.js).
 // firestore.rules only let the app create *personal* organizations and
 // point a user's orgId at an org they created, and invite codes live in a
 // server-only lookup table rather than on the (widely readable)
@@ -25,10 +25,6 @@ import { auth, db, functions } from '../firebaseConfig';
 const callCreateOrganization =
   /** @type {Callable<{ name: string, type?: string, province?: string, city?: string }, { orgId: string, inviteCode: string }>} */ (
     httpsCallable(functions, 'createOrganization')
-  );
-const callUpgradePersonalOrganization =
-  /** @type {Callable<{ name: string }, { orgId: string, inviteCode: string }>} */ (
-    httpsCallable(functions, 'upgradePersonalOrganization')
   );
 const callJoinOrganization =
   /** @type {Callable<{ code: string }, { orgId: string, orgName: string | null, pending: boolean }>} */ (
@@ -46,8 +42,8 @@ const callRegenerateInviteCode =
 // after the first four. Older organizations may still have a 6-character
 // code like "MG-4821"; typed in, that shows as "MG48-21", which the server
 // still recognises (it ignores dashes when matching). Shared by
-// JoinOrganizationScreen (onboarding) and OrganizationSettingsScreen
-// (joining later from a personal org).
+// JoinOrganizationScreen (onboarding), MoveResidentScreen (a family member
+// moving a resident into an organization) and the family-code box.
 /**
  * @param {string} raw What the user has typed so far.
  * @returns {string} e.g. 'MGK', 'MGK7-4', 'MGK7-4TXR'
@@ -71,11 +67,12 @@ export async function createOrganization({ name, type, province, city }) {
 // Asks to join the organization with this invite code. It doesn't make the
 // user a member straight away: the server records a join request that the
 // organization's administrator approves in Manage Users (see
-// joinOrganization in functions/index.js). Used by both
-// JoinOrganizationScreen (onboarding) and OrganizationSettingsScreen (a
-// Family Caregiver on their personal org). The server refuses anyone
-// already in a real (non-personal) org, so this can't be used to hop
-// between facilities, and rate-limits attempts.
+// joinOrganization in functions/index.js). Used by JoinOrganizationScreen
+// (onboarding) for Caregivers, Volunteers and Administrators. The server
+// refuses anyone already in a real (non-personal) org, so this can't be
+// used to hop between facilities, refuses Family Caregivers (they connect
+// one resident at a time — see utils/residentManagement.js and
+// utils/familyLinks.js), and rate-limits attempts.
 /**
  * @param {string} code
  * @returns {Promise<{ orgId: string, orgName: string | null }>}
@@ -123,8 +120,8 @@ export async function regenerateInviteCode(orgId) {
 // facility but still need an orgId so org-scoped features (e.g. the
 // musicLibrary rules) work the same way for them as everyone else. This is
 // the one kind of org the app may create directly: firestore.rules require
-// it to be personal and owned by its creator. It has no invite code until
-// upgradePersonalOrganization turns it into a real one.
+// it to be personal and owned by its creator. It never gets an invite
+// code and never becomes a real organization: it stays one family's own.
 //
 // Creating the org and linking the user go in one writeBatch, so a failure
 // can't leave a personal org that nobody is linked to. The org's id is
@@ -150,14 +147,4 @@ export async function createPersonalOrganization() {
   batch.set(doc(db, 'users', uid), { orgId: orgRef.id }, { merge: true });
   await batch.commit();
   return orgRef.id;
-}
-
-// Converts the current user's personal organization into a real, shareable
-// one in place — same orgId, so anything already scoped to it (residents,
-// musicLibrary entries) carries over automatically. Runs server-side so
-// the invite code is issued in the same step; OrganizationSettingsScreen
-// only offers it while the org is still personal.
-export async function upgradePersonalOrganization({ name }) {
-  const result = await callUpgradePersonalOrganization({ name });
-  return result.data;
 }

@@ -5,7 +5,18 @@
 
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import BuildProfileScreen from '../screens/BuildProfileScreen';
+import { loadViewer } from '../utils/viewer';
 import { docSnap, firestore } from './mocks/firebase';
+
+// Who is signed in, for the "may this person edit?" check: a Caregiver in
+// the resident's facility (orgA) unless a test says otherwise. Mocked so the
+// getDoc queue below stays just the resident and the life story.
+jest.mock('../utils/viewer', () => ({ loadViewer: jest.fn() }));
+const caregiver = {
+  viewer: { uid: 'test-uid', role: 'Caregiver', orgId: 'orgA' },
+  org: { isPersonal: false },
+};
+beforeEach(() => loadViewer.mockResolvedValue(caregiver));
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() };
 const route = { params: { residentId: 'r1' } };
@@ -13,7 +24,7 @@ const route = { params: { residentId: 'r1' } };
 // Resident doc, then an empty private/lifeStory doc (a new profile).
 async function renderForm() {
   firestore.getDoc
-    .mockResolvedValueOnce(docSnap({ name: 'Ann' }))
+    .mockResolvedValueOnce(docSnap({ name: 'Ann', facilityId: 'orgA' }))
     .mockResolvedValueOnce(docSnap(undefined));
   await render(<BuildProfileScreen navigation={navigation} route={route} />);
   return screen.findByPlaceholderText('Full name');
@@ -45,7 +56,7 @@ describe('BuildProfileScreen family members', () => {
 
     // Transaction reads: the resident, then the (not yet saved) life story.
     firestore.getDoc
-      .mockResolvedValueOnce(docSnap({ name: 'Ann' }))
+      .mockResolvedValueOnce(docSnap({ name: 'Ann', facilityId: 'orgA' }))
       .mockResolvedValueOnce(docSnap(undefined));
     await fireEvent.press(screen.getByLabelText('Save Profile'));
     await screen.findByText('Profile saved!');
@@ -58,7 +69,7 @@ describe('BuildProfileScreen family members', () => {
   it('carries an older free-text answer over into the list on save', async () => {
     const old = { hasChildren: true, childrenDetails: 'Two daughters', importantPeople: 'June' };
     firestore.getDoc
-      .mockResolvedValueOnce(docSnap({ name: 'Ann' }))
+      .mockResolvedValueOnce(docSnap({ name: 'Ann', facilityId: 'orgA' }))
       .mockResolvedValueOnce(docSnap(old));
     await render(<BuildProfileScreen navigation={navigation} route={route} />);
     await screen.findByPlaceholderText('Full name');
@@ -67,7 +78,7 @@ describe('BuildProfileScreen family members', () => {
     expect(screen.getByLabelText('Details about person 1').props.value).toBe('June');
 
     firestore.getDoc
-      .mockResolvedValueOnce(docSnap({ name: 'Ann' }))
+      .mockResolvedValueOnce(docSnap({ name: 'Ann', facilityId: 'orgA' }))
       .mockResolvedValueOnce(docSnap(old));
     await fireEvent.press(screen.getByLabelText('Save Changes'));
     await screen.findByText('Profile saved!');
@@ -100,5 +111,33 @@ describe('BuildProfileScreen character limits', () => {
     await fireEvent.changeText(memory, 'x'.repeat(2000));
     // At the limit the counter is shown (in the warning colour).
     expect(screen.getByText('2000 / 2000')).toBeTruthy();
+  });
+});
+
+describe('BuildProfileScreen for someone who may not edit', () => {
+  // Volunteers never edit a profile (firestore.rules would refuse the save),
+  // so they get a note instead of the form — and the life story isn't read.
+  it('shows a volunteer a note instead of the form', async () => {
+    loadViewer.mockResolvedValue({
+      viewer: { uid: 'test-uid', role: 'Volunteer', orgId: 'orgA' },
+      org: { isPersonal: false },
+    });
+    firestore.getDoc.mockResolvedValueOnce(docSnap({ name: 'Ann', facilityId: 'orgA' }));
+    await render(<BuildProfileScreen navigation={navigation} route={route} />);
+    expect(await screen.findByText(/kept up to date by the resident’s caregivers/)).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Full name')).toBeNull();
+    expect(firestore.getDoc).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a family member the note once the resident lives in a facility', async () => {
+    loadViewer.mockResolvedValue({
+      viewer: { uid: 'test-uid', role: 'Family Caregiver', orgId: 'famOrg' },
+      org: { isPersonal: true },
+    });
+    firestore.getDoc.mockResolvedValueOnce(
+      docSnap({ name: 'Ann', facilityId: 'orgA', familyMembers: ['test-uid'] })
+    );
+    await render(<BuildProfileScreen navigation={navigation} route={route} />);
+    expect(await screen.findByText(/kept up to date by the resident’s caregivers/)).toBeTruthy();
   });
 });

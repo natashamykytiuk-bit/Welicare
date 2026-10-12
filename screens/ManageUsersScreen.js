@@ -19,6 +19,7 @@ import LoadError from '../components/LoadError';
 import OrgIdBadge from '../components/OrgIdBadge';
 import { auth, db, functions } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import { decideResidentMove } from '../utils/residentManagement';
 
 const callListOrgMembers = httpsCallable(functions, 'listOrgMembers');
 const callRemoveOrgMember = httpsCallable(functions, 'removeOrgMember');
@@ -42,6 +43,15 @@ const callDenyOrgMember = httpsCallable(functions, 'denyOrgMember');
 // (approveOrgMember / denyOrgMember). Neither needs the password: approving
 // is what the admin is here to do, and denying only drops a request.
 //
+// Residents waiting to move in: a family member can ask to move a relative
+// they've been caring for at home into this organization (My Residents →
+// Move to an organization, see requestResidentMove in functions/index.js).
+// Those wait here too, under "Residents waiting to move in", because taking
+// on a resident is the administrator's decision in the same way a new
+// member is. Approving makes the resident one of the organization's, edited
+// by its caregivers and administrators; the family member keeps view-only
+// access.
+//
 // Only the organization's own administrator (its creator/owner) can use
 // this; anyone else sees a short explanation. The member list itself comes
 // from the server because firestore.rules only let users read their own
@@ -52,6 +62,7 @@ export default function ManageUsersScreen({ navigation }) {
   const [isOwner, setIsOwner] = useState(false);
   const [members, setMembers] = useState([]);
   const [pending, setPending] = useState([]);
+  const [pendingMoves, setPendingMoves] = useState([]);
   // uid of the request being approved/denied, so only its buttons disable.
   const [decidingUid, setDecidingUid] = useState(null);
   const [decideError, setDecideError] = useState('');
@@ -85,6 +96,7 @@ export default function ManageUsersScreen({ navigation }) {
         const result = await callListOrgMembers({ orgId: id });
         setMembers(result.data.members);
         setPending(result.data.pending ?? []);
+        setPendingMoves(result.data.pendingMoves ?? []);
       }
     } catch (e) {
       console.error('[ManageUsers] failed to load members:', e.code, e.message, e);
@@ -118,6 +130,35 @@ export default function ManageUsersScreen({ navigation }) {
     } catch (e) {
       console.error('[ManageUsers] failed to decide request:', e.code, e.message, e);
       // not-found: cancelled, or another admin action got there first.
+      setDecideError(
+        e.code === 'functions/not-found' || e.code === 'functions/failed-precondition'
+          ? e.message
+          : 'Something went wrong. Please try again.'
+      );
+      await load();
+    } finally {
+      setDecidingUid(null);
+    }
+  }
+
+  // Approves or declines one resident move, then reloads. Shares the
+  // deciding/notice/error state with member requests: only one decision is
+  // ever in flight, and its residentId can't collide with a uid.
+  async function decideMove(move, approve) {
+    setDecidingUid(move.residentId);
+    setDecideError('');
+    setNotice('');
+    try {
+      await decideResidentMove(orgId, move.residentId, approve);
+      setNotice(
+        approve
+          ? `${move.residentName} is now one of your organization’s residents.`
+          : `The request to move ${move.residentName} was declined.`
+      );
+      await load();
+    } catch (e) {
+      console.error('[ManageUsers] failed to decide resident move:', e.code, e.message, e);
+      // not-found: the family member cancelled, or it was already decided.
       setDecideError(
         e.code === 'functions/not-found' || e.code === 'functions/failed-precondition'
           ? e.message
@@ -195,14 +236,63 @@ export default function ManageUsersScreen({ navigation }) {
 
             {notice ? <Text style={styles.successBanner}>{notice}</Text> : null}
 
+            {decideError ? (
+              <Text style={styles.errorBanner} accessibilityRole="alert">
+                {decideError}
+              </Text>
+            ) : null}
+
+            {pendingMoves.length > 0 ? (
+              <>
+                <Text style={styles.sectionLabel}>Residents waiting to move in</Text>
+                <View style={[styles.card, styles.pendingCard]}>
+                  {pendingMoves.map((m, i) => (
+                    <View
+                      key={m.residentId}
+                      style={[
+                        styles.pendingRow,
+                        i < pendingMoves.length - 1 && styles.memberRowBorder,
+                      ]}
+                    >
+                      <View style={styles.memberRow}>
+                        <View style={styles.memberText}>
+                          <Text style={styles.memberName}>{m.residentName}</Text>
+                          <Text style={styles.memberMeta}>
+                            {`Requested by ${m.requestedByName}. If you approve, your caregivers and administrators manage this profile; ${m.requestedByName} can view it.`}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.decideRow}>
+                        <TouchableOpacity
+                          style={[styles.approveButton, decidingUid && styles.disabled]}
+                          onPress={() => decideMove(m, true)}
+                          disabled={!!decidingUid}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Approve moving ${m.residentName}`}
+                        >
+                          <Text style={styles.approveText}>
+                            {decidingUid === m.residentId ? 'Saving…' : 'Approve'}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.denyButton, decidingUid && styles.disabled]}
+                          onPress={() => decideMove(m, false)}
+                          disabled={!!decidingUid}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Deny moving ${m.residentName}`}
+                        >
+                          <Text style={styles.denyText}>Deny</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : null}
+
             {pending.length > 0 ? (
               <>
                 <Text style={styles.sectionLabel}>Waiting for approval</Text>
-                {decideError ? (
-                  <Text style={styles.errorBanner} accessibilityRole="alert">
-                    {decideError}
-                  </Text>
-                ) : null}
                 <View style={[styles.card, styles.pendingCard]}>
                   {pending.map((p, i) => (
                     <View
@@ -241,8 +331,11 @@ export default function ManageUsersScreen({ navigation }) {
                     </View>
                   ))}
                 </View>
-                <Text style={styles.sectionLabel}>Members</Text>
               </>
+            ) : null}
+
+            {pending.length > 0 || pendingMoves.length > 0 ? (
+              <Text style={styles.sectionLabel}>Members</Text>
             ) : null}
 
             {members.length === 0 ? (

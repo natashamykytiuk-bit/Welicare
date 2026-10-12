@@ -1,3 +1,4 @@
+import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { doc, getDoc, writeBatch } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
@@ -12,6 +13,7 @@ import {
 } from 'react-native';
 import BackButton from '../components/BackButton';
 import LoadError from '../components/LoadError';
+import PasswordField from '../components/PasswordField';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { normalizeUsername } from '../utils/username';
@@ -24,11 +26,19 @@ import { isValidUsername } from '../utils/validation';
 // Those three writes go in one writeBatch: Firestore applies all of them or
 // none, so a failure can never leave two names claimed, the profile showing
 // the wrong name, or the old name stuck unreleasable.
+//
+// The account password is asked for first (the same re-authentication as
+// ForgotPinScreen and DeleteAccountScreen). Settings is reachable from Mode
+// Selection without the PIN, and the username is what people sign in with,
+// so someone who merely picks up a signed-in device mustn't be able to
+// change it. This check is in the app only — firestore.rules don't ask for
+// a recent sign-in on these writes.
 export default function ChangeUsernameScreen({ navigation }) {
   // undefined while loading, then the current username string (or '' if
   // somehow unset)
   const [currentUsername, setCurrentUsername] = useState(undefined);
   const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -81,8 +91,27 @@ export default function ChangeUsernameScreen({ navigation }) {
       setError('That is already your username.');
       return;
     }
+    if (!password) {
+      setError('Please enter your password to change your username.');
+      return;
+    }
 
     setLoading(true);
+    // Confirm it's really the account owner before anything is written. Kept
+    // apart from the try below so a wrong password gets its own message
+    // instead of "something went wrong".
+    try {
+      const credential = EmailAuthProvider.credential(auth.currentUser.email, password);
+      await reauthenticateWithCredential(auth.currentUser, credential);
+    } catch (e) {
+      // One message for every failure, like ForgotPinScreen: the email is
+      // the signed-in user's own, so only the password can be wrong from
+      // their side. The real error is logged for debugging.
+      console.error('[ChangeUsername] re-authentication failed:', e.code, e.message, e);
+      setError('Incorrect password. Please try again.');
+      setLoading(false);
+      return;
+    }
     try {
       const uid = auth.currentUser.uid;
       // Quick check first, purely to give a friendly message. It isn't
@@ -106,6 +135,8 @@ export default function ChangeUsernameScreen({ navigation }) {
 
       setCurrentUsername(username);
       setUsername('');
+      // Each change needs the password typed again.
+      setPassword('');
       setSuccess(true);
     } catch (e) {
       // If someone claimed the name between the check above and the
@@ -172,6 +203,15 @@ export default function ChangeUsernameScreen({ navigation }) {
           accessibilityLabel="New username"
         />
         {usernameError ? <Text style={styles.fieldError}>{usernameError}</Text> : null}
+
+        <Text style={styles.label}>Password</Text>
+        <PasswordField
+          placeholder="Your password"
+          autoComplete="password"
+          value={password}
+          onChangeText={setPassword}
+          accessibilityLabel="Password"
+        />
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}

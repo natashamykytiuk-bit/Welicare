@@ -24,6 +24,9 @@ import {
 } from '../utils/engagementStats';
 import { cleanPeople, describePerson } from '../utils/lifeStoryPeople';
 import { loadLifeStory, residentHasLifeStory } from '../utils/residentLifeStory';
+import { isArchived, setResidentArchived } from '../utils/residentManagement';
+import { canArchiveResident, canEditResident } from '../utils/residentPermissions';
+import { loadViewer } from '../utils/viewer';
 import { withTimeout } from '../utils/withTimeout';
 
 const LOAD_TIMEOUT_MS = 10000;
@@ -71,9 +74,12 @@ const LIFE_STORY_FIELDS = [
 // (mirrors the photos rules in firestore.rules / storage.rules).
 const PHOTO_UPLOAD_ROLES = ['Family Caregiver', 'Caregiver', 'Administrator'];
 const PHOTO_MODERATOR_ROLES = ['Caregiver', 'Administrator'];
-// Volunteers see the profile but can't change it (firestore.rules refuse
-// their writes anyway; this just doesn't offer buttons that would fail).
-const VIEW_ONLY_ROLES = ['Volunteer'];
+// Who may change the profile itself (Edit life story, Archive / Restore) is
+// decided per resident by utils/residentPermissions.js: the facility's
+// Caregivers and Administrators, or a Family Caregiver for their own
+// at-home resident. Volunteers, and family members of a resident who lives
+// in a facility, see the profile without those buttons (firestore.rules
+// refuse their writes anyway; this just doesn't offer buttons that fail).
 
 export default function ResidentProfileScreen({ navigation, route }) {
   const residentId = route?.params?.residentId;
@@ -86,6 +92,11 @@ export default function ResidentProfileScreen({ navigation, route }) {
   const [hasOrg, setHasOrg] = useState(true);
   // The viewer's role — decides which photo album options to offer.
   const [role, setRole] = useState(null);
+  // { viewer, org } for the permission helpers; null until loaded (or if
+  // that failed), which leaves the edit controls hidden.
+  const [access, setAccess] = useState(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [archiveError, setArchiveError] = useState('');
   const [statsError, setStatsError] = useState('');
   const [period, setPeriod] = useState('30d');
   const [loading, setLoading] = useState(!!residentId);
@@ -112,6 +123,9 @@ export default function ResidentProfileScreen({ navigation, route }) {
       const orgId = residentData.facilityId ?? userSnap.data()?.orgId;
       setHasOrg(!!orgId);
       setRole(userSnap.data()?.role ?? null);
+      // Only decides which edit controls show, so a failure here just
+      // leaves the profile view-only rather than failing the whole screen.
+      setAccess(await loadViewer().catch(() => null));
 
       // The life story and the engagement log load side by side, and each
       // fails on its own: a problem with one mustn't hide the other.
@@ -145,6 +159,26 @@ export default function ResidentProfileScreen({ navigation, route }) {
       load();
     }, [load])
   );
+
+  const mayEdit = !!access && canEditResident(access.viewer, access.org, resident);
+  const mayArchive = !!access && canArchiveResident(access.viewer, access.org, resident);
+  const archived = isArchived(resident);
+
+  // Archive or restore, then reload so the banner and buttons follow.
+  // Nothing is deleted either way, so there's no confirmation step.
+  async function toggleArchived() {
+    setArchiveBusy(true);
+    setArchiveError('');
+    try {
+      await setResidentArchived(residentId, !archived);
+      await load();
+    } catch (e) {
+      console.error('[ResidentProfile] failed to change archived state:', e.code, e.message, e);
+      setArchiveError('That didn’t save. Please try again.');
+    } finally {
+      setArchiveBusy(false);
+    }
+  }
 
   if (!residentId) {
     return (
@@ -196,6 +230,39 @@ export default function ResidentProfileScreen({ navigation, route }) {
               <Text style={styles.body}>Likes to be called {resident.preferredName}</Text>
             ) : null}
 
+            {/* Archived residents are hidden from Resident Mode and the
+                everyday lists; everything about them is still here. */}
+            {archived ? (
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Archived</Text>
+                <Text style={styles.muted}>
+                  {resident?.name || 'This resident'} is archived, so they don’t appear in Resident
+                  Mode. Nothing has been deleted.
+                </Text>
+                {mayArchive ? (
+                  <View style={styles.buttonRow}>
+                    <TouchableOpacity
+                      style={styles.primaryButton}
+                      onPress={toggleArchived}
+                      disabled={archiveBusy}
+                      accessibilityRole="button"
+                      accessibilityLabel="Restore resident"
+                    >
+                      <Ionicons name="arrow-undo-outline" size={20} color={colors.white} />
+                      <Text style={styles.primaryButtonText}>
+                        {archiveBusy ? 'Restoring…' : 'Restore resident'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+            {archiveError ? (
+              <Text style={styles.errorBanner} accessibilityRole="alert">
+                {archiveError}
+              </Text>
+            ) : null}
+
             {/* --- Profile --- */}
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>Profile</Text>
@@ -218,7 +285,7 @@ export default function ResidentProfileScreen({ navigation, route }) {
                 </Text>
               )}
               <View style={styles.buttonRow}>
-                {!lifeStoryDenied && !VIEW_ONLY_ROLES.includes(role) ? (
+                {!lifeStoryDenied && mayEdit ? (
                   <TouchableOpacity
                     style={styles.primaryButton}
                     onPress={() =>
@@ -243,6 +310,22 @@ export default function ResidentProfileScreen({ navigation, route }) {
                   <Ionicons name="shield-checkmark-outline" size={20} color={colors.primary} />
                   <Text style={styles.secondaryButtonText}>Safety notes</Text>
                 </TouchableOpacity>
+                {/* Archive: hides the resident without deleting anything.
+                    Permanent deletion is in Resident Mode's options menu. */}
+                {mayArchive && !archived ? (
+                  <TouchableOpacity
+                    style={styles.secondaryButton}
+                    onPress={toggleArchived}
+                    disabled={archiveBusy}
+                    accessibilityRole="button"
+                    accessibilityLabel="Archive resident"
+                  >
+                    <Ionicons name="archive-outline" size={20} color={colors.primary} />
+                    <Text style={styles.secondaryButtonText}>
+                      {archiveBusy ? 'Archiving…' : 'Archive'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
             </View>
 

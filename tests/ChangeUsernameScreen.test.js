@@ -11,7 +11,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import ChangeUsernameScreen from '../screens/ChangeUsernameScreen';
-import { batches, docSnap, firestore } from './mocks/firebase';
+import { authModule, batches, docSnap, firestore } from './mocks/firebase';
 
 const navigation = { goBack: jest.fn(), navigate: jest.fn() };
 
@@ -22,12 +22,54 @@ async function renderWithCurrentName(name) {
   await screen.findByText(name);
 }
 
-async function submit(newName) {
+// Fills in the form and saves. The password is required, so tests that
+// aren't about it pass a correct one by default ('' leaves it blank).
+async function submit(newName, password = 'correct-password') {
   await fireEvent.changeText(screen.getByLabelText('New username'), newName);
+  if (password) await fireEvent.changeText(screen.getByLabelText('Password'), password);
   await fireEvent.press(screen.getByLabelText('Save username'));
 }
 
 describe('ChangeUsernameScreen', () => {
+  it('asks for the password and writes nothing without it', async () => {
+    await renderWithCurrentName('old.name');
+
+    await submit('new.name', '');
+
+    expect(await screen.findByText(/enter your password/)).toBeTruthy();
+    expect(authModule.reauthenticateWithCredential).not.toHaveBeenCalled();
+    expect(batches).toHaveLength(0);
+  });
+
+  it('writes nothing when the password is wrong', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    await renderWithCurrentName('old.name');
+    authModule.reauthenticateWithCredential.mockRejectedValueOnce(
+      Object.assign(new Error('wrong'), { code: 'auth/wrong-password' })
+    );
+
+    await submit('new.name', 'not-my-password');
+
+    expect(await screen.findByText('Incorrect password. Please try again.')).toBeTruthy();
+    expect(batches).toHaveLength(0);
+    expect(screen.getByText('old.name')).toBeTruthy();
+    spy.mockRestore();
+  });
+
+  it('checks the password before changing anything', async () => {
+    await renderWithCurrentName('old.name');
+    firestore.getDoc.mockResolvedValueOnce(docSnap(undefined)); // new name is free
+
+    await submit('new.name');
+
+    expect(authModule.EmailAuthProvider.credential).toHaveBeenCalledWith(
+      'tester@example.com',
+      'correct-password'
+    );
+    expect(authModule.reauthenticateWithCredential).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('Your username has been updated.')).toBeTruthy();
+  });
+
   it('claims, updates and releases in a single committed batch', async () => {
     await renderWithCurrentName('old.name');
     firestore.getDoc.mockResolvedValueOnce(docSnap(undefined)); // new name is free

@@ -1,222 +1,58 @@
-import { doc, getDoc } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import BackButton from '../components/BackButton';
-import LoadError from '../components/LoadError';
-import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
-import {
-  fetchInviteCode,
-  formatOrgCode,
-  joinOrganizationByCode,
-  upgradePersonalOrganization,
-} from '../utils/inviteCode';
 
-// Joining is a request the organization's administrator approves (see
-// joinOrganization in functions/index.js). While it waits, this person
-// stays on their personal org, so the screen shows the request above the
-// join form instead of switching views.
+// Reached from SettingsScreen's "Connecting with a Care Home" row, which
+// only shows for a Family Caregiver on their family organization (the
+// personal one made at sign-up — see createPersonalOrganization).
 //
-// Reached from SettingsScreen's "Organization" row, which only shows while
-// the caregiver's current org has isPersonal: true — i.e. a Family
-// Caregiver still on the auto-created personal org from sign-up (see
-// createPersonalOrganization). Once they join or create a real
-// organization, this screen just shows that org's join code instead of the
-// forms below (loadOrgState re-runs after either action succeeds, so the
-// screen naturally flips to that view without a separate "success" state
-// to manage).
+// This screen used to hold two forms: join an organization with its invite
+// code, or turn the family organization into a real one. Both are gone on
+// purpose (owner decision, Oct 2026): a family account never becomes a
+// member of a care home — members see every resident there — and a family
+// organization stays one family's own. A family member connects to a care
+// home one resident at a time instead, in Family Mode → My Residents:
+//   - with a family code, for someone who already lives there;
+//   - with "Move to an organization", for someone they've been looking
+//     after at home who is moving in.
+// So this is now a short explanation pointing there. It deliberately has no
+// button into My Residents: that screen sits behind Family Mode's PIN, and
+// Settings must not be a way around it.
 export default function OrganizationSettingsScreen({ navigation }) {
-  const [loading, setLoading] = useState(true);
-  const [orgIsPersonal, setOrgIsPersonal] = useState(true);
-  const [orgName, setOrgName] = useState('');
-  const [orgInviteCode, setOrgInviteCode] = useState('');
-
-  const [joinCode, setJoinCode] = useState('');
-  const [joining, setJoining] = useState(false);
-  const [joinError, setJoinError] = useState('');
-  const [joinNote, setJoinNote] = useState('');
-  // Name of the organization a join request is waiting on, or '' if none.
-  const [pendingOrgName, setPendingOrgName] = useState('');
-  const [hasPending, setHasPending] = useState(false);
-
-  const [createName, setCreateName] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState('');
-  const [loadError, setLoadError] = useState(false);
-
-  // Also re-run after joining or creating. It never throws: a failure
-  // shows LoadError (with Try again) and loading is always cleared in
-  // finally, so the spinner can't get stuck — and a join that succeeded
-  // isn't reported as failed just because this refresh didn't load.
-  async function loadOrgState() {
-    setLoading(true);
-    setLoadError(false);
-    try {
-      const uid = auth.currentUser?.uid;
-      const userSnap = await getDoc(doc(db, 'users', uid));
-      const orgId = userSnap.data()?.orgId;
-      const pendingOrgId = userSnap.data()?.pendingOrgId;
-      setHasPending(!!pendingOrgId);
-      if (pendingOrgId) {
-        const pendingOrg = await getDoc(doc(db, 'organizations', pendingOrgId));
-        setPendingOrgName(pendingOrg.data()?.name ?? '');
-      }
-      if (orgId) {
-        const orgSnap = await getDoc(doc(db, 'organizations', orgId));
-        const data = orgSnap.data();
-        setOrgIsPersonal(data?.isPersonal === true);
-        setOrgName(data?.name ?? '');
-        // The code isn't on the org doc — it's in the members-only
-        // private/invite doc (see fetchInviteCode).
-        setOrgInviteCode((await fetchInviteCode(orgId)) ?? '');
-      }
-    } catch (e) {
-      console.error('[OrganizationSettings] failed to load organization:', e.code, e.message, e);
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadOrgState();
-  }, []);
-
-  function handleChangeJoinCode(text) {
-    setJoinCode(formatOrgCode(text));
-  }
-
-  async function handleJoin() {
-    if (!joinCode.trim()) return;
-    setJoinError('');
-    setJoining(true);
-    try {
-      await joinOrganizationByCode(joinCode);
-      setJoinNote(
-        'Request sent. Once their administrator approves it you’ll be part of the organization. Residents you added before stay in your list.'
-      );
-      setJoinCode('');
-      await loadOrgState();
-    } catch (e) {
-      setJoinError(e.message || 'Something went wrong. Please try again.');
-    } finally {
-      setJoining(false);
-    }
-  }
-
-  async function handleCreate() {
-    const name = createName.trim();
-    if (!name) return;
-    setCreateError('');
-    setCreating(true);
-    try {
-      await upgradePersonalOrganization({ name });
-      setCreateName('');
-      await loadOrgState();
-    } catch (e) {
-      setCreateError(e.message || 'Something went wrong. Please try again.');
-    } finally {
-      setCreating(false);
-    }
-  }
-
   return (
     <SafeAreaView style={styles.flex}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content}>
         <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Organization</Text>
+        <Text style={styles.heading}>Connecting with a care home</Text>
+        <Text style={styles.body}>
+          Your family account stays your own. To connect with a care home that uses Welicare, you
+          link one person at a time from Family Mode → My Residents.
+        </Text>
 
-        {loadError ? (
-          <LoadError onRetry={loadOrgState} />
-        ) : loading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={styles.spinner} />
-        ) : !orgIsPersonal ? (
-          <View style={styles.card}>
-            <Text style={styles.cardLabel}>Your organization</Text>
-            <Text style={styles.orgName}>{orgName || '—'}</Text>
-            <Text style={[styles.cardLabel, styles.joinCodeLabel]}>Join code</Text>
-            <Text style={styles.joinCode} selectable>
-              {orgInviteCode || '—'}
-            </Text>
-            <Text style={styles.helpText}>
-              Share this code so colleagues can join your organization.
-            </Text>
-          </View>
-        ) : (
-          <>
-            <Text style={styles.body}>
-              You're currently on a personal organization. Join a colleague's organization with
-              their code, or create your own to invite others.
-            </Text>
+        <View style={styles.card}>
+          <Ionicons name="key-outline" size={26} color={colors.primary} style={styles.cardIcon} />
+          <Text style={styles.cardTitle}>They already live there</Text>
+          <Text style={styles.cardBody}>
+            Ask the care team for a family code and enter it in My Residents. You’ll be able to see
+            their profile and share photos for their album.
+          </Text>
+        </View>
 
-            <Text style={styles.sectionLabel}>Join an Organization</Text>
-            <View style={styles.card}>
-              {joinNote ? <Text style={styles.note}>{joinNote}</Text> : null}
-              {hasPending && !joinNote ? (
-                <Text style={styles.note}>
-                  {`Your request to join ${pendingOrgName || 'an organization'} is waiting for its administrator to approve it. Sending another code replaces it.`}
-                </Text>
-              ) : null}
-              {joinError ? <Text style={styles.error}>{joinError}</Text> : null}
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. MGK7-4TXR"
-                placeholderTextColor={colors.textMuted}
-                autoCapitalize="characters"
-                maxLength={9}
-                value={joinCode}
-                onChangeText={handleChangeJoinCode}
-                accessibilityLabel="Organization join code"
-              />
-              <TouchableOpacity
-                style={[styles.button, (!joinCode.trim() || joining) && styles.buttonDisabled]}
-                onPress={handleJoin}
-                disabled={!joinCode.trim() || joining}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel="Join organization"
-              >
-                <Text style={styles.buttonText}>{joining ? 'Sending…' : 'Ask to join'}</Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.sectionLabel}>Create an Organization</Text>
-            <View style={styles.card}>
-              <Text style={styles.helpText}>
-                Creating an organization gives you a join code to share with colleagues, so you can
-                all work from the same shared residents and music library.
-              </Text>
-              {createError ? <Text style={styles.error}>{createError}</Text> : null}
-              <TextInput
-                style={styles.input}
-                placeholder="Organization name"
-                placeholderTextColor={colors.textMuted}
-                value={createName}
-                onChangeText={setCreateName}
-                accessibilityLabel="Organization name"
-              />
-              <TouchableOpacity
-                style={[styles.button, (!createName.trim() || creating) && styles.buttonDisabled]}
-                onPress={handleCreate}
-                disabled={!createName.trim() || creating}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel="Create organization"
-              >
-                <Text style={styles.buttonText}>{creating ? 'Creating…' : 'Create'}</Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
+        <View style={styles.card}>
+          <Ionicons
+            name="business-outline"
+            size={26}
+            color={colors.primary}
+            style={styles.cardIcon}
+          />
+          <Text style={styles.cardTitle}>They’re moving in</Text>
+          <Text style={styles.cardBody}>
+            In My Residents, find the person you’ve been caring for at home and choose “Move to an
+            organization”. Once the care home approves, its caregivers and administrators keep the
+            profile up to date; you can still view it and share photos.
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -232,7 +68,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 16,
   },
-  spinner: { marginTop: 24 },
   body: {
     fontFamily: fonts.sansRegular,
     fontSize: 16,
@@ -240,89 +75,25 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: 24,
   },
-  sectionLabel: {
-    fontFamily: fonts.sansBold,
-    fontSize: 13,
-    color: colors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 8,
-  },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radii.sm,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 18,
-    marginBottom: 24,
+    marginBottom: 16,
   },
-  cardLabel: {
+  cardIcon: { marginBottom: 10 },
+  cardTitle: {
     fontFamily: fonts.sansBold,
-    fontSize: 13,
-    color: colors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    fontSize: 18,
+    color: colors.textPrimary,
     marginBottom: 6,
   },
-  joinCodeLabel: { marginTop: 16 },
-  orgName: {
-    fontFamily: fonts.serifBold,
-    fontSize: 22,
-    color: colors.textPrimary,
-  },
-  joinCode: {
-    fontFamily: fonts.serifBold,
-    fontSize: 32,
-    letterSpacing: 2,
-    color: colors.textPrimary,
-    marginBottom: 8,
-  },
-  helpText: {
+  cardBody: {
     fontFamily: fonts.sansRegular,
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textMuted,
-    lineHeight: 20,
-    marginBottom: 14,
-  },
-  note: {
-    fontFamily: fonts.sansBold,
-    fontSize: 14,
-    color: colors.primary,
-    backgroundColor: colors.mistBackground,
-    borderRadius: radii.sm,
-    padding: 12,
-    marginBottom: 14,
-    lineHeight: 20,
-  },
-  error: {
-    fontFamily: fonts.sansRegular,
-    fontSize: 14,
-    color: colors.destructive,
-    marginBottom: 12,
-  },
-  input: {
-    fontFamily: fonts.sansRegular,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.sm,
-    paddingHorizontal: 16,
-    paddingVertical: 15,
-    fontSize: 16,
-    color: colors.textPrimary,
-    marginBottom: 14,
-    minHeight: 52,
-  },
-  button: {
-    backgroundColor: colors.primary,
-    borderRadius: radii.sm,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  buttonDisabled: { opacity: 0.5 },
-  buttonText: {
-    fontFamily: fonts.sansBold,
-    color: colors.white,
-    fontSize: 16,
+    lineHeight: 23,
   },
 });

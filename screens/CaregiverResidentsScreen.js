@@ -16,6 +16,7 @@ import ResidentAvatar from '../components/ResidentAvatar';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { residentHasLifeStory } from '../utils/residentLifeStory';
+import { setResidentArchived, splitArchived } from '../utils/residentManagement';
 import { withTimeout } from '../utils/withTimeout';
 
 const LOAD_TIMEOUT_MS = 10000;
@@ -39,8 +40,17 @@ const LOAD_TIMEOUT_MS = 10000;
 // same screen with viewOnly: volunteers may list their facility's residents
 // too (seesWholeFacility in firestore.rules), and only the wording changes —
 // what they can't edit is decided on ResidentProfileScreen and by the rules.
+//
+// Archived residents (archived: true — see utils/residentManagement.js) are
+// kept out of the main list and shown underneath in an "Archived" section
+// with a Restore button, so archiving is never a dead end. Volunteers
+// (viewOnly) don't see that section at all: they can't restore anyone, and
+// an archived resident isn't someone they'd be visiting.
 export default function CaregiverResidentsScreen({ navigation, viewOnly = false }) {
   const [residents, setResidents] = useState([]);
+  const [archivedResidents, setArchivedResidents] = useState([]);
+  // id of the resident being restored, so only its button shows progress.
+  const [restoringId, setRestoringId] = useState(null);
   const [orgName, setOrgName] = useState('');
   const [hasOrg, setHasOrg] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -71,7 +81,9 @@ export default function CaregiverResidentsScreen({ navigation, viewOnly = false 
       const list = snapshot.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
-      setResidents(list);
+      const { active, archived } = splitArchived(list);
+      setResidents(active);
+      setArchivedResidents(archived);
     } catch (e) {
       console.error('[CaregiverResidents] failed to load residents:', e.code, e.message, e);
       setError(e.code ? 'Could not load residents. Please try again.' : e.message);
@@ -87,6 +99,24 @@ export default function CaregiverResidentsScreen({ navigation, viewOnly = false 
       loadResidents();
     }, [loadResidents])
   );
+
+  // Restore puts the resident straight back in the main list (and in
+  // Resident Mode); the reload moves them between the two sections.
+  async function handleRestore(resident) {
+    setRestoringId(resident.id);
+    setError('');
+    try {
+      await setResidentArchived(resident.id, false);
+      await loadResidents();
+    } catch (e) {
+      console.error('[CaregiverResidents] failed to restore resident:', e.code, e.message, e);
+      setError('Could not restore this resident. Please try again.');
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
+  const showArchived = !viewOnly && archivedResidents.length > 0;
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -117,7 +147,7 @@ export default function CaregiverResidentsScreen({ navigation, viewOnly = false 
 
         {loading ? (
           <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
-        ) : residents.length === 0 && !error ? (
+        ) : residents.length === 0 && !showArchived && !error ? (
           <Text style={styles.emptyText}>
             {viewOnly
               ? 'No residents yet. Once your organization adds residents, they’ll appear here.'
@@ -128,6 +158,51 @@ export default function CaregiverResidentsScreen({ navigation, viewOnly = false 
             data={residents}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.list}
+            ListFooterComponent={
+              showArchived ? (
+                <View style={styles.archivedSection}>
+                  <Text style={styles.archivedHeading}>Archived</Text>
+                  <Text style={styles.archivedBody}>
+                    Hidden from Resident Mode. Nothing has been deleted.
+                  </Text>
+                  {archivedResidents.map((item) => (
+                    <View key={item.id} style={styles.row}>
+                      <TouchableOpacity
+                        style={styles.archivedRowMain}
+                        onPress={() =>
+                          navigation.navigate('ResidentProfile', { residentId: item.id })
+                        }
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${item.name || 'Unnamed resident'}, archived. Open profile`}
+                      >
+                        <ResidentAvatar
+                          name={item.name}
+                          photoPath={item.photoPath}
+                          photoUpdatedAt={item.photoUpdatedAt}
+                          size={44}
+                        />
+                        <Text style={[styles.rowName, styles.rowText]} numberOfLines={1}>
+                          {item.name || 'Unnamed resident'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.restoreButton}
+                        onPress={() => handleRestore(item)}
+                        disabled={restoringId !== null}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Restore ${item.name || 'resident'}`}
+                      >
+                        <Text style={styles.restoreButtonText}>
+                          {restoringId === item.id ? 'Restoring…' : 'Restore'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              ) : null
+            }
             renderItem={({ item }) => {
               const profileStarted = residentHasLifeStory(item);
               return (
@@ -259,4 +334,31 @@ const styles = StyleSheet.create({
   },
   // Error red, so residents still missing a life story stand out in the list.
   rowStatusTodo: { color: colors.destructive },
+  archivedSection: { marginTop: 20 },
+  archivedHeading: {
+    fontFamily: fonts.sansBold,
+    fontSize: 13,
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  archivedBody: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 15,
+    color: colors.textMuted,
+    marginBottom: 12,
+    lineHeight: 21,
+  },
+  archivedRowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  // 48pt target, like the other secondary actions.
+  restoreButton: {
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  restoreButtonText: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.primary },
 });

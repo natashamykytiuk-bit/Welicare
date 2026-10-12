@@ -18,8 +18,9 @@
 // A join request is checked before the skip below: someone who asked to
 // join a facility waits for its administrator, whatever their role.
 //
-// Only Family Caregivers may skip the organization step (orgStepSkipped):
-// they look after a relative at home and needn't belong to a facility.
+// Only Family Caregivers may pass the organization step without one
+// (orgStepSkipped): they look after a relative at home and never belong to
+// a facility. They normally have a family organization from sign-up anyway.
 // Administrators, Caregivers and Volunteers all work *for* a facility, so
 // without one the app has nothing for them — orgStepSkipped is ignored for
 // those roles, which also sends anyone who skipped under the old rules back
