@@ -23,6 +23,13 @@ import Dropdown from '../components/Dropdown';
 import PasswordField from '../components/PasswordField';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import {
+  BIRTH_MONTHS,
+  isOldEnough,
+  isPlausibleBirthYear,
+  markTurnedAway,
+  wasTurnedAway,
+} from '../utils/ageGate';
 import { createPersonalOrganization } from '../utils/inviteCode';
 import { nextOnboardingRoute } from '../utils/onboarding';
 import { useIsTablet } from '../utils/responsive';
@@ -66,6 +73,10 @@ const PASSWORD_RULE_LABELS = [
   ['special', 'One special character'],
   ['noSpaces', 'No spaces'],
 ];
+
+// Shown to anyone the age screen turns away. Deliberately doesn't mention
+// an age, so it gives no hint about which answer would have worked.
+const TURNED_AWAY_MESSAGE = "Sorry, we can't create a Welicare account for you right now.";
 
 function getAuthErrorMessage(code) {
   switch (code) {
@@ -133,6 +144,10 @@ export default function SignUpScreen({ navigation, route }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [country, setCountry] = useState('');
+  // Birth month/year are only used for the age screen in validate() — they
+  // are never written to the profile (see utils/ageGate.js).
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthYear, setBirthYear] = useState('');
   const [role, setRole] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -201,9 +216,20 @@ export default function SignUpScreen({ navigation, route }) {
   }
 
   function validate({ needsCredentials }) {
-    if (!fullName || !username || !country || !role) return 'Please fill in all fields.';
+    // Someone already turned away can't retry with a different birth date.
+    if (wasTurnedAway()) return TURNED_AWAY_MESSAGE;
+    if (!fullName || !username || !country || !role || !birthMonth || !birthYear) {
+      return 'Please fill in all fields.';
+    }
     if (needsCredentials && (!email || !password || !confirmPassword)) {
       return 'Please fill in all fields.';
+    }
+    if (!isPlausibleBirthYear(birthYear)) return 'Please enter your birth year as four digits.';
+    // Age screen (COPPA). This runs before the Auth account or any Firestore
+    // doc is created, so nothing is collected from a child who is refused.
+    if (!isOldEnough(birthMonth, birthYear)) {
+      markTurnedAway();
+      return TURNED_AWAY_MESSAGE;
     }
     if (!isValidUsername(username)) {
       return 'Username can only contain letters, numbers, periods, and underscores.';
@@ -472,6 +498,27 @@ export default function SignUpScreen({ navigation, route }) {
         options={COUNTRIES}
         placeholder="Select your country…"
         accessibilityLabel="Select your country"
+      />
+
+      {/* Asked neutrally — no "you must be 13" hint — and not saved. */}
+      <Text style={styles.label}>Date of Birth</Text>
+      <Dropdown
+        label="Birth month"
+        value={birthMonth}
+        onValueChange={setBirthMonth}
+        options={BIRTH_MONTHS}
+        placeholder="Month…"
+        accessibilityLabel="Select your birth month"
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Year (e.g. 1975)"
+        placeholderTextColor={colors.textMuted}
+        keyboardType="number-pad"
+        maxLength={4}
+        value={birthYear}
+        onChangeText={setBirthYear}
+        accessibilityLabel="Birth year"
       />
 
       <Text style={styles.label}>I am a...</Text>
