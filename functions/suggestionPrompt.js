@@ -65,6 +65,10 @@ const FIELD_LABELS = [
 // for real answers, but stops a direct caller sending huge (paid) prompts.
 const MAX_TEXT_LENGTH = 1000;
 const MAX_LIST_ITEMS = 30;
+// List answers are tick-box options ("Gardening", "Jazz"), so they're capped
+// much shorter than free text — 30 items of 1,000 characters each was the
+// bulk of the largest prompt a direct caller could build.
+const MAX_LIST_ITEM_LENGTH = 100;
 const LIST_FIELDS = ['hobbies', 'creativeHobbies', 'musicGenres'];
 const BOOLEAN_FIELDS = ['hasChildren', 'hasGrandchildren'];
 const TEXT_FIELDS = [
@@ -152,7 +156,7 @@ function sanitizeLifeStory(raw) {
       const items = raw[key]
         .filter((item) => typeof item === 'string' && item.trim())
         .slice(0, MAX_LIST_ITEMS)
-        .map((item) => item.trim().slice(0, MAX_TEXT_LENGTH));
+        .map((item) => item.trim().slice(0, MAX_LIST_ITEM_LENGTH));
       if (items.length) clean[key] = items;
     }
   }

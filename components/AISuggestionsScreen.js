@@ -130,7 +130,15 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
         // "internal") and `.details` — both hidden by the generic message
         // below, so log them for debugging.
         console.error('generateSuggestions error:', e.code, e.message, e.details, e);
-        if (!cancelled) setError('Something went wrong generating suggestions. Please try again.');
+        // A usage limit (functions/rateLimit.js) has its own message, written
+        // for the person reading it; everything else stays generic.
+        if (!cancelled) {
+          setError(
+            e.code === 'functions/resource-exhausted'
+              ? e.message
+              : 'Something went wrong generating suggestions. Please try again.'
+          );
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

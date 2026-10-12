@@ -4,7 +4,7 @@
 // ships in the app, and parses the reply into a structured brief.
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
-const { requireVerified } = require('./authChecks');
+const { requireVerified, requireUsage } = require('./authChecks');
 const {
   PROMPT_VERSION,
   resolveKind,
@@ -23,7 +23,36 @@ const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
 // more would mostly add cost and wait time for the caregiver.
 const MAX_ATTEMPTS = 2;
 
-// One call to the model. Returns the reply text, or throws an HttpsError
+// Usage limits (see rateLimit.js). They count calls to this function, not
+// tokens or provider requests, so they stay correct if the model or provider
+// in callModel below is changed. Sized for real use: a staff member opening
+// suggestions for each resident on a shift is a few dozen calls a day.
+const AI_CALLS_PER_HOUR = 20;
+const AI_CALLS_PER_DAY = 60;
+// Shared across every account — the ceiling on a day's spend whatever
+// happens. Raise it as real usage grows.
+const AI_CALLS_GLOBAL_PER_DAY = 1000;
+
+// Longest prompt (in characters) we'll send. Each field is capped in
+// suggestionPrompt.js, but a caller bypassing the app could still fill every
+// field to its cap; this bounds the total. A request over it is refused
+// rather than cut short, because the caregivers' "never mention" rule is the
+// LAST thing in the prompt and truncating would silently drop it. A very
+// full real profile is well under half of this.
+const MAX_PROMPT_CHARS = 24000;
+
+// The Admin SDK's Firestore, loaded on first use so a cold start that fails
+// the auth checks never pays for it. index.js initialises the default app
+// the same lazy way; getApps() avoids initialising it twice.
+function getDb() {
+  const { getApps, initializeApp } = require('firebase-admin/app');
+  const app = getApps()[0] ?? initializeApp();
+  return require('firebase-admin/firestore').getFirestore(app);
+}
+
+// One call to the model. This is the only provider-specific part of the
+// file: to switch model or provider, change the request and the reply
+// parsing here — the limits and checks in generateSuggestions stay as-is. Returns the reply text, or throws an HttpsError
 // (with only a stable reason code) if the provider fails.
 async function callModel(system, prompt) {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -82,6 +111,24 @@ exports.generateSuggestions = onCall({ secrets: [anthropicApiKey] }, async (requ
   const lifeStory = sanitizeLifeStory(request.data?.lifeStory);
   const prompt = buildPrompt(kind, lifeStory, sanitizeTopicsToAvoid(request.data?.topicsToAvoid));
   const system = buildSystemPrompt();
+  if (prompt.length > MAX_PROMPT_CHARS) {
+    throw new HttpsError(
+      'invalid-argument',
+      "This resident's profile is too long to make suggestions from. Please shorten some answers.",
+      { reason: 'prompt-too-long' }
+    );
+  }
+
+  // Counted before the model is called, and whether or not the call then
+  // succeeds — it's the attempts that cost money.
+  await requireUsage(getDb(), {
+    feature: 'ai',
+    uid: request.auth.uid,
+    perHour: AI_CALLS_PER_HOUR,
+    perDay: AI_CALLS_PER_DAY,
+    globalPerDay: AI_CALLS_GLOBAL_PER_DAY,
+    label: 'suggestions',
+  });
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const reply = await callModel(system, prompt);

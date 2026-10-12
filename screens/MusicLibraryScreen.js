@@ -133,7 +133,13 @@ export default function MusicLibraryScreen({ navigation }) {
       setSearchResults(found);
     } catch (e) {
       console.error('[MusicLibrary] searchYouTube error:', e.code, e.message, e.details, e);
-      setSearchError('Something went wrong searching for music. Please try again.');
+      // A usage limit (functions/rateLimit.js) explains itself; anything else
+      // stays generic.
+      setSearchError(
+        e.code === 'functions/resource-exhausted'
+          ? e.message
+          : 'Something went wrong searching for music. Please try again.'
+      );
       setSearchResults([]);
     } finally {
       setSearching(false);

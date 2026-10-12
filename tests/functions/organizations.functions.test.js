@@ -654,3 +654,33 @@ describe('family codes (createFamilyCode / redeemFamilyCode)', () => {
     expect((await adminDb.doc(`residents/${residentId}`).get()).data().familyMembers).toEqual([]);
   });
 });
+
+// The usage limits on the paid functions (functions/rateLimit.js), run
+// against the real Firestore emulator. The unit tests cover the counting
+// with a stand-in database; this checks the same code inside a real
+// transaction — in particular that a refusal comes straight back (Firestore
+// doesn't retry it) and writes nothing.
+describe('usage limits against Firestore', () => {
+  const { enforceUsageLimits } = require('../../functions/rateLimit');
+
+  it('refuses past the hourly limit and leaves the counters untouched', async () => {
+    const uid = `limit-test-${Date.now()}`;
+    const options = {
+      feature: 'testfeature',
+      uid,
+      perHour: 2,
+      perDay: 10,
+      globalPerDay: 1000,
+      label: 'suggestions',
+    };
+    await enforceUsageLimits(adminDb, options);
+    await enforceUsageLimits(adminDb, options);
+    await expect(enforceUsageLimits(adminDb, options)).rejects.toMatchObject({
+      rateLimited: true,
+    });
+    const hour = (await adminDb.doc(`rateLimits/testfeature_hour_${uid}`).get()).data();
+    const day = (await adminDb.doc(`rateLimits/testfeature_day_${uid}`).get()).data();
+    expect(hour.count).toBe(2);
+    expect(day.count).toBe(2);
+  });
+});

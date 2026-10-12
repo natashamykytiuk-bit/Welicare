@@ -6,7 +6,12 @@ const { setGlobalOptions } = require('firebase-functions/v2');
 // us-central1 (Iowa). The app must call the same region — see REGION in
 // firebaseConfig.js — and firebase.json's postdeploy list names it too.
 // (The AI request itself still goes to Anthropic's API in the US.)
-setGlobalOptions({ region: 'northamerica-northeast1' });
+//
+// maxInstances caps how many copies of each function can run at once. Without
+// it a flood of requests (even ones that are then refused) scales up to the
+// platform default of 100 and is billed for all of them; 10 is far more than
+// real use needs, since each instance handles many requests at a time.
+setGlobalOptions({ region: 'northamerica-northeast1', maxInstances: 10 });
 
 const { requireVerified, requireRecentLogin } = require('./authChecks');
 const { ACTIONS, logAudit, orgIsLogged, auditTriggers } = require('./auditLog');
@@ -66,7 +71,12 @@ function trackedBulkWriter(db, label) {
 // already calls, so callers read the same as before.
 let adminApp = null;
 function getAdmin() {
-  if (!adminApp) adminApp = require('firebase-admin/app').initializeApp();
+  // getApps()[0]: ai.js / youtube.js may have initialised the default app
+  // already (for their usage limits) if they ran first on this instance.
+  if (!adminApp) {
+    const { getApps, initializeApp } = require('firebase-admin/app');
+    adminApp = getApps()[0] ?? initializeApp();
+  }
   return {
     firestore: () => require('firebase-admin/firestore').getFirestore(adminApp),
     auth: () => require('firebase-admin/auth').getAuth(adminApp),
@@ -922,9 +932,14 @@ exports.resolveSignInEmail = onCall(async (request) => {
   const admin = getAdmin();
   const db = admin.firestore();
 
+  // The LAST address in X-Forwarded-For, not the first: Google's front end
+  // appends the address it actually saw to whatever the caller sent, so the
+  // first entry is caller-chosen and a different made-up value per request
+  // would get a fresh limit every time.
   const forwarded = request.rawRequest?.headers?.['x-forwarded-for'];
   const ip =
-    (typeof forwarded === 'string' ? forwarded.split(',')[0] : request.rawRequest?.ip) || 'unknown';
+    (typeof forwarded === 'string' ? forwarded.split(',').pop().trim() : request.rawRequest?.ip) ||
+    'unknown';
   const ipKey = require('crypto').createHash('sha256').update(ip).digest('hex').slice(0, 32);
   const limitRef = db.doc(`rateLimits/signin_${ipKey}`);
   await db.runTransaction(async (tx) => {

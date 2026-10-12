@@ -2,9 +2,26 @@
 // Library), server-side so the API key never ships in the app.
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
-const { requireVerified } = require('./authChecks');
+const { requireVerified, requireUsage } = require('./authChecks');
 
 const youtubeApiKey = defineSecret('YOUTUBE_API_KEY');
+
+// Usage limits (see rateLimit.js). A search costs 100 units of the YouTube
+// Data API's daily quota (10,000 by default, i.e. about 100 searches a day
+// for the whole app), so without these one account could use up everyone's
+// searches for the day. The shared total stops just short of the quota.
+const SEARCHES_PER_HOUR = 20;
+const SEARCHES_PER_DAY = 40;
+const SEARCHES_GLOBAL_PER_DAY = 95;
+// Longest search text accepted — far more than a song or film title needs.
+const MAX_QUERY_LENGTH = 100;
+
+// Same lazy Admin SDK set-up as ai.js.
+function getDb() {
+  const { getApps, initializeApp } = require('firebase-admin/app');
+  const app = getApps()[0] ?? initializeApp();
+  return require('firebase-admin/firestore').getFirestore(app);
+}
 
 // Server-side YouTube search so the API key never ships in the app — same
 // reasoning as generateSuggestions and Anthropic. Shared by both Music and
@@ -19,6 +36,18 @@ exports.searchYouTube = onCall({ secrets: [youtubeApiKey] }, async (request) => 
   if (!query) {
     throw new HttpsError('invalid-argument', 'query must be a non-empty string.');
   }
+  if (query.length > MAX_QUERY_LENGTH) {
+    throw new HttpsError('invalid-argument', 'That search is too long. Please shorten it.');
+  }
+
+  await requireUsage(getDb(), {
+    feature: 'youtube',
+    uid: request.auth.uid,
+    perHour: SEARCHES_PER_HOUR,
+    perDay: SEARCHES_PER_DAY,
+    globalPerDay: SEARCHES_GLOBAL_PER_DAY,
+    label: 'searches',
+  });
 
   const category = request.data?.category === 'video' ? 'video' : 'music';
 

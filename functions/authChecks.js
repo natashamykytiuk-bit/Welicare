@@ -42,4 +42,20 @@ function requireRecentLogin(request) {
   }
 }
 
-module.exports = { requireVerified, requireRecentLogin };
+// Counts this call against the caller's usage limits for a paid feature
+// (see rateLimit.js for the limits themselves), refusing with
+// resource-exhausted once one is reached. The message is written for the
+// person using the app, which shows it as-is.
+async function requireUsage(db, options) {
+  const { enforceUsageLimits } = require('./rateLimit');
+  try {
+    await enforceUsageLimits(db, options);
+  } catch (e) {
+    if (e?.rateLimited) {
+      throw new HttpsError('resource-exhausted', e.message, { reason: 'rate-limited' });
+    }
+    throw e;
+  }
+}
+
+module.exports = { requireVerified, requireRecentLogin, requireUsage };
