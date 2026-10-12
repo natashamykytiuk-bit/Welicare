@@ -122,8 +122,26 @@
  */
 
 /**
- * Which set of suggestions the generateSuggestions Cloud Function writes.
- * @typedef {'activityIdeas' | 'conversationStarters' | 'musicMovieRecs'} SuggestionKind
+ * Which brief the generateSuggestions Cloud Function writes for staff.
+ * (The function also still accepts the pre-v2 kinds activityIdeas,
+ * conversationStarters and musicMovieRecs from older app builds.)
+ * @typedef {'conversation' | 'activities'} SuggestionKind
+ */
+
+/**
+ * One idea in a suggestions brief (functions/suggestionPrompt.js parseBrief).
+ * @typedef {object} BriefIdea
+ * @property {string} title A few words naming the theme or activity.
+ * @property {string} why Why it may suit this resident; may be ''.
+ * @property {string[]} try Things staff could say, or simple steps — each
+ *   rated (and later scored by the classifier) on its own.
+ */
+
+/**
+ * A suggestions brief for staff.
+ * @typedef {object} SuggestionBrief
+ * @property {BriefIdea[]} ideas
+ * @property {string[]} tips Short tips on approaching these with the resident.
  */
 
 /**
@@ -139,7 +157,11 @@
 /**
  * Response from the generateSuggestions Cloud Function.
  * @typedef {object} GenerateSuggestionsResponse
- * @property {string} text The model's suggestions as plain text.
+ * @property {SuggestionBrief} brief The parsed brief.
+ * @property {string} text The same brief as plain text (for pre-v2 builds).
+ * @property {string} promptVersion Which prompt produced it; stored with
+ *   good/bad ratings (utils/suggestionFeedback.js).
+ * @property {SuggestionKind} kind The kind actually used.
  */
 
 export {};

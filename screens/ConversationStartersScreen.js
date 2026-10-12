@@ -8,9 +8,9 @@ export default function ConversationStartersScreen({ navigation, route }) {
     <AISuggestionsScreen
       navigation={navigation}
       route={route}
-      kind="conversationStarters"
+      kind="conversation"
       title="Conversation Starters"
-      description="Find thoughtful conversation prompts to help spark meaningful moments together."
+      description="Ideas for you to adapt: pick what fits, and say it in your own words."
     />
   );
 }

@@ -52,12 +52,12 @@ describe('sanitizeLifeStory', () => {
 
 describe('buildPrompt', () => {
   it('builds a general prompt when there is no life story', () => {
-    expect(buildPrompt('activityIdeas', null)).toMatch(/No specific personal information/);
+    expect(buildPrompt('activities', null)).toMatch(/No specific personal information/);
   });
 
   it('includes cleaned facts, replacing "Other" with its detail', () => {
     const prompt = buildPrompt(
-      'conversationStarters',
+      'conversation',
       sanitizeLifeStory({ hobbies: ['Gardening', 'Other'], hobbiesOtherDetail: 'Chess' })
     );
     expect(prompt).toContain('- Hobbies: Gardening, Chess');
@@ -80,13 +80,13 @@ describe('people lists', () => {
     });
 
   it('lists the people who are OK to talk about as facts', () => {
-    const prompt = buildPrompt('conversationStarters', story());
+    const prompt = buildPrompt('conversation', story());
     expect(prompt).toContain('- Children: Ruth (visits Sundays); Clara');
     expect(prompt).toContain('- Important people: June (sister)');
   });
 
   it('names people who are not OK only in the never-mention instruction', () => {
-    const prompt = buildPrompt('conversationStarters', story());
+    const prompt = buildPrompt('conversation', story());
     const [facts, rule] = prompt.split('Important — ');
     expect(facts).not.toContain('Walter');
     expect(rule).toContain('These people: Walter (late husband)');
@@ -94,7 +94,7 @@ describe('people lists', () => {
 
   it('says nothing about children when none of them are OK to talk about', () => {
     const prompt = buildPrompt(
-      'activityIdeas',
+      'activities',
       story({ childrenList: [{ name: 'Ruth', notes: '', okToTalkAbout: false }] })
     );
     expect(prompt).not.toContain('- Children');
@@ -102,13 +102,13 @@ describe('people lists', () => {
   });
 
   it('ignores a list whose Yes/No answer is not Yes', () => {
-    const prompt = buildPrompt('activityIdeas', story({ hasChildren: false }));
+    const prompt = buildPrompt('activities', story({ hasChildren: false }));
     expect(prompt).not.toContain('Ruth');
   });
 
   it('still uses the older free-text answers of profiles without lists', () => {
     const prompt = buildPrompt(
-      'activityIdeas',
+      'activities',
       sanitizeLifeStory({
         hasChildren: true,
         childrenDetails: 'Two sons',
@@ -131,12 +131,137 @@ describe('people lists', () => {
   });
 });
 
-describe('KIND_PHRASES', () => {
+describe('KIND_PHRASES and resolveKind', () => {
+  const { resolveKind } = require('../functions/suggestionPrompt');
+
   // generateSuggestions checks kinds with Object.hasOwn so inherited names
   // like "toString" aren't accepted as a suggestion kind.
   it('does not own inherited property names', () => {
     expect(Object.hasOwn(KIND_PHRASES, 'toString')).toBe(false);
-    expect(Object.hasOwn(KIND_PHRASES, 'activityIdeas')).toBe(true);
+    expect(Object.hasOwn(KIND_PHRASES, 'activities')).toBe(true);
+  });
+
+  it('accepts the new kinds and maps the ones older app builds send', () => {
+    expect(resolveKind('conversation')).toBe('conversation');
+    expect(resolveKind('activities')).toBe('activities');
+    expect(resolveKind('conversationStarters')).toBe('conversation');
+    expect(resolveKind('activityIdeas')).toBe('activities');
+    expect(resolveKind('musicMovieRecs')).toBe('conversation');
+  });
+
+  it('refuses anything else, including inherited names', () => {
+    for (const kind of ['toString', 'constructor', 'trivia', '', 42, null, undefined]) {
+      expect(resolveKind(kind)).toBeNull();
+    }
+  });
+
+  it('asks for the right thing for each kind', () => {
+    expect(buildPrompt('conversation', null)).toMatch(/conversation themes/);
+    expect(buildPrompt('activities', null)).toMatch(/simple activities/);
+    // A legacy kind gets the same request as its new kind.
+    expect(buildPrompt('conversationStarters', null)).toBe(buildPrompt('conversation', null));
+  });
+});
+
+describe('buildSystemPrompt', () => {
+  const { buildSystemPrompt } = require('../functions/suggestionPrompt');
+  const system = buildSystemPrompt();
+
+  // One check per rubric failure category, plus the problems seen in test
+  // generations — so a later edit can't silently drop a rule.
+  it.each([
+    ['RECALL', /Never ask the person to remember/],
+    ['COMPLEX', /one idea in one short sentence/],
+    ['DISTRESS', /loss, illness, death, moving, "going home"/],
+    ['INFANTILIZING', /adult to adult/],
+    ['CORRECTIVE', /Never correct or test the person's sense of reality/],
+    ['invented scenes', /Never assume someone else is in the room/],
+    ['forced facts', /at most one fact/],
+    ['people assumed present', /Never say or imply they are here, visiting, or coming soon/],
+  ])('covers %s', (_name, pattern) => {
+    expect(system).toMatch(pattern);
+  });
+
+  it('is written for staff and asks for JSON only', () => {
+    expect(system).toMatch(/You write for the staff member, not the resident/);
+    expect(system).toMatch(/Reply with only a JSON object/);
+  });
+
+  it('does not depend on a dementia stage', () => {
+    expect(system).not.toMatch(/\b(early|mid|late)[- ]stage\b/i);
+  });
+
+  it('is the same every time (pure, so welicare-ml gets the same prompt)', () => {
+    expect(buildSystemPrompt()).toBe(system);
+  });
+});
+
+describe('buildPrompt facts', () => {
+  it('asks for facts to be used lightly when there are some', () => {
+    const prompt = buildPrompt('conversation', sanitizeLifeStory({ career: 'Baker' }));
+    expect(prompt).toContain('- Career: Baker');
+    expect(prompt).toMatch(/at most one per idea/);
+  });
+});
+
+describe('parseBrief', () => {
+  const { parseBrief, briefToText } = require('../functions/suggestionPrompt');
+  const idea = (n) => ({
+    title: `Idea ${n}`,
+    why: 'She enjoyed baking.',
+    try: ['That smells lovely, doesn\'t it?', 'Which do you like better, jam or honey?'],
+  });
+  const reply = (obj) => JSON.stringify(obj);
+
+  it('parses a well-formed brief', () => {
+    const brief = parseBrief(reply({ ideas: [idea(1), idea(2)], tips: ['Offer two choices.'] }));
+    expect(brief.ideas).toHaveLength(2);
+    expect(brief.ideas[0].try).toHaveLength(2);
+    expect(brief.tips).toEqual(['Offer two choices.']);
+  });
+
+  it('copes with a code fence or text around the JSON', () => {
+    const text = 'Here you go:\n```json\n' + reply({ ideas: [idea(1)], tips: [] }) + '\n```';
+    expect(parseBrief(text).ideas[0].title).toBe('Idea 1');
+  });
+
+  it('returns null for replies it cannot use', () => {
+    expect(parseBrief('Sorry, I cannot help with that.')).toBeNull();
+    expect(parseBrief('{ not json }')).toBeNull();
+    expect(parseBrief(reply({ ideas: [] }))).toBeNull();
+    expect(parseBrief(reply({ ideas: [{ title: 'No lines', try: [] }] }))).toBeNull();
+    expect(parseBrief(reply({ tips: ['x'] }))).toBeNull();
+    expect(parseBrief(null)).toBeNull();
+  });
+
+  it('drops malformed parts and caps counts and lengths', () => {
+    const brief = parseBrief(
+      reply({
+        ideas: [
+          null,
+          'just a string',
+          { title: '  Music  ', try: ['  Hum along?  ', 7, '', 'a', 'b', 'c'] },
+          idea(2),
+          idea(3),
+          idea(4),
+          idea(5),
+        ],
+        tips: ['one', 2, 'two', 'three'],
+        extra: 'ignored',
+      })
+    );
+    expect(brief.ideas).toHaveLength(4);
+    expect(brief.ideas[0]).toEqual({ title: 'Music', why: '', try: ['Hum along?', 'a', 'b'] });
+    expect(brief.tips).toEqual(['one', 'two']);
+    const long = parseBrief(reply({ ideas: [{ title: 'T', try: ['x'.repeat(900)] }] }));
+    expect(long.ideas[0].try[0]).toHaveLength(300);
+  });
+
+  it('renders a brief as plain text for older app builds', () => {
+    const text = briefToText({ ideas: [idea(1)], tips: ['Go slowly.'] });
+    expect(text).toContain('Idea 1: She enjoyed baking.');
+    expect(text).toContain('- Which do you like better, jam or honey?');
+    expect(text).toContain('Tips:\n- Go slowly.');
   });
 });
 
@@ -145,7 +270,7 @@ describe('topics to avoid', () => {
 
   it('adds the caregiver notes as a final instruction, even with no life story', () => {
     const prompt = buildPrompt(
-      'activityIdeas',
+      'activities',
       null,
       sanitizeTopicsToAvoid(' No water activities ')
     );
@@ -158,6 +283,6 @@ describe('topics to avoid', () => {
     expect(sanitizeTopicsToAvoid(42)).toBeNull();
     expect(sanitizeTopicsToAvoid('   ')).toBeNull();
     expect(sanitizeTopicsToAvoid('x'.repeat(3000))).toHaveLength(2000);
-    expect(buildPrompt('activityIdeas', null, null)).not.toMatch(/never include/);
+    expect(buildPrompt('activities', null, null)).not.toMatch(/never include/);
   });
 });

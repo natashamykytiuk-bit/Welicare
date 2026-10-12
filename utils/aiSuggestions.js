@@ -13,15 +13,16 @@ const callGenerateSuggestions =
   );
 
 // Thin client wrapper around the generateSuggestions Cloud Function, which
-// builds the actual prompt and calls Anthropic server-side (the API key
-// never ships in the app). Returns the suggestion text.
+// builds the actual prompts, calls Anthropic server-side (the API key never
+// ships in the app) and parses the reply. Returns the brief for staff and
+// the prompt version that made it (stored with good/bad ratings).
 /**
  * @param {import('../types/models').SuggestionKind} kind
  * @param {import('../types/models').LifeStory | null | undefined} lifeStory
  * @param {string} [topicsToAvoid] The resident's safety notes
  *   (utils/residentSafety.js); the function tells the model never to suggest
  *   anything involving them.
- * @returns {Promise<string>}
+ * @returns {Promise<{ brief: import('../types/models').SuggestionBrief, promptVersion: string }>}
  */
 export async function generateSuggestions(kind, lifeStory, topicsToAvoid = '') {
   const result = await callGenerateSuggestions({
@@ -29,5 +30,5 @@ export async function generateSuggestions(kind, lifeStory, topicsToAvoid = '') {
     lifeStory: lifeStory ?? null,
     topicsToAvoid: topicsToAvoid || null,
   });
-  return result.data.text;
+  return { brief: result.data.brief, promptVersion: result.data.promptVersion };
 }

@@ -15,6 +15,12 @@ const base = {
 };
 
 describe('buildFeedbackDoc', () => {
+  // resetFirebaseMocks (jest.setup.js) clears mock return values before
+  // every test, so serverTimestamp's placeholder is set up here.
+  beforeEach(() => {
+    firestore.serverTimestamp.mockReturnValue({ serverTimestamp: true });
+  });
+
   it('builds exactly the fields firestore.rules allows', () => {
     const data = buildFeedbackDoc(base);
     expect(Object.keys(data).sort()).toEqual(
