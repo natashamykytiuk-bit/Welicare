@@ -53,9 +53,16 @@ const USERS = {
 /** Firestore as seen by a signed-in user (or signed-out if uid is null). */
 // Test users have a verified email unless a test asks otherwise — the
 // rules require email_verified for resident, library and org data.
-function as(uid, { verified = true } = {}) {
+// signedInSecondsAgo sets auth_time, the moment the password was last
+// entered (only the PIN rule looks at it).
+function as(uid, { verified = true, signedInSecondsAgo = 0 } = {}) {
   return uid
-    ? env.authenticatedContext(uid, { email_verified: verified }).firestore()
+    ? env
+        .authenticatedContext(uid, {
+          email_verified: verified,
+          auth_time: Math.floor(Date.now() / 1000) - signedInSecondsAgo,
+        })
+        .firestore()
     : env.unauthenticatedContext().firestore();
 }
 
@@ -252,49 +259,167 @@ describe('personal organization batch (createPersonalOrganization)', () => {
     batch.set(doc(db, 'users', uid), { orgId }, { merge: true });
     return batch.commit();
   }
-  const personal = (uid) => ({ name: null, isPersonal: true, createdBy: uid, adminId: uid });
+  // Exactly what createPersonalOrganization (utils/inviteCode.js) writes.
+  const personal = (uid) => ({
+    name: null,
+    type: null,
+    province: null,
+    city: null,
+    isPersonal: true,
+    createdBy: uid,
+    adminId: uid,
+    createdAt: serverTimestamp(),
+  });
+
+  // familyNew has just signed up: a profile, and no organization yet.
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'familyNew'), { role: 'Family Caregiver' });
+    });
+  });
 
   it('creating your personal org and linking to it in one batch is allowed', async () => {
     await assertSucceeds(
-      personalOrgBatch(as('familyA'), 'familyA', 'newPersonal', personal('familyA'))
+      personalOrgBatch(as('familyNew'), 'familyNew', 'newPersonal', personal('familyNew'))
+    );
+  });
+
+  // It runs during sign-up, before the email address is confirmed.
+  it('works before the email address is verified', async () => {
+    await assertSucceeds(
+      personalOrgBatch(
+        as('familyNew', { verified: false }),
+        'familyNew',
+        'newPersonal',
+        personal('familyNew')
+      )
     );
   });
 
   it("can't create an org in someone else's name and link to it", async () => {
     await assertFails(
-      personalOrgBatch(as('familyA'), 'familyA', 'fakeOrg', personal('caregiverB'))
+      personalOrgBatch(as('familyNew'), 'familyNew', 'fakeOrg', personal('caregiverB'))
     );
   });
 
   it('a failed batch writes neither the org nor the link', async () => {
     // A real (non-personal) org can't be created from the app, so this
-    // batch is refused — and the user's orgId must be untouched.
+    // batch is refused — and the user must still have no organization.
     await assertFails(
-      personalOrgBatch(as('familyA'), 'familyA', 'realOrg', {
-        ...personal('familyA'),
+      personalOrgBatch(as('familyNew'), 'familyNew', 'realOrg', {
+        ...personal('familyNew'),
         isPersonal: false,
       })
     );
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
       expect((await getDoc(doc(db, 'organizations', 'realOrg'))).exists()).toBe(false);
-      expect((await getDoc(doc(db, 'users', 'familyA'))).data().orgId).toBe('orgA');
+      expect((await getDoc(doc(db, 'users', 'familyNew'))).data().orgId).toBeUndefined();
     });
   });
 
-  // Org docs are readable by anyone signed in who knows the id, so the
-  // owner's email must not be stored on one (security review #1).
-  it('refuses a personal org that carries an email address', async () => {
+  // Only the fields the app writes, so no contact details (security review
+  // #1), no invite code, and nothing oversized.
+  it('refuses a personal org with an email, an invite code, or an oversized name', async () => {
+    const attempt = (extra) =>
+      personalOrgBatch(as('familyNew'), 'familyNew', 'badOrg', {
+        ...personal('familyNew'),
+        ...extra,
+      });
+    await assertFails(attempt({ email: 'fam@example.test' }));
+    await assertFails(attempt({ inviteCode: 'ABCD-EFGH' }));
+    await assertFails(attempt({ notes: 'anything else' }));
+    await assertFails(attempt({ name: 'x'.repeat(201) }));
+    await assertFails(attempt({ createdAt: new Date('2020-01-01') }));
+  });
+
+  // One per account: an org must be created together with pointing your
+  // orgId at it, and only while you have no organization.
+  it("can't create an organization without linking to it", async () => {
     await assertFails(
-      personalOrgBatch(as('familyA'), 'familyA', 'withEmail', {
-        ...personal('familyA'),
-        email: 'fam@example.test',
-      })
+      setDoc(doc(as('familyNew'), 'organizations', 'loose'), personal('familyNew'))
     );
+  });
+
+  it("can't create a second organization once you have one", async () => {
+    await assertSucceeds(
+      personalOrgBatch(as('familyNew'), 'familyNew', 'first', personal('familyNew'))
+    );
+    await assertFails(
+      personalOrgBatch(as('familyNew'), 'familyNew', 'second', personal('familyNew'))
+    );
+    // Nor someone who already belongs to a facility.
+    await assertFails(personalOrgBatch(as('familyA'), 'familyA', 'another', personal('familyA')));
   });
 
   it('still refuses linking to an existing org you did not create', async () => {
     await assertFails(updateDoc(doc(as('familyA'), 'users', 'familyA'), { orgId: 'orgB' }));
+  });
+});
+
+describe('changing the PIN (security fix)', () => {
+  // "Change PIN" asks for the password first (ForgotPinScreen); these check
+  // the rules insist on it too, rather than trusting the app's screens.
+  const me = (opts) => doc(as('caregiverA', opts), 'users', 'caregiverA');
+  const AN_HOUR = 60 * 60;
+  async function seedPin() {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'users', 'caregiverA'), { pinHash: 'old-hash' });
+    });
+  }
+
+  it('setting the first PIN works however long ago the person signed in', async () => {
+    await assertSucceeds(
+      setDoc(me({ signedInSecondsAgo: AN_HOUR }), { pinHash: 'first-hash' }, { merge: true })
+    );
+  });
+
+  it('changing an existing PIN needs the password entered in the last few minutes', async () => {
+    await seedPin();
+    await assertFails(
+      setDoc(me({ signedInSecondsAgo: AN_HOUR }), { pinHash: 'new-hash' }, { merge: true })
+    );
+    await assertSucceeds(
+      setDoc(me({ signedInSecondsAgo: 60 }), { pinHash: 'new-hash' }, { merge: true })
+    );
+  });
+
+  it("an existing PIN can't be removed to get around that", async () => {
+    await seedPin();
+    await assertFails(updateDoc(me({ signedInSecondsAgo: AN_HOUR }), { pinHash: deleteField() }));
+    await assertFails(updateDoc(me({ signedInSecondsAgo: 60 }), { pinHash: null }));
+  });
+
+  it('other profile changes are unaffected by an old sign-in', async () => {
+    await seedPin();
+    await assertSucceeds(
+      updateDoc(me({ signedInSecondsAgo: AN_HOUR }), { fullName: 'Cara Caregiver' })
+    );
+  });
+});
+
+describe('reading an organization (security fix)', () => {
+  // An organization's doc (name, city, settings) is for its own people: an
+  // id alone used to be enough for any signed-in user.
+  const org = (uid, id = 'orgA') => doc(as(uid), 'organizations', id);
+
+  it('members and the creator can read their own organization', async () => {
+    await assertSucceeds(getDoc(org('adminA')));
+    await assertSucceeds(getDoc(org('caregiverA')));
+    await assertSucceeds(getDoc(org('volunteerA')));
+    await assertSucceeds(getDoc(org('familyA')));
+  });
+
+  it("someone from another organization can't, even knowing the id", async () => {
+    await assertFails(getDoc(org('caregiverB')));
+    await assertFails(getDoc(org('adminA', 'orgB')));
+  });
+
+  it("someone with no organization can't", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'loner'), { role: 'Volunteer' });
+    });
+    await assertFails(getDoc(org('loner')));
   });
 });
 
@@ -976,18 +1101,52 @@ describe('library entries have one fixed id per video (security fix)', () => {
   });
 });
 
-// Review item "users can grant themselves administrator" — NOT fixed yet;
-// the owner is still deciding how roles should be assigned. This documents
-// the current hole so a fix has a failing test to flip: changing `role` on
-// your own profile is refused, but deleting the whole profile and creating
-// it again with a new role is allowed. When roles become server-managed,
-// change assertSucceeds to assertFails below.
-describe('FLAG: role escalation by recreating your profile (open issue)', () => {
-  it('a Volunteer can delete their profile and recreate it as an Administrator', async () => {
+// Review item "users can grant themselves administrator": changing `role`
+// on your own profile was always refused, but deleting the whole profile
+// and creating it again with a new role used to work. (The role chosen at
+// sign-up is still the person's own choice — that part is a separate,
+// open decision.)
+describe('recreating your profile (security fix)', () => {
+  // Closed: the app can no longer delete a profile at all, so it can't be
+  // created again with a different role. deleteAccount (a Cloud Function)
+  // is the only way a profile goes away.
+  it("a Volunteer can't delete their profile to recreate it as an Administrator", async () => {
     const db = as('volunteerA');
     await assertFails(updateDoc(doc(db, 'users', 'volunteerA'), { role: 'Administrator' }));
-    await assertSucceeds(deleteDoc(doc(db, 'users', 'volunteerA')));
-    await assertSucceeds(setDoc(doc(db, 'users', 'volunteerA'), { role: 'Administrator' }));
+    await assertFails(deleteDoc(doc(db, 'users', 'volunteerA')));
+    await assertFails(setDoc(doc(db, 'users', 'volunteerA'), { role: 'Administrator' }));
+  });
+
+  // The other half of the same hole: dropping the profile dropped the
+  // organization link, while the person stayed on residents'
+  // assignedCaregivers lists — out of the facility, still reading its
+  // residents, and invisible to its administrator.
+  it("a caregiver can't shed their organization by deleting their profile", async () => {
+    await assertFails(deleteDoc(doc(as('caregiverA'), 'users', 'caregiverA')));
+  });
+
+  // Sign-up (SignUpScreen.writeProfile) writes the profile and the username
+  // claim in one batch, which is why it never needs to delete a profile.
+  it('sign-up saves the profile and its username claim in one batch', async () => {
+    const db = as('newPerson');
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'users', 'newPerson'), { role: 'Caregiver', username: 'New.Person' });
+    batch.set(doc(db, 'usernames', 'new.person'), { uid: 'newPerson' });
+    await assertSucceeds(batch.commit());
+  });
+
+  it('a taken username refuses the whole sign-up batch, leaving no profile behind', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'usernames', 'new.person'), { uid: 'someoneElse' });
+    });
+    const db = as('newPerson');
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'users', 'newPerson'), { role: 'Caregiver', username: 'New.Person' });
+    batch.set(doc(db, 'usernames', 'new.person'), { uid: 'newPerson' });
+    await assertFails(batch.commit());
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      expect((await getDoc(doc(ctx.firestore(), 'users', 'newPerson'))).exists()).toBe(false);
+    });
   });
 });
 

@@ -5,7 +5,7 @@ import {
   sendEmailVerification,
   signOut,
 } from 'firebase/auth';
-import { deleteDoc, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { useState } from 'react';
 import {
   Image,
@@ -169,10 +169,18 @@ export default function SignUpScreen({ navigation, route }) {
   // meantime; any other error is a plain Firestore error.
   async function writeProfile(user, emailAddress) {
     const usernameKey = normalizeUsername(username);
-    // setDoc without merge on a doc that doesn't exist is a *create*, and
+    const usernameRef = doc(db, 'usernames', usernameKey);
+    // The profile and the username claim go in ONE batch: Firestore applies
+    // both or neither. So if someone else claimed the username between the
+    // availability check and now, nothing is saved and the account is still
+    // in the "no profile yet" state, ready to retry with another name —
+    // there's no profile to undo. (That matters because firestore.rules
+    // don't let the app delete a profile; see the users rules.)
+    const batch = writeBatch(db);
+    // set without merge on a doc that doesn't exist is a *create*, and
     // firestore.rules only allow the role to be set on create — so this can
     // never change the role of an existing profile.
-    await setDoc(doc(db, 'users', user.uid), {
+    batch.set(doc(db, 'users', user.uid), {
       uid: user.uid,
       email: emailAddress,
       fullName,
@@ -181,22 +189,21 @@ export default function SignUpScreen({ navigation, route }) {
       role,
       createdAt: serverTimestamp(),
     });
-
+    // Also create-only in the rules, which is what catches that race.
+    // Only the account id — the email is never stored in this public
+    // lookup (sign-in by username asks the server for it instead).
+    batch.set(usernameRef, { uid: user.uid });
     try {
-      // Also create-only in the rules, which is what catches the race where
-      // someone else claimed the same username between the availability
-      // check and this write.
-      // Only the account id — the email is never stored in this public
-      // lookup (sign-in by username asks the server for it instead).
-      await setDoc(doc(db, 'usernames', usernameKey), { uid: user.uid });
-    } catch (claimError) {
-      console.log('Username claim error:', claimError);
-      // Undo the profile so the account is back in the "no profile yet"
-      // state and can be finished (or retried) with another username.
-      await deleteDoc(doc(db, 'users', user.uid)).catch((e) =>
-        console.error('[SignUp] could not undo profile after username clash:', e)
-      );
-      throw { usernameTaken: true };
+      await batch.commit();
+    } catch (saveError) {
+      // Tell "the username was just taken" apart from any other failure
+      // (e.g. offline) by looking again — the same check ChangeUsernameScreen
+      // makes. If the look itself fails, report the original error.
+      const takenNow = await getDoc(usernameRef)
+        .then((snap) => snap.exists())
+        .catch(() => false);
+      if (takenNow) throw { usernameTaken: true };
+      throw saveError;
     }
 
     // Family Caregivers aren't part of a care facility, but still need

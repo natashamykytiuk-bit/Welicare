@@ -20,7 +20,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import SignUpScreen from '../screens/SignUpScreen';
 import { resetAgeGateForTests } from '../utils/ageGate';
-import { auth, authModule, docSnap, firestore } from './mocks/firebase';
+import { auth, authModule, batches, docSnap, firestore } from './mocks/firebase';
 
 const navigation = { navigate: jest.fn(), reset: jest.fn(), goBack: jest.fn() };
 
@@ -38,6 +38,17 @@ async function fillForm({ withCredentials = true, birthYear = '1970' } = {}) {
   await fireEvent.press(await screen.findByLabelText('March'));
   await fireEvent.changeText(screen.getByLabelText('Birth year'), birthYear);
   await fireEvent.press(screen.getByLabelText('Caregiver'));
+}
+
+// Makes the next writeBatch() the screen creates reject on commit — the
+// profile and username claim are saved as one batch (writeProfile).
+function failNextBatch(error) {
+  firestore.writeBatch.mockImplementationOnce(() => {
+    const batch = { ops: [], set: jest.fn(), update: jest.fn(), delete: jest.fn() };
+    batch.commit = jest.fn().mockRejectedValue(error);
+    batches.push(batch);
+    return batch;
+  });
 }
 
 let consoleError;
@@ -69,7 +80,6 @@ describe('sign-up', () => {
 
   it('still reaches verification when the verification email fails to send', async () => {
     authModule.createUserWithEmailAndPassword.mockResolvedValueOnce({ user: { uid: 'new-user' } });
-    firestore.setDoc.mockResolvedValue(undefined);
     authModule.sendEmailVerification.mockRejectedValueOnce(new Error('smtp down'));
 
     await render(<SignUpScreen navigation={navigation} route={{ params: {} }} />);
@@ -84,7 +94,7 @@ describe('sign-up', () => {
 
   it('keeps the account and flags it when the profile fails to save', async () => {
     authModule.createUserWithEmailAndPassword.mockResolvedValueOnce({ user: { uid: 'new-user' } });
-    firestore.setDoc.mockRejectedValueOnce(new Error('offline'));
+    failNextBatch(new Error('offline'));
     authModule.sendEmailVerification.mockResolvedValueOnce(undefined);
 
     await render(<SignUpScreen navigation={navigation} route={{ params: {} }} />);
@@ -96,6 +106,47 @@ describe('sign-up', () => {
       'EmailVerification',
       expect.objectContaining({ setupIncomplete: true })
     );
+  });
+
+  // The profile and the username claim are one batch, so a clash saves
+  // neither — there is no profile to delete afterwards (the rules wouldn't
+  // allow that anyway).
+  it('saves the profile and the username claim together in one batch', async () => {
+    authModule.createUserWithEmailAndPassword.mockResolvedValueOnce({ user: { uid: 'new-user' } });
+    authModule.sendEmailVerification.mockResolvedValueOnce(undefined);
+
+    await render(<SignUpScreen navigation={navigation} route={{ params: {} }} />);
+    await fillForm();
+    await fireEvent.press(screen.getByLabelText('Continue'));
+
+    const signUpBatch = batches[0];
+    expect(signUpBatch.ops.map(([op, path]) => [op, path])).toEqual([
+      ['set', 'users/new-user'],
+      ['set', expect.stringMatching(/^usernames\//)],
+    ]);
+    expect(signUpBatch.commit).toHaveBeenCalledTimes(1);
+    expect(firestore.setDoc).not.toHaveBeenCalled();
+    expect(firestore.deleteDoc).not.toHaveBeenCalled();
+  });
+
+  it('removes the new login and asks for another name when the username was just taken', async () => {
+    const user = { uid: 'new-user' };
+    authModule.createUserWithEmailAndPassword.mockResolvedValueOnce({ user });
+    failNextBatch(Object.assign(new Error('denied'), { code: 'permission-denied' }));
+    authModule.deleteUser.mockResolvedValueOnce(undefined);
+    // Looking again after the failed save finds the name now belongs to someone.
+    firestore.getDoc.mockResolvedValue(docSnap({ uid: 'someone-else' }));
+    // The first look (before the account is created) still found it free.
+    firestore.getDoc.mockResolvedValueOnce(docSnap(undefined));
+
+    await render(<SignUpScreen navigation={navigation} route={{ params: {} }} />);
+    await fillForm();
+    await fireEvent.press(screen.getByLabelText('Continue'));
+
+    expect(await screen.findByText(/username was just taken/)).toBeTruthy();
+    expect(authModule.deleteUser).toHaveBeenCalledWith(user);
+    expect(firestore.deleteDoc).not.toHaveBeenCalled();
+    expect(navigation.navigate).not.toHaveBeenCalled();
   });
 });
 
@@ -134,16 +185,13 @@ describe('finish setting up', () => {
       .mockResolvedValueOnce(docSnap(undefined)) // no profile yet
       .mockResolvedValueOnce(docSnap(undefined)) // username free
       .mockResolvedValueOnce(docSnap({ role: 'Caregiver' })); // re-read after saving
-    firestore.setDoc.mockResolvedValue(undefined);
 
     await render(<SignUpScreen navigation={navigation} route={finishRoute} />);
     await fillForm({ withCredentials: false });
     await fireEvent.press(screen.getByLabelText('Continue'));
 
-    const profileWrite = firestore.setDoc.mock.calls.find(
-      ([ref]) => ref.path === 'users/half-done'
-    );
-    expect(profileWrite[1]).toMatchObject({ role: 'Caregiver', email: 'ann@example.com' });
+    const profileWrite = batches[0].ops.find(([, path]) => path === 'users/half-done');
+    expect(profileWrite[2]).toMatchObject({ role: 'Caregiver', email: 'ann@example.com' });
     expect(navigation.reset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'PINSetup' }] });
   });
 
@@ -158,7 +206,7 @@ describe('finish setting up', () => {
     await fillForm({ withCredentials: false }); // picks "Caregiver"
     await fireEvent.press(screen.getByLabelText('Continue'));
 
-    expect(firestore.setDoc).not.toHaveBeenCalled();
+    expect(batches).toHaveLength(0);
     expect(navigation.reset).toHaveBeenCalledWith({
       index: 0,
       routes: [{ name: 'ModeSelection' }],

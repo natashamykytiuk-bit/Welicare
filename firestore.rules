@@ -212,7 +212,19 @@ service cloud.firestore {
     // profile fields set at sign-up (email, username, role) and the
     // pinHash added later by PINSetupScreen.
     match /users/{userId} {
-      allow read, delete: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // No deletes from the app. A profile that could be deleted could be
+      // created again — with any role (getting around "never `role`" below),
+      // and without its orgId while the person stays on residents'
+      // assignedCaregivers / familyMembers lists, i.e. leaving a facility
+      // but keeping access to its residents, unseen by its administrator.
+      // Deleting an account is the deleteAccount Cloud Function's job: it
+      // removes the profile together with every one of those links (and
+      // the login itself). Sign-up doesn't need a delete either — it writes
+      // the profile and the username claim in one batch (SignUpScreen), so
+      // a username clash leaves nothing behind to undo.
+      allow delete: if false;
 
       // Role is picked once at sign-up (SignUpScreen) and must be one of
       // the four real roles — the same values ModeSelectionScreen and the
@@ -248,6 +260,25 @@ service cloud.firestore {
       // the server time or removed.
       allow update: if request.auth != null && request.auth.uid == userId &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) &&
+        // The PIN (pinHash, see utils/pin.js). Setting the FIRST one is
+        // open — onboarding can reach PINSetupScreen long after sign-in.
+        // Changing or removing an existing one needs the password to have
+        // been entered in the last 5 minutes (auth_time in the ID token is
+        // the last real sign-in or re-authentication, and the app can't
+        // change it) — which is what ForgotPinScreen does before handing
+        // over to PINSetupScreen. Without this, anyone holding a signed-in
+        // device could simply write a new PIN.
+        (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pinHash']) ||
+          (
+            request.resource.data.get('pinHash', null) is string &&
+            request.resource.data.pinHash.size() <= 200 &&
+            (
+              resource.data.get('pinHash', null) == null ||
+              request.time.toMillis() / 1000 - request.auth.token.auth_time <= 5 * 60
+            )
+          )
+        ) &&
         (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['avatarPath']) ||
           request.resource.data.get('avatarPath', null) == null ||
@@ -567,31 +598,54 @@ service cloud.firestore {
         d.height is number && d.height > 0;
     }
 
-    // Any signed-in user can fetch a single organization by id (to display
-    // a facility name) or create one as themselves; only the creator can
-    // edit or remove it.
+    // An organization can be fetched by its own people only: its members,
+    // its creator, and someone whose request to join it is waiting (so
+    // PendingApprovalScreen can show its name). Nobody else — an id alone
+    // isn't enough. Only the creator can edit it.
     //
     // No `list`: that would let anyone query every organization and read
     // off all the invite codes, then join any facility. Looking an org up
     // by code happens server-side instead (joinOrganization,
     // generateInviteCode Cloud Functions).
     match /organizations/{orgId} {
-      allow get: if verified();
+      // The membership checks come first: they don't read `resource`, so a
+      // member whose organization has just been deleted gets "not found"
+      // rather than an error. (The rules' own get() calls on organizations,
+      // e.g. orgAcceptingNewData, aren't subject to this rule.)
+      allow get: if verified() && (
+        me().get('orgId', null) == orgId ||
+        me().get('pendingOrgId', null) == orgId ||
+        (resource != null && resource.data.createdBy == request.auth.uid)
+      );
 
       // The app only ever creates *personal* organizations itself
       // (createPersonalOrganization at Family Caregiver sign-up). Real
       // organizations are created server-side by the createOrganization
       // Cloud Function, which also mints the invite code — so a
-      // client-created org must be personal, owned by its creator, and
-      // carry no invite code.
+      // client-created org must be personal and owned by its creator.
+      //
+      // Exactly the fields createPersonalOrganization writes, each with its
+      // type and a length limit — so no invite code, no contact details,
+      // and nothing oversized.
+      //
+      // One per account: it must be created in the same batch that points
+      // the creator's orgId at it (getAfter), by someone who has no
+      // organization yet (get). The app can't clear its own orgId — only
+      // the server does — so an account can't create a second one, or a
+      // stream of them. Not verified(): this runs during sign-up, before
+      // the email address is confirmed.
       allow create: if request.auth != null &&
+        request.resource.data.keys().hasOnly(['name', 'type', 'province', 'city', 'isPersonal', 'createdBy', 'adminId', 'createdAt']) &&
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.adminId == request.auth.uid &&
         request.resource.data.isPersonal == true &&
-        !('inviteCode' in request.resource.data) &&
-        // Any signed-in user can get() an org by id, so no contact details
-        // may be stored on it.
-        !('email' in request.resource.data);
+        optText(request.resource.data, 'name', 200) &&
+        optText(request.resource.data, 'type', 200) &&
+        optText(request.resource.data, 'province', 200) &&
+        optText(request.resource.data, 'city', 200) &&
+        (!('createdAt' in request.resource.data) || request.resource.data.createdAt == request.time) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('orgId', null) == null &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('orgId', null) == orgId;
 
       // The owner may edit the display details OrganizationalSettingsScreen
       // shows, and nothing else. In particular not createdBy/adminId

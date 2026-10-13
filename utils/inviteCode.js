@@ -137,8 +137,9 @@ export async function createPersonalOrganization() {
     type: null,
     province: null,
     city: null,
-    // No email: any signed-in user who knows an org's id can read its doc
-    // (to show a facility name), so contact details don't belong here.
+    // Exactly these fields — firestore.rules refuse anything else on an
+    // organization the app creates (and so no email or other contact
+    // details).
     isPersonal: true,
     createdBy: uid,
     adminId: uid,

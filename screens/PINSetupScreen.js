@@ -72,7 +72,14 @@ export default function PINSetupScreen({ navigation, route }) {
       }
     } catch (e) {
       console.log('PIN setup error:', e);
-      setError('Something went wrong saving your PIN. Please try again.');
+      // firestore.rules only accept a CHANGED PIN within a few minutes of
+      // the password being entered (ForgotPinScreen). Taking longer than
+      // that here is refused, so say what to do rather than "try again".
+      setError(
+        mode === 'reset' && e?.code === 'permission-denied'
+          ? 'For your security, please go back and confirm your password again.'
+          : 'Something went wrong saving your PIN. Please try again.'
+      );
       setDigits('');
       setFirstPin('');
       setStage('enter');
