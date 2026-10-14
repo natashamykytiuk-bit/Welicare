@@ -16,8 +16,9 @@ import ResidentAvatar from './ResidentAvatar';
 // Props: residentId, resident (the resident doc's data, as the screen
 // already loaded it), size. Works on its own copy of photoPath /
 // photoUpdatedAt so a change shows straight away without the screen
-// reloading.
-export default function ResidentPhotoEditor({ residentId, resident, size = 96 }) {
+// reloading. readOnly forces the read-only view (Volunteer Mode, which
+// caregiver/admin accounts can also be in).
+export default function ResidentPhotoEditor({ residentId, resident, size = 96, readOnly = false }) {
   const [photo, setPhoto] = useState({
     photoPath: resident?.photoPath ?? null,
     photoUpdatedAt: resident?.photoUpdatedAt ?? null,
@@ -48,7 +49,7 @@ export default function ResidentPhotoEditor({ residentId, resident, size = 96 })
     };
   }, []);
 
-  const editable = !!access && canEditResident(access.viewer, access.org, resident);
+  const editable = !readOnly && !!access && canEditResident(access.viewer, access.org, resident);
 
   async function pick() {
     setMessage('');

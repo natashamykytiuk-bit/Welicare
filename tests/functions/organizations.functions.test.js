@@ -682,28 +682,61 @@ describe('verified email and invite code format (security fixes)', () => {
 });
 
 describe('resolveSignInEmail (sign-in with a username)', () => {
-  // Looks up the email for the account's CURRENT username, from Firebase
-  // Auth itself — not from any stored field — and nothing for stale or
-  // unknown names.
-  it("returns the account's real email for its current username", async () => {
+  // Gives the email for the account's CURRENT username, from Firebase Auth
+  // itself — not from any stored field — and only to someone who also has
+  // the account's password. Nothing for stale or unknown names. (newUser
+  // creates every test account with the password 'test-password'.)
+  const PASSWORD = 'test-password';
+  const resolve = (username, password) =>
+    call('resolveSignInEmail', password === undefined ? { username } : { username, password });
+
+  // Every call here comes from the same network address, so start its
+  // counters afresh for each test (and so one test can't use up another's).
+  beforeEach(async () => {
+    const limits = await adminDb.collection('rateLimits').get();
+    await Promise.all(
+      limits.docs.filter((d) => d.id.startsWith('signin')).map((d) => d.ref.delete())
+    );
+  });
+
+  it("returns the account's real email for its current username and password", async () => {
     const uid = await newUser({ role: 'Caregiver', username: 'Ann.Smith' });
     await adminDb.doc('usernames/ann.smith').set({ uid });
-    const { email } = (await call('resolveSignInEmail', { username: ' ANN.smith ' })).data;
+    const { email } = (await resolve(' ANN.smith ', PASSWORD)).data;
     expect(email).toBe((await authEmulator('lookup', { localId: [uid] })).users[0].email);
+  });
+
+  // The point of the change: a username alone must not reveal the email.
+  it('gives nothing without the password, or with the wrong one', async () => {
+    const uid = await newUser({ role: 'Caregiver', username: 'Bea.Jones' });
+    await adminDb.doc('usernames/bea.jones').set({ uid });
+    await signOut(auth);
+    expect(await outcome(resolve('bea.jones'))).toBe('functions/not-found');
+    expect(await outcome(resolve('bea.jones', 'a guess'))).toBe('functions/not-found');
+    // The right password still works afterwards (and while signed out).
+    expect(await outcome(resolve('bea.jones', PASSWORD))).toBe('ok');
   });
 
   it('does not resolve a username that is no longer on the profile', async () => {
     const uid = await newUser({ role: 'Caregiver', username: 'new.name' });
     await adminDb.doc('usernames/old.name').set({ uid });
-    expect(await outcome(call('resolveSignInEmail', { username: 'old.name' }))).toBe(
-      'functions/not-found'
-    );
+    expect(await outcome(resolve('old.name', PASSWORD))).toBe('functions/not-found');
   });
 
   it('gives the same answer for a username that does not exist', async () => {
-    expect(await outcome(call('resolveSignInEmail', { username: 'nobody.here' }))).toBe(
-      'functions/not-found'
-    );
+    expect(await outcome(resolve('nobody.here', PASSWORD))).toBe('functions/not-found');
+  });
+
+  it('stops answering for a username after too many wrong passwords', async () => {
+    const uid = await newUser({ role: 'Caregiver', username: 'Cal.Lee' });
+    await adminDb.doc('usernames/cal.lee').set({ uid });
+    // 10 wrong guesses use up the per-username limit (the per-address one
+    // allows 20).
+    for (let i = 0; i < 10; i += 1) {
+      expect(await outcome(resolve('cal.lee', `guess ${i}`))).toBe('functions/not-found');
+    }
+    // Even the right password is refused until the window passes.
+    expect(await outcome(resolve('cal.lee', PASSWORD))).toBe('functions/resource-exhausted');
   });
 });
 

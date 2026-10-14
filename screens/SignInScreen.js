@@ -45,21 +45,22 @@ export default function SignInScreen({ navigation }) {
   const [resendSent, setResendSent] = useState(false);
 
   // The "Email or Username" field accepts either — an "@" means it's an
-  // email already; otherwise it's looked up in the public usernames/{key}
-  // collection to find the real email signInWithEmailAndPassword needs.
-  // Returns null if a username was entered but no such username exists,
-  // which callers fold into the same generic "incorrect" error so this
-  // can't be used to probe which usernames are registered.
-  // Email as typed, or — for a username — the account's email from the
-  // resolveSignInEmail Cloud Function (usernames no longer store emails
-  // publicly). null if there's no such username; the caller shows the same
-  // "incorrect email or password" message either way, so this doesn't
-  // reveal which usernames exist.
-  async function resolveEmail(value) {
+  // email already. For a username, the resolveSignInEmail Cloud Function
+  // checks the username AND the password and only then returns the
+  // account's email, which signInWithEmailAndPassword needs. (It used to
+  // return the email for a username alone, which let anyone look up a
+  // person's email address from their username.)
+  // null if the username doesn't exist or the password is wrong — the
+  // function doesn't say which, and the caller shows the same "incorrect
+  // email or password" message either way.
+  async function resolveEmail(value, passwordValue) {
     const trimmed = value.trim();
     if (trimmed.includes('@')) return trimmed;
     try {
-      const result = await callResolveSignInEmail({ username: trimmed });
+      const result = await callResolveSignInEmail({
+        username: trimmed,
+        password: passwordValue,
+      });
       return result.data.email ?? null;
     } catch (e) {
       if (e.code === 'functions/resource-exhausted') throw e; // rate limited — say so
@@ -78,7 +79,7 @@ export default function SignInScreen({ navigation }) {
     }
     setLoading(true);
     try {
-      const resolvedEmail = await resolveEmail(email);
+      const resolvedEmail = await resolveEmail(email, password);
       if (!resolvedEmail) {
         setError(getAuthErrorMessage('auth/invalid-credential'));
         return;
@@ -111,7 +112,7 @@ export default function SignInScreen({ navigation }) {
       // sendEmailVerification needs a live user object, and this screen
       // doesn't have one (we sign out unverified users immediately) — so
       // sign in again just long enough to resend, then sign back out.
-      const resolvedEmail = await resolveEmail(email);
+      const resolvedEmail = await resolveEmail(email, password);
       if (!resolvedEmail) {
         setError(getAuthErrorMessage('auth/invalid-credential'));
         return;

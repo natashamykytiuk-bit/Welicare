@@ -28,6 +28,9 @@ describe('VolunteerResidentsScreen', () => {
     expect(await screen.findByText('Margaret')).toBeTruthy();
     expect(screen.getByText(/Everyone at Maple Grove/)).toBeTruthy();
     await fireEvent.press(screen.getByText('Margaret'));
-    expect(navigation.navigate).toHaveBeenCalledWith('ResidentProfile', { residentId: 'r1' });
+    expect(navigation.navigate).toHaveBeenCalledWith('ResidentProfile', {
+      residentId: 'r1',
+      viewOnly: true,
+    });
   });
 });

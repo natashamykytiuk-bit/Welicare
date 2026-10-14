@@ -70,7 +70,10 @@ describe('ResidentProfileScreen', () => {
       returnTo: 'ResidentProfile',
     });
     await fireEvent.press(screen.getByLabelText('Safety notes'));
-    expect(navigation.navigate).toHaveBeenCalledWith('ResidentSafety', { residentId: 'r1' });
+    expect(navigation.navigate).toHaveBeenCalledWith('ResidentSafety', {
+      residentId: 'r1',
+      viewOnly: false,
+    });
   });
 
   it('lists people one per line, flagging anyone not OK to talk about', async () => {
@@ -101,6 +104,28 @@ describe('ResidentProfileScreen', () => {
     expect(screen.queryByLabelText('Edit life story')).toBeNull();
     expect(screen.queryByLabelText('Add photos')).toBeNull();
     expect(screen.getByLabelText('Safety notes')).toBeTruthy();
+  });
+
+  // A Caregiver account can switch into Volunteer Mode; there the profile
+  // must be view-only too, whatever the account's role allows.
+  it('is view-only for a caregiver account in Volunteer Mode', async () => {
+    setUp();
+    await render(
+      <ResidentProfileScreen
+        navigation={navigation}
+        route={{ params: { residentId: 'r1', viewOnly: true } }}
+      />
+    );
+    expect(await screen.findByText('Margaret')).toBeTruthy();
+    expect(screen.queryByLabelText('Edit life story')).toBeNull();
+    expect(screen.queryByLabelText('Archive resident')).toBeNull();
+    expect(screen.queryByLabelText('Add photos')).toBeNull();
+    expect(screen.queryByLabelText('Manage photos')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Safety notes'));
+    expect(navigation.navigate).toHaveBeenCalledWith('ResidentSafety', {
+      residentId: 'r1',
+      viewOnly: true,
+    });
   });
 
   // A family member linked to a resident in a care home: they can share

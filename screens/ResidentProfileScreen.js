@@ -83,6 +83,10 @@ const PHOTO_MODERATOR_ROLES = ['Caregiver', 'Administrator'];
 
 export default function ResidentProfileScreen({ navigation, route }) {
   const residentId = route?.params?.residentId;
+  // Set when opened from Volunteer Mode's list. Caregiver/admin accounts can
+  // be in Volunteer Mode too, so this switches off every edit option on the
+  // profile (and the safety notes it opens) regardless of role.
+  const viewOnly = !!route?.params?.viewOnly;
   const [resident, setResident] = useState(null);
   const [lifeStory, setLifeStory] = useState(null);
   const [lifeStoryDenied, setLifeStoryDenied] = useState(false);
@@ -160,8 +164,8 @@ export default function ResidentProfileScreen({ navigation, route }) {
     }, [load])
   );
 
-  const mayEdit = !!access && canEditResident(access.viewer, access.org, resident);
-  const mayArchive = !!access && canArchiveResident(access.viewer, access.org, resident);
+  const mayEdit = !viewOnly && !!access && canEditResident(access.viewer, access.org, resident);
+  const mayArchive = !viewOnly && !!access && canArchiveResident(access.viewer, access.org, resident);
   const archived = isArchived(resident);
 
   // Archive or restore, then reload so the banner and buttons follow.
@@ -224,7 +228,12 @@ export default function ResidentProfileScreen({ navigation, route }) {
           </Text>
         ) : (
           <>
-            <ResidentPhotoEditor residentId={residentId} resident={resident} size={88} />
+            <ResidentPhotoEditor
+              residentId={residentId}
+              resident={resident}
+              size={88}
+              readOnly={viewOnly}
+            />
             <Text style={styles.heading}>{resident?.name || 'Unnamed resident'}</Text>
             {resident?.preferredName && resident.preferredName !== resident.name ? (
               <Text style={styles.body}>Likes to be called {resident.preferredName}</Text>
@@ -303,7 +312,7 @@ export default function ResidentProfileScreen({ navigation, route }) {
                 ) : null}
                 <TouchableOpacity
                   style={styles.secondaryButton}
-                  onPress={() => navigation.navigate('ResidentSafety', { residentId })}
+                  onPress={() => navigation.navigate('ResidentSafety', { residentId, viewOnly })}
                   accessibilityRole="button"
                   accessibilityLabel="Safety notes"
                 >
@@ -334,7 +343,7 @@ export default function ResidentProfileScreen({ navigation, route }) {
                 is only shown to the resident (ResidentPhotoAlbumScreen).
                 Volunteers can't upload (see firestore.rules), so they get
                 no buttons; only Caregivers and Administrators moderate. */}
-            {PHOTO_UPLOAD_ROLES.includes(role) ? (
+            {!viewOnly && PHOTO_UPLOAD_ROLES.includes(role) ? (
               <View style={styles.card}>
                 <Text style={styles.sectionTitle}>Photo album</Text>
                 <Text style={styles.muted}>
@@ -378,7 +387,7 @@ export default function ResidentProfileScreen({ navigation, route }) {
             {/* --- Family access ---
                 Family codes are for facility residents only, and made by the
                 facility's Caregivers/Administrators (see createFamilyCode). */}
-            {PHOTO_MODERATOR_ROLES.includes(role) && resident?.facilityId ? (
+            {!viewOnly && PHOTO_MODERATOR_ROLES.includes(role) && resident?.facilityId ? (
               <FamilyAccessCard residentId={residentId} />
             ) : null}
 

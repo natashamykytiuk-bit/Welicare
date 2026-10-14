@@ -170,7 +170,7 @@ export default function CaregiverResidentsScreen({ navigation, viewOnly = false 
                       <TouchableOpacity
                         style={styles.archivedRowMain}
                         onPress={() =>
-                          navigation.navigate('ResidentProfile', { residentId: item.id })
+                          navigation.navigate('ResidentProfile', { residentId: item.id, viewOnly })
                         }
                         activeOpacity={0.8}
                         accessibilityRole="button"
@@ -208,7 +208,7 @@ export default function CaregiverResidentsScreen({ navigation, viewOnly = false 
               return (
                 <TouchableOpacity
                   style={styles.row}
-                  onPress={() => navigation.navigate('ResidentProfile', { residentId: item.id })}
+                  onPress={() => navigation.navigate('ResidentProfile', { residentId: item.id, viewOnly })}
                   activeOpacity={0.8}
                   accessibilityRole="button"
                   accessibilityLabel={`${item.name}, ${profileStarted ? 'profile started' : 'profile not started'}. Open profile`}
@@ -233,7 +233,7 @@ export default function CaregiverResidentsScreen({ navigation, viewOnly = false 
                       tapping the row opens the life-story form. */}
                   <TouchableOpacity
                     style={styles.safetyButton}
-                    onPress={() => navigation.navigate('ResidentSafety', { residentId: item.id })}
+                    onPress={() => navigation.navigate('ResidentSafety', { residentId: item.id, viewOnly })}
                     activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel={`Safety notes for ${item.name || 'resident'}`}

@@ -925,29 +925,104 @@ exports.regenerateInviteCode = onCall(async (request) => {
   return { inviteCode: code };
 });
 
-// Username look-ups allowed per network address per window, so the
-// username → email mapping can't be harvested by trying names in bulk.
+// Username sign-in attempts allowed per window: per network address, so
+// names and passwords can't be tried in bulk from one place, and per
+// username, so one account's password can't be guessed from many places.
 const SIGNIN_LOOKUP_MAX = 20;
+const SIGNIN_USERNAME_MAX = 10;
 const SIGNIN_LOOKUP_WINDOW_MS = 15 * 60 * 1000;
 
-// Sign-in with a username: returns the email the app should pass to
-// Firebase Auth. Replaces reading usernames/{name}.email directly, which
-// made every account's email public. Here:
+// The project's web API key — the same public value the app ships in
+// firebaseConfig.js (it identifies the project; it isn't a secret). Needed
+// to ask Firebase Auth to check a password, which the Admin SDK can't do.
+const WEB_API_KEY = 'AIzaSyDwkxmWCgv7QMUEVj-1Br6gOOu_qfL_b6E';
+
+// Counts one attempt against rateLimits/{id}, refusing with
+// resource-exhausted once `max` is reached in the window. Its own
+// transaction, committed even when the sign-in then fails — failed attempts
+// are exactly what it counts (see joinOrganization). Returns the counter's
+// ref so a caller can clear it after a success.
+async function countSignInAttempt(db, id, max) {
+  const limitRef = db.doc(`rateLimits/${id}`);
+  await db.runTransaction(async (tx) => {
+    const now = Date.now();
+    const data = (await tx.get(limitRef)).data();
+    const inWindow = !!data && now - data.windowStart < SIGNIN_LOOKUP_WINDOW_MS;
+    const count = inWindow ? data.count : 0;
+    if (count >= max) {
+      throw new HttpsError('resource-exhausted', 'Too many attempts. Please try again later.');
+    }
+    tx.set(limitRef, { windowStart: inWindow ? data.windowStart : now, count: count + 1 });
+  });
+  return limitRef;
+}
+
+// Asks Firebase Auth whether `password` is right for `email`, through the
+// same sign-in endpoint the app itself uses (against the Auth emulator in
+// tests). Returns true/false; throws resource-exhausted if Firebase is
+// throttling the account, and unavailable if the check couldn't be made —
+// a failed check must never be mistaken for a correct password. The
+// password is only passed on, never logged or stored.
+async function passwordIsCorrect(email, password) {
+  const emulator = process.env.FIREBASE_AUTH_EMULATOR_HOST;
+  const base = emulator
+    ? `http://${emulator}/identitytoolkit.googleapis.com`
+    : 'https://identitytoolkit.googleapis.com';
+  let res;
+  try {
+    res = await fetch(`${base}/v1/accounts:signInWithPassword?key=${WEB_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // returnSecureToken: false — only the yes/no is wanted, not a session.
+      body: JSON.stringify({ email, password, returnSecureToken: false }),
+    });
+  } catch (e) {
+    console.error('[resolveSignInEmail] password check could not be made:', e?.message);
+    throw new HttpsError('unavailable', 'Sign-in is unavailable right now. Please try again.');
+  }
+  if (res.ok) return true;
+  const reason = String((await res.json().catch(() => null))?.error?.message ?? '');
+  if (reason.startsWith('TOO_MANY_ATTEMPTS')) {
+    throw new HttpsError('resource-exhausted', 'Too many attempts. Please try again later.');
+  }
+  // Wrong password, or an account that can't sign in this way (disabled,
+  // no password): all simply "not correct".
+  if (/^(INVALID_LOGIN_CREDENTIALS|INVALID_PASSWORD|EMAIL_NOT_FOUND|USER_DISABLED)/.test(reason)) {
+    return false;
+  }
+  console.error('[resolveSignInEmail] unexpected password check reply:', res.status, reason);
+  throw new HttpsError('unavailable', 'Sign-in is unavailable right now. Please try again.');
+}
+
+// Sign-in with a username: checks the username AND password, and only then
+// returns the email the app should pass to Firebase Auth.
+//
+// It used to answer with the email for any username, to anyone — so a
+// person's email address could be looked up from their username alone. Now
+// the email only goes to someone who already knows the account's password
+// (and so could read it in Settings anyway). Also:
 // - the email comes from Firebase Auth itself (never from a stored field
 //   someone could have set to anything);
 // - it only answers for the account's CURRENT username (the one on its
 //   profile), so leftover or misleading claims don't resolve;
-// - it's rate-limited per network address (a hashed IP, not stored raw);
-// - unknown names get the same not-found as a wrong username would, and
+// - it's rate-limited per network address (a hashed IP, not stored raw)
+//   and per username;
+// - an unknown username and a wrong password get the same not-found, and
 //   the app shows its usual "incorrect email or password".
-// Callable without being signed in — the person is signing in.
+// Callable without being signed in — the person is signing in. Builds from
+// before this change send no password and so always get not-found; signing
+// in with the email address still works for them.
 exports.resolveSignInEmail = onCall(async (request) => {
   const key =
     typeof request.data?.username === 'string' ? request.data.username.trim().toLowerCase() : '';
-  const notFound = new HttpsError('not-found', 'No account with that username.');
-  if (!key || key.includes('/')) throw notFound;
+  const password = request.data?.password;
+  const notFound = new HttpsError('not-found', 'Incorrect username or password.');
+  if (!key || key.includes('/') || key.length > 200) throw notFound;
+  if (typeof password !== 'string' || !password || password.length > 1000) throw notFound;
   const admin = getAdmin();
   const db = admin.firestore();
+  const hash = (value) =>
+    require('crypto').createHash('sha256').update(value).digest('hex').slice(0, 32);
 
   // The LAST address in X-Forwarded-For, not the first: Google's front end
   // appends the address it actually saw to whatever the caller sent, so the
@@ -957,18 +1032,14 @@ exports.resolveSignInEmail = onCall(async (request) => {
   const ip =
     (typeof forwarded === 'string' ? forwarded.split(',').pop().trim() : request.rawRequest?.ip) ||
     'unknown';
-  const ipKey = require('crypto').createHash('sha256').update(ip).digest('hex').slice(0, 32);
-  const limitRef = db.doc(`rateLimits/signin_${ipKey}`);
-  await db.runTransaction(async (tx) => {
-    const now = Date.now();
-    const data = (await tx.get(limitRef)).data();
-    const inWindow = !!data && now - data.windowStart < SIGNIN_LOOKUP_WINDOW_MS;
-    const count = inWindow ? data.count : 0;
-    if (count >= SIGNIN_LOOKUP_MAX) {
-      throw new HttpsError('resource-exhausted', 'Too many attempts. Please try again later.');
-    }
-    tx.set(limitRef, { windowStart: inWindow ? data.windowStart : now, count: count + 1 });
-  });
+  await countSignInAttempt(db, `signin_${hash(ip)}`, SIGNIN_LOOKUP_MAX);
+  // Counted whether or not the username exists, so the limit itself doesn't
+  // reveal which names are real.
+  const usernameLimitRef = await countSignInAttempt(
+    db,
+    `signinuser_${hash(key)}`,
+    SIGNIN_USERNAME_MAX
+  );
 
   const claim = (await db.doc(`usernames/${key}`).get()).data();
   if (!claim?.uid) throw notFound;
@@ -986,6 +1057,10 @@ exports.resolveSignInEmail = onCall(async (request) => {
     throw notFound;
   }
   if (!email) throw notFound;
+  if (!(await passwordIsCorrect(email, password))) throw notFound;
+  // A correct sign-in clears this username's counter, so honest typos
+  // don't pile up (the per-address one runs out by itself).
+  await usernameLimitRef.delete();
   return { email };
 });
 

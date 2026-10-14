@@ -32,7 +32,10 @@ import {
 // Deliberately NOT part of BuildProfileScreen: that form is filled in with
 // the resident, and they shouldn't read a list of what upsets them.
 export default function ResidentSafetyScreen({ navigation, route }) {
-  const { residentId } = route.params ?? {};
+  // viewOnly: opened from Volunteer Mode. Volunteer Mode is reached by
+  // caregiver/admin accounts too, so role alone isn't enough — in that mode
+  // the notes are always read-only.
+  const { residentId, viewOnly = false } = route.params ?? {};
   const [residentName, setResidentName] = useState('');
   const [text, setText] = useState('');
   const [canEdit, setCanEdit] = useState(false);
@@ -59,7 +62,7 @@ export default function ResidentSafetyScreen({ navigation, route }) {
         setResidentName(residentSnap.data()?.name ?? 'this resident');
         setText(notes);
         // Mirrors the rules: only these roles may write safety notes.
-        setCanEdit(['Caregiver', 'Administrator'].includes(userSnap.data()?.role));
+        setCanEdit(!viewOnly && ['Caregiver', 'Administrator'].includes(userSnap.data()?.role));
       } catch (e) {
         console.error('[ResidentSafety] failed to load:', e.code, e.message);
         if (!cancelled) setLoadError(true);
@@ -71,7 +74,7 @@ export default function ResidentSafetyScreen({ navigation, route }) {
     return () => {
       cancelled = true;
     };
-  }, [residentId, reloadKey]);
+  }, [residentId, viewOnly, reloadKey]);
 
   async function handleSave() {
     setSaving(true);
@@ -158,7 +161,9 @@ export default function ResidentSafetyScreen({ navigation, route }) {
                 </>
               ) : (
                 <Text style={styles.readOnlyNote}>
-                  Only caregivers and administrators can change these notes.
+                  {viewOnly
+                    ? 'Switch to Caregiver Mode to change these notes.'
+                    : 'Only caregivers and administrators can change these notes.'}
                 </Text>
               )}
             </>
