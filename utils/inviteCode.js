@@ -103,7 +103,7 @@ export async function fetchInviteCode(orgId) {
     return snap.data()?.code ?? null;
   } catch (e) {
     // Not a member (or offline) — treat as "no code to show".
-    console.log('fetchInviteCode error:', e.code, e.message);
+    console.error('[inviteCode] fetch failed:', e.code, e.message);
     return null;
   }
 }

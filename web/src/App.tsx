@@ -3,6 +3,8 @@
 // are built.
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { ROLES } from '@shared/constants';
+import AdminLayout from './admin/AdminLayout';
+import ApprovalsPage from './admin/ApprovalsPage';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { RequireRole } from './auth/RequireRole';
 import { homePathFor } from './auth/routing';
@@ -59,7 +61,18 @@ export default function App() {
               />
             }
           />
-          <Route path="/admin/*" element={<RequireRole roles={[ROLES.ADMIN]}>{soon('Administrator')}</RequireRole>} />
+          <Route
+            path="/admin"
+            element={
+              <RequireRole roles={[ROLES.ADMIN]}>
+                <AdminLayout />
+              </RequireRole>
+            }
+          >
+            {/* No dashboard yet, so the admin home is the approvals list. */}
+            <Route index element={<Navigate to="approvals" replace />} />
+            <Route path="approvals" element={<ApprovalsPage />} />
+          </Route>
           <Route path="/caregiver/*" element={<RequireRole roles={[ROLES.CAREGIVER]}>{soon('Caregiver')}</RequireRole>} />
           <Route path="/family/*" element={<RequireRole roles={[ROLES.FAMILY]}>{soon('Family Caregiver')}</RequireRole>} />
           <Route path="*" element={<Navigate to="/" replace />} />

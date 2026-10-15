@@ -11,7 +11,12 @@ export default function ResetPasswordPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    await sendPasswordResetEmail(auth, email.trim()).catch(() => {});
+    // The continue link brings people back to sign in once the password is
+    // changed. If this domain isn't an authorized Firebase Auth domain the
+    // request is refused, so send the plain link instead.
+    await sendPasswordResetEmail(auth, email.trim(), { url: `${window.location.origin}/login` })
+      .catch(() => sendPasswordResetEmail(auth, email.trim()))
+      .catch(() => {});
     setSent(true);
   }
 

@@ -38,7 +38,7 @@ export default function ForgotPinScreen({ navigation, route }) {
       // Every failure shows the same message — the email is this signed-in
       // user's own, so only the password can be wrong from their side. The
       // real error (e.g. a network failure) is logged for debugging.
-      console.error('[ForgotPin] re-authentication failed:', e.code, e.message, e);
+      console.error('[ForgotPin] re-authentication failed:', e.code, e.message);
       setError('Incorrect password. Please try again.');
     } finally {
       setLoading(false);

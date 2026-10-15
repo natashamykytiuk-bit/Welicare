@@ -294,7 +294,11 @@ export default function SignUpScreen({ navigation, route }) {
           // Nothing else was saved for this account yet, so remove the Auth
           // account too and let them simply try again with another name.
           await deleteUser(credential.user).catch((err) =>
-            console.error('[SignUp] could not remove account after username clash:', err)
+            console.error(
+              '[SignUp] could not remove account after username clash:',
+              err.code,
+              err.message
+            )
           );
           setError('This username was just taken — please choose another and try again.');
           return;
@@ -305,8 +309,7 @@ export default function SignUpScreen({ navigation, route }) {
         console.error(
           '[SignUp] profile write failed; will finish after sign-in:',
           e.code,
-          e.message,
-          e
+          e.message
         );
         setupIncomplete = true;
       }
@@ -317,7 +320,7 @@ export default function SignUpScreen({ navigation, route }) {
       try {
         await sendEmailVerification(credential.user);
       } catch (e) {
-        console.error('[SignUp] verification email failed to send:', e.code, e.message, e);
+        console.error('[SignUp] verification email failed to send:', e.code, e.message);
         verificationSendFailed = true;
       }
 
@@ -327,7 +330,7 @@ export default function SignUpScreen({ navigation, route }) {
         verificationSendFailed,
       });
     } catch (e) {
-      console.log('Sign up error:', e);
+      console.error('[SignUp] sign up failed:', e.code, e.message);
       setError(getAuthErrorMessage(e.code));
     } finally {
       setLoading(false);
@@ -365,7 +368,7 @@ export default function SignUpScreen({ navigation, route }) {
       if (e?.usernameTaken) {
         setError('This username was just taken — please choose another and try again.');
       } else {
-        console.error('[SignUp] finish setup failed:', e.code, e.message, e);
+        console.error('[SignUp] finish setup failed:', e.code, e.message);
         setError(
           "We couldn't save your details just now. Please check your connection and try again."
         );

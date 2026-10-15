@@ -17,6 +17,14 @@ import { colors, fonts, radii } from '../theme';
 // the email the user had already typed there. Always shows the same
 // generic success message regardless of whether the account exists, so
 // this can't be used to probe which emails are registered.
+
+// Where Firebase's "password changed" page sends people afterwards (its
+// "Continue" button), instead of leaving them on a bare firebaseapp.com page.
+// welicare.ca must be listed under Authentication → Settings → Authorized
+// domains, or Firebase refuses the request; handleSend falls back to the
+// plain link in that case so a reset is never blocked by it.
+const RESET_CONTINUE = { url: 'https://welicare.ca/login' };
+
 export default function ForgotPasswordScreen({ navigation, route }) {
   const [email, setEmail] = useState(route?.params?.email ?? '');
   const [error, setError] = useState('');
@@ -32,7 +40,10 @@ export default function ForgotPasswordScreen({ navigation, route }) {
     }
     setLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      await sendPasswordResetEmail(auth, email.trim(), RESET_CONTINUE).catch((e) => {
+        if (e.code !== 'auth/unauthorized-continue-uri') throw e;
+        return sendPasswordResetEmail(auth, email.trim());
+      });
       setSuccess(true);
     } catch (e) {
       if (e.code === 'auth/user-not-found') {
@@ -41,6 +52,8 @@ export default function ForgotPasswordScreen({ navigation, route }) {
         setSuccess(true);
       } else if (e.code === 'auth/invalid-email') {
         setError('Please enter a valid email address.');
+      } else if (e.code === 'auth/too-many-requests') {
+        setError('Too many attempts. Please wait a few minutes and try again.');
       } else {
         setError('Something went wrong. Please try again.');
       }
@@ -111,6 +124,10 @@ export default function ForgotPasswordScreen({ navigation, route }) {
         >
           <Text style={styles.switchLinkText}>Back to Sign In</Text>
         </TouchableOpacity>
+
+        {/* People who sign in with a username may not remember which email
+            the account uses; only their facility can look that up. */}
+        <Text style={styles.hint}>Don't remember your email? Ask your facility administrator.</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -192,6 +209,13 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 17,
     letterSpacing: 0.2,
+  },
+  hint: {
+    fontFamily: fonts.sansRegular,
+    fontSize: 15,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 8,
   },
   switchLink: {
     alignItems: 'center',

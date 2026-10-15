@@ -48,7 +48,7 @@ export default function DeleteAccountScreen({ navigation }) {
       // the login stack. No navigation call needed here.
       await signOut(auth);
     } catch (e) {
-      console.log('Delete account error:', e);
+      console.error('[DeleteAccount] failed:', e.code, e.message);
       if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
         setError('That password is incorrect.');
       } else if (e.details?.reason === 'requires-recent-login') {

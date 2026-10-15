@@ -39,7 +39,7 @@ export default function EmailVerificationScreen({ route, onVerified }) {
         setError("Your email hasn't been verified yet. Please check your inbox.");
       }
     } catch (e) {
-      console.log('Email verification check error:', e);
+      console.error('[EmailVerification] check failed:', e.code, e.message);
       setError('Something went wrong. Please try again.');
     } finally {
       setChecking(false);
@@ -59,7 +59,7 @@ export default function EmailVerificationScreen({ route, onVerified }) {
       await sendEmailVerification(user);
       setResendSent(true);
     } catch (e) {
-      console.log('Resend verification error:', e);
+      console.error('[EmailVerification] resend failed:', e.code, e.message);
       setError('Could not resend the email. Please try again in a moment.');
     } finally {
       setResending(false);

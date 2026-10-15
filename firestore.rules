@@ -648,8 +648,9 @@ service cloud.firestore {
         getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('orgId', null) == orgId;
 
       // TODO(follow-up): owner-only (createdBy) for now, so other
-      // Administrators can't edit these details (removeOrgMember is
-      // owner-only too). Decide whether any Administrator of the org should.
+      // Administrators can't edit these details (removeOrgMember,
+      // listOrgMembers, approveOrgMember and denyOrgMember are owner-only
+      // too). Decide whether any Administrator of the org should.
       // The owner may edit the display details OrganizationalSettingsScreen
       // shows, and nothing else. In particular not createdBy/adminId
       // (ownership moves via transferOrgAdmin) and not isPersonal —

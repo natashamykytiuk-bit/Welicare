@@ -44,7 +44,8 @@
     "emulators": "firebase emulators:start --project demo-welicare",
     "test:functions": "firebase emulators:exec --only auth,firestore,storage,functions --project demo-welicare \"jest -c tests/functions/jest.config.js\"",
     "seed:test-org": "node --env-file-if-exists=.env scripts/seed-test-org.js",
-    "teardown:test-org": "node --env-file-if-exists=.env scripts/teardown-test-org.js"
+    "teardown:test-org": "node --env-file-if-exists=.env scripts/teardown-test-org.js",
+    "metrics": "node --env-file-if-exists=.env scripts/launch-metrics.js"
   },
   "private": true,
   "devDependencies": {

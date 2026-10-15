@@ -65,7 +65,7 @@ export default function PendingApprovalScreen({ navigation }) {
           const org = (await getDoc(doc(db, 'organizations', data.pendingOrgId))).data();
           setOrgName(org?.name ?? '');
         } catch (e) {
-          console.log('[PendingApproval] could not load organization name:', e.code);
+          console.warn('[PendingApproval] could not load organization name:', e.code);
         }
         setState('waiting');
         if (manual) setNotice('Not approved yet. We’ll keep your request waiting.');
@@ -135,6 +135,12 @@ export default function PendingApprovalScreen({ navigation }) {
               {orgName
                 ? `Your request to join ${orgName} has been sent. Their administrator needs to approve it before you can continue.`
                 : 'Your request has been sent. The organization’s administrator needs to approve it before you can continue.'}
+            </Text>
+            {/* Administrators aren't notified of new requests, so the person
+                waiting has to prompt them or the request can sit unseen. */}
+            <Text style={styles.body}>
+              Let your administrator know: they can approve you under Administrator Mode → Manage
+              Users.
             </Text>
 
             {notice ? <Text style={styles.note}>{notice}</Text> : null}

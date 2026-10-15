@@ -202,7 +202,6 @@ export default function ResidentModeScreen({ navigation }) {
           const list = Array.from(merged.values())
             .filter((r) => !isArchived(r))
             .sort((a, b) => (a.createdAt?.toMillis?.() ?? 0) - (b.createdAt?.toMillis?.() ?? 0));
-          console.log('[ResidentMode] loaded', list.length, 'residents');
           setResidents(list);
         } catch (e) {
           console.error('[ResidentMode] failed to load residents:', e.code, e.message, e);

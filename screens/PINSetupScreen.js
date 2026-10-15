@@ -71,7 +71,7 @@ export default function PINSetupScreen({ navigation, route }) {
         navigation.reset({ index: 0, routes: [{ name: nextOnboardingRoute(snap.data()) }] });
       }
     } catch (e) {
-      console.log('PIN setup error:', e);
+      console.error('[PINSetup] failed:', e.code, e.message);
       // firestore.rules only accept a CHANGED PIN within a few minutes of
       // the password being entered (ForgotPinScreen). Taking longer than
       // that here is refused, so say what to do rather than "try again".

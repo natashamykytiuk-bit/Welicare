@@ -58,7 +58,7 @@ export default function ChangeUsernameScreen({ navigation }) {
         const snap = await getDoc(doc(db, 'users', uid));
         if (!cancelled) setCurrentUsername(snap.data()?.username ?? '');
       } catch (e) {
-        console.error('[ChangeUsername] failed to load username:', e.code, e.message, e);
+        console.error('[ChangeUsername] failed to load username:', e.code, e.message);
         if (!cancelled) setLoadError(true);
       }
     }
@@ -107,7 +107,7 @@ export default function ChangeUsernameScreen({ navigation }) {
       // One message for every failure, like ForgotPinScreen: the email is
       // the signed-in user's own, so only the password can be wrong from
       // their side. The real error is logged for debugging.
-      console.error('[ChangeUsername] re-authentication failed:', e.code, e.message, e);
+      console.error('[ChangeUsername] re-authentication failed:', e.code, e.message);
       setError('Incorrect password. Please try again.');
       setLoading(false);
       return;
@@ -149,7 +149,7 @@ export default function ChangeUsernameScreen({ navigation }) {
       if (takenNow) {
         setError('This username was just taken — please choose another.');
       } else {
-        console.error('[ChangeUsername] change failed; nothing was saved:', e.code, e.message, e);
+        console.error('[ChangeUsername] change failed; nothing was saved:', e.code, e.message);
         setError('Something went wrong and your username was not changed. Please try again.');
       }
     } finally {

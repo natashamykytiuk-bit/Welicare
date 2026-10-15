@@ -77,12 +77,12 @@ export default function JoinCreateOrganizationScreen({ navigation }) {
       try {
         await createPersonalOrganization();
       } catch (e) {
-        console.log('Family organization creation failed again:', e);
+        console.error('[JoinCreateOrganization] family organization creation failed again:', e.code, e.message);
       }
       try {
         await setDoc(doc(db, 'users', uid), { orgStepSkipped: true }, { merge: true });
       } catch (e) {
-        console.log('Failed to record org step skip:', e);
+        console.error('[JoinCreateOrganization] failed to record org step skip:', e.code, e.message);
       }
     }
     navigation.reset({ index: 0, routes: [{ name: 'ModeSelection' }] });
