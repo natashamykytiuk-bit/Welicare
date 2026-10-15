@@ -71,8 +71,8 @@ export default function FamilyAccessCard({ residentId }) {
     <View style={styles.card}>
       <Text style={styles.sectionTitle}>Family access</Text>
       <Text style={styles.muted}>
-        Give a family member a code so they can see this resident and share photos. Each code
-        works once and expires after 7 days.
+        Give a family member a code so they can see this resident and share photos. Each code works
+        once and expires after 7 days.
       </Text>
 
       {code ? (
@@ -110,7 +110,9 @@ export default function FamilyAccessCard({ residentId }) {
       {members === null ? (
         <ActivityIndicator color={colors.primary} />
       ) : loadError ? (
-        <Text style={styles.errorText}>{loadError}</Text>
+        <Text style={styles.errorText} accessibilityRole="alert">
+          {loadError}
+        </Text>
       ) : members.length === 0 ? (
         <Text style={styles.muted}>No family members linked yet.</Text>
       ) : (

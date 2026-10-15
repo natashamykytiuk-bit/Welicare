@@ -13,7 +13,9 @@ export default function VolunteerModeScreen({ navigation }) {
           onPress={() => navigation.navigate('ModeSelection', { animation: 'slide_from_left' })}
         />
 
-        <Text style={styles.heading}>Volunteer Mode</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Volunteer Mode
+        </Text>
         <Text style={styles.body}>
           Track your volunteer hours and see the residents you work with.
         </Text>

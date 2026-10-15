@@ -74,6 +74,10 @@ export default function MoviesPlayerScreen({ navigation, route }) {
   // dimensions (no flex/percentage sizing), so this measures the wrapper
   // via onLayout instead of hardcoding a fixed height.
   const [playerLayout, setPlayerLayout] = useState({ width: 0, height: 0 });
+  // Drives the app's own Play/Pause button, same as MusicPlayerScreen.
+  // Starts false because movies don't autoplay; YouTubeEmbed reports
+  // play/pause made with YouTube's own controls so the button stays right.
+  const [playing, setPlaying] = useState(false);
 
   function handlePlayerLayout(e) {
     const { width, height } = e.nativeEvent.layout;
@@ -93,7 +97,7 @@ export default function MoviesPlayerScreen({ navigation, route }) {
           <Text style={styles.backLink}>← Back to activities</Text>
         </TouchableOpacity>
 
-        <Text style={styles.title} numberOfLines={2}>
+        <Text style={styles.title} accessibilityRole="header" numberOfLines={2}>
           {title}
         </Text>
 
@@ -108,6 +112,8 @@ export default function MoviesPlayerScreen({ navigation, route }) {
                 width={playerLayout.width}
                 videoId={videoId}
                 autoplay={false}
+                playing={playing}
+                onPlayingChange={setPlaying}
                 onEnded={session.roundCompleted}
               />
             ) : null}
@@ -129,6 +135,19 @@ export default function MoviesPlayerScreen({ navigation, route }) {
               </TouchableOpacity>
             ) : null}
           </View>
+        ) : null}
+
+        {/* Same 56pt Play/Pause as the music player: bigger and better
+            labelled for residents and VoiceOver than YouTube's controls. */}
+        {videoId ? (
+          <TouchableOpacity
+            style={styles.playButton}
+            onPress={() => setPlaying((p) => !p)}
+            accessibilityRole="button"
+            accessibilityLabel={playing ? 'Pause' : 'Play'}
+          >
+            <Ionicons name={playing ? 'pause' : 'play'} size={28} color={colors.primary} />
+          </TouchableOpacity>
         ) : (
           <View style={styles.artPlaceholder}>
             <Ionicons name="film-outline" size={64} color={colors.primary} />
@@ -178,6 +197,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(250,250,247,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Matches MusicPlayerScreen's controlButton.
+  playButton: {
+    width: 56,
+    height: 56,
+    borderRadius: radii.circular,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.mistBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
   },
   artPlaceholder: {
     flex: 1,

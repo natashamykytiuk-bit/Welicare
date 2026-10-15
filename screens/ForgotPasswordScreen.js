@@ -61,7 +61,9 @@ export default function ForgotPasswordScreen({ navigation, route }) {
       >
         <BackButton navigation={navigation} />
 
-        <Text style={styles.heading}>Reset your password</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Reset your password
+        </Text>
         <Text style={styles.subheading}>
           Enter your email and we'll send you a link to reset your password.
         </Text>

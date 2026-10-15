@@ -99,7 +99,9 @@ export default function MoveResidentScreen({ navigation, route }) {
 
         {step === 'code' ? (
           <>
-            <Text style={styles.heading}>Move {name} to an organization</Text>
+            <Text style={styles.heading} accessibilityRole="header">
+              Move {name} to an organization
+            </Text>
             <Text style={styles.body}>
               If {name} is moving into a care home that uses Welicare, enter the code the care home
               gave you. You’ll see what changes before anything is sent.
@@ -131,7 +133,7 @@ export default function MoveResidentScreen({ navigation, route }) {
 
         {step === 'confirm' ? (
           <View style={styles.card}>
-            <Text style={styles.heading}>
+            <Text style={styles.heading} accessibilityRole="header">
               Move {name} to {org}?
             </Text>
             <Text style={styles.body}>
@@ -167,7 +169,9 @@ export default function MoveResidentScreen({ navigation, route }) {
 
         {step === 'sent' ? (
           <>
-            <Text style={styles.heading}>Request sent</Text>
+            <Text style={styles.heading} accessibilityRole="header">
+              Request sent
+            </Text>
             <Text style={styles.body}>
               {org} has been asked to take on {name}’s profile. Until their administrator approves,
               nothing changes — {name} stays in your list and you can still edit their profile. You

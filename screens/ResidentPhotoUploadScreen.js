@@ -222,7 +222,9 @@ export default function ResidentPhotoUploadScreen({ navigation, route }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Add Photos</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Add Photos
+        </Text>
         <Text style={styles.body}>
           Share photos for {residentName}'s photo album. They'll see them in Resident Mode.
         </Text>

@@ -271,7 +271,9 @@ export default function AddResidentScreen({ navigation }) {
           <ActivityIndicator size="large" color={colors.primary} style={styles.loading} />
         ) : !mayCreate ? (
           <>
-            <Text style={styles.heading}>Add a resident</Text>
+            <Text style={styles.heading} accessibilityRole="header">
+              Add a resident
+            </Text>
             <Text style={styles.body}>
               Residents are added by your organization’s caregivers and administrators. Once they’ve
               added someone, you’ll see them in your list.
@@ -279,7 +281,9 @@ export default function AddResidentScreen({ navigation }) {
           </>
         ) : (
           <>
-            <Text style={styles.heading}>Add a resident</Text>
+            <Text style={styles.heading} accessibilityRole="header">
+              Add a resident
+            </Text>
             <Text style={styles.body}>Create a new resident profile.</Text>
 
             {error ? (
@@ -301,6 +305,7 @@ export default function AddResidentScreen({ navigation }) {
 
             <Text style={styles.label}>Name</Text>
             <TextInput
+              accessibilityLabel="Name"
               style={styles.input}
               value={name}
               onChangeText={setName}

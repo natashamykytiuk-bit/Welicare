@@ -13,7 +13,9 @@ export default function ManageMusicScreen({ navigation }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Manage Music & Videos</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Manage Music & Videos
+        </Text>
         <Text style={styles.body}>
           Build the music and movie libraries and choose what each resident sees.
         </Text>

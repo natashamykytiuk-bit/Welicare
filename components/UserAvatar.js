@@ -31,7 +31,13 @@ export default function UserAvatar({ uid, name, size = 32, updatedAt, style }) {
 
   const circle = { width: size, height: size, borderRadius: radii.circular };
   return (
-    <View style={[styles.base, circle, style]} accessibilityElementsHidden>
+    <View
+      style={[styles.base, circle, style]}
+      // Decorative: the name is always shown or spoken beside it. The first
+      // prop hides it from VoiceOver, the second from Android's TalkBack.
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
       {uri ? (
         <Image
           source={{ uri, cacheKey: `avatar-${uid}@${version}` }}

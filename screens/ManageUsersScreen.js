@@ -215,7 +215,9 @@ export default function ManageUsersScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <BackButton navigation={navigation} />
         <OrgIdBadge />
-        <Text style={styles.heading}>Manage Users</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Manage Users
+        </Text>
 
         {loadError ? (
           <LoadError onRetry={load} />

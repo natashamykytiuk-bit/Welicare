@@ -102,7 +102,9 @@ export default function ResidentSafetyScreen({ navigation, route }) {
       >
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <BackButton navigation={navigation} />
-          <Text style={styles.heading}>Safety notes</Text>
+          <Text style={styles.heading} accessibilityRole="header">
+            Safety notes
+          </Text>
 
           {loadError ? (
             <LoadError onRetry={() => setReloadKey((k) => k + 1)} />
@@ -142,7 +144,11 @@ export default function ResidentSafetyScreen({ navigation, route }) {
 
               {canEdit ? (
                 <>
-                  {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
+                  {saveError ? (
+                    <Text style={styles.error} accessibilityRole="alert">
+                      {saveError}
+                    </Text>
+                  ) : null}
                   {saved ? <Text style={styles.savedNote}>Saved.</Text> : null}
                   <TouchableOpacity
                     style={styles.saveButton}

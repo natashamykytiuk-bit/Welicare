@@ -196,7 +196,9 @@ export default function FamilyResidentsScreen({ navigation }) {
             <Ionicons name="settings-outline" size={20} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
-        <Text style={styles.heading}>My Residents</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          My Residents
+        </Text>
         <Text style={styles.body}>
           The people you care for. Share photos for their album, and keep the profile up to date for
           anyone you look after at home.

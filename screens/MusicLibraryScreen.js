@@ -308,7 +308,9 @@ export default function MusicLibraryScreen({ navigation }) {
         ListHeaderComponent={
           <>
             <BackButton navigation={navigation} />
-            <Text style={styles.heading}>Music Library</Text>
+            <Text style={styles.heading} accessibilityRole="header">
+              Music Library
+            </Text>
             <Text style={styles.body}>
               Search YouTube or paste a link to add videos to the shared library.
             </Text>
@@ -316,6 +318,7 @@ export default function MusicLibraryScreen({ navigation }) {
             <Text style={styles.sectionLabel}>Search YouTube</Text>
             <View style={styles.searchRow}>
               <TextInput
+                accessibilityLabel="Search YouTube"
                 style={styles.searchInput}
                 value={searchText}
                 onChangeText={setSearchText}
@@ -335,7 +338,11 @@ export default function MusicLibraryScreen({ navigation }) {
               </TouchableOpacity>
             </View>
             {searching ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
-            {searchError ? <Text style={styles.error}>{searchError}</Text> : null}
+            {searchError ? (
+              <Text style={styles.error} accessibilityRole="alert">
+                {searchError}
+              </Text>
+            ) : null}
             {searchResults.map((video) => (
               <View key={video.videoId} style={styles.resultCard}>
                 {video.thumbnailUrl ? (
@@ -373,6 +380,7 @@ export default function MusicLibraryScreen({ navigation }) {
             <Text style={styles.sectionLabel}>Paste a YouTube link</Text>
             <View style={styles.searchRow}>
               <TextInput
+                accessibilityLabel="Paste a YouTube link"
                 style={styles.searchInput}
                 value={urlText}
                 onChangeText={setUrlText}
@@ -393,7 +401,11 @@ export default function MusicLibraryScreen({ navigation }) {
                 <Ionicons name="link" size={20} color={colors.white} />
               </TouchableOpacity>
             </View>
-            {urlError ? <Text style={styles.error}>{urlError}</Text> : null}
+            {urlError ? (
+              <Text style={styles.error} accessibilityRole="alert">
+                {urlError}
+              </Text>
+            ) : null}
             {urlPreview ? (
               <View style={styles.resultCard}>
                 <Image source={{ uri: urlPreview.thumbnailUrl }} style={styles.thumbnail} />
@@ -439,7 +451,11 @@ export default function MusicLibraryScreen({ navigation }) {
             {libraryLoading ? (
               <ActivityIndicator color={colors.primary} style={styles.spinner} />
             ) : null}
-            {libraryError ? <Text style={styles.error}>{libraryError}</Text> : null}
+            {libraryError ? (
+              <Text style={styles.error} accessibilityRole="alert">
+                {libraryError}
+              </Text>
+            ) : null}
             {!libraryLoading && !libraryError && filteredLibrary.length === 0 ? (
               <Text style={styles.note}>No videos match these filters yet.</Text>
             ) : null}
@@ -532,6 +548,7 @@ export default function MusicLibraryScreen({ navigation }) {
 
               <Text style={styles.fieldLabel}>Title</Text>
               <TextInput
+                accessibilityLabel="Title"
                 style={styles.input}
                 value={formTitle}
                 onChangeText={setFormTitle}
@@ -541,6 +558,7 @@ export default function MusicLibraryScreen({ navigation }) {
 
               <Text style={styles.fieldLabel}>Artist</Text>
               <TextInput
+                accessibilityLabel="Artist"
                 style={styles.input}
                 value={formArtist}
                 onChangeText={setFormArtist}
@@ -550,6 +568,7 @@ export default function MusicLibraryScreen({ navigation }) {
 
               <Text style={styles.fieldLabel}>Channel</Text>
               <TextInput
+                accessibilityLabel="Channel"
                 style={styles.input}
                 value={formChannelTitle}
                 onChangeText={setFormChannelTitle}
@@ -572,7 +591,11 @@ export default function MusicLibraryScreen({ navigation }) {
                 onChange={setFormDecade}
               />
 
-              {formError ? <Text style={styles.error}>{formError}</Text> : null}
+              {formError ? (
+                <Text style={styles.error} accessibilityRole="alert">
+                  {formError}
+                </Text>
+              ) : null}
 
               <View style={styles.modalActions}>
                 <TouchableOpacity

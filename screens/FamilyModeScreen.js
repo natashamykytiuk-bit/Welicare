@@ -15,7 +15,9 @@ export default function FamilyModeScreen({ navigation }) {
           onPress={() => navigation.navigate('ModeSelection', { animation: 'slide_from_left' })}
         />
 
-        <Text style={styles.heading}>Family Mode</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Family Mode
+        </Text>
         <Text style={styles.body}>
           Follow along with your loved one's care, activities, and updates.
         </Text>

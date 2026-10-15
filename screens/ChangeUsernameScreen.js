@@ -169,7 +169,9 @@ export default function ChangeUsernameScreen({ navigation }) {
       >
         <BackButton navigation={navigation} />
 
-        <Text style={styles.heading}>Change your username</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Change your username
+        </Text>
         <Text style={styles.body}>
           Choose a new username — it must be unique across all of Welicare.
         </Text>

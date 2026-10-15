@@ -81,7 +81,9 @@ export default function EmailVerificationScreen({ route, onVerified }) {
   return (
     <View style={styles.flex}>
       <View style={styles.content}>
-        <Text style={styles.heading}>Verify your email</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Verify your email
+        </Text>
         <Text style={styles.body}>
           We've sent a verification email to <Text style={styles.emailText}>{email}</Text>. Please
           check your inbox and click the link to verify your account.

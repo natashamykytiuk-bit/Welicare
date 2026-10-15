@@ -91,7 +91,9 @@ export default function FamilyStatsScreen({ navigation }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Activity</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Activity
+        </Text>
 
         {loadError ? (
           <LoadError onRetry={load} />

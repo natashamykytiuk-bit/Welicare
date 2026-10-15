@@ -132,7 +132,9 @@ export default function CaregiverResidentsScreen({ navigation, viewOnly = false 
             <Ionicons name="settings-outline" size={24} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
-        <Text style={styles.heading}>My Residents</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          My Residents
+        </Text>
         <Text style={styles.body}>
           {hasOrg
             ? `Everyone at ${orgName || 'your organization'}. Tap a resident to see their profile and activity.`
@@ -208,7 +210,9 @@ export default function CaregiverResidentsScreen({ navigation, viewOnly = false 
               return (
                 <TouchableOpacity
                   style={styles.row}
-                  onPress={() => navigation.navigate('ResidentProfile', { residentId: item.id, viewOnly })}
+                  onPress={() =>
+                    navigation.navigate('ResidentProfile', { residentId: item.id, viewOnly })
+                  }
                   activeOpacity={0.8}
                   accessibilityRole="button"
                   accessibilityLabel={`${item.name}, ${profileStarted ? 'profile started' : 'profile not started'}. Open profile`}
@@ -233,7 +237,9 @@ export default function CaregiverResidentsScreen({ navigation, viewOnly = false 
                       tapping the row opens the life-story form. */}
                   <TouchableOpacity
                     style={styles.safetyButton}
-                    onPress={() => navigation.navigate('ResidentSafety', { residentId: item.id, viewOnly })}
+                    onPress={() =>
+                      navigation.navigate('ResidentSafety', { residentId: item.id, viewOnly })
+                    }
                     activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel={`Safety notes for ${item.name || 'resident'}`}

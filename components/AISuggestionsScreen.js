@@ -210,7 +210,9 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
             </TouchableOpacity>
           ) : null}
         </View>
-        <Text style={styles.heading}>{title}</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          {title}
+        </Text>
         <Text style={styles.body}>{description}</Text>
 
         {/* Only once the brief is back: whether a profile was used is the
@@ -229,9 +231,21 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
             testID="ai-suggestions-loading"
           />
         ) : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {flagError ? <Text style={styles.error}>{flagError}</Text> : null}
-        {rateError ? <Text style={styles.error}>{rateError}</Text> : null}
+        {error ? (
+          <Text style={styles.error} accessibilityRole="alert">
+            {error}
+          </Text>
+        ) : null}
+        {flagError ? (
+          <Text style={styles.error} accessibilityRole="alert">
+            {flagError}
+          </Text>
+        ) : null}
+        {rateError ? (
+          <Text style={styles.error} accessibilityRole="alert">
+            {rateError}
+          </Text>
+        ) : null}
 
         {!loading && !error && brief?.tips?.length ? (
           <View style={styles.tips}>

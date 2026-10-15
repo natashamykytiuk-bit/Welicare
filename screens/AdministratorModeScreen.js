@@ -15,7 +15,9 @@ export default function AdministratorModeScreen({ navigation }) {
         />
         <OrgIdBadge />
 
-        <Text style={styles.heading}>Administrator Mode</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Administrator Mode
+        </Text>
         <Text style={styles.body}>Manage users and configure organization-wide settings.</Text>
 
         <TouchableOpacity

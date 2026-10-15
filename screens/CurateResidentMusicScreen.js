@@ -229,12 +229,18 @@ export default function CurateResidentMusicScreen({ navigation }) {
       <SafeAreaView style={styles.flex}>
         <View style={styles.pickerContainer}>
           <BackButton navigation={navigation} />
-          <Text style={styles.heading}>Curate for Resident</Text>
+          <Text style={styles.heading} accessibilityRole="header">
+            Curate for Resident
+          </Text>
           <Text style={styles.body}>
             Choose a resident to curate their music &amp; video selection.
           </Text>
 
-          {residentsError ? <Text style={styles.error}>{residentsError}</Text> : null}
+          {residentsError ? (
+            <Text style={styles.error} accessibilityRole="alert">
+              {residentsError}
+            </Text>
+          ) : null}
           {residentsLoading ? (
             <ActivityIndicator size="large" color={colors.primary} style={styles.spinner} />
           ) : residents.length === 0 ? (
@@ -292,7 +298,9 @@ export default function CurateResidentMusicScreen({ navigation }) {
         ListHeaderComponent={
           <>
             <BackButton navigation={navigation} onPress={handleChangeResident} />
-            <Text style={styles.heading}>{selectedResident.name}</Text>
+            <Text style={styles.heading} accessibilityRole="header">
+              {selectedResident.name}
+            </Text>
             <TouchableOpacity
               onPress={handleChangeResident}
               accessibilityRole="button"
@@ -359,7 +367,9 @@ export default function CurateResidentMusicScreen({ navigation }) {
             <Text style={styles.sectionLabel}>Videos ({selectedIds.size} selected)</Text>
             {libraryError ? (
               <View style={styles.errorBox}>
-                <Text style={styles.error}>{libraryError}</Text>
+                <Text style={styles.error} accessibilityRole="alert">
+                  {libraryError}
+                </Text>
               </View>
             ) : null}
             {libraryLoading ? (
@@ -405,11 +415,15 @@ export default function CurateResidentMusicScreen({ navigation }) {
         ListFooterComponent={
           <>
             {selectedIds.size === 0 && isMusicCurated(selectedResident) ? (
-              <Text style={styles.error}>
+              <Text style={styles.error} accessibilityRole="alert">
                 {`No songs are approved, so ${selectedResident.name} won’t see any music until you approve some.`}
               </Text>
             ) : null}
-            {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
+            {saveError ? (
+              <Text style={styles.error} accessibilityRole="alert">
+                {saveError}
+              </Text>
+            ) : null}
             {saved ? <Text style={styles.savedNote}>Selection saved.</Text> : null}
             <TouchableOpacity
               style={styles.saveButton}

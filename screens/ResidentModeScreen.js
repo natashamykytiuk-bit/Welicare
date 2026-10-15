@@ -291,7 +291,9 @@ export default function ResidentModeScreen({ navigation }) {
           style={styles.headerBack}
           onPress={exitToHome}
         />
-        <Text style={styles.headerTitle}>Hello! Who are we visiting today?</Text>
+        <Text style={styles.headerTitle} accessibilityRole="header">
+          Hello! Who are we visiting today?
+        </Text>
         <Text style={styles.headerSubtitle}>Select a resident to begin their session</Text>
       </View>
 

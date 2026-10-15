@@ -92,7 +92,7 @@ export default function JoinCreateOrganizationScreen({ navigation }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.stepIndicator}>STEP 3 OF 3</Text>
-        <Text style={styles.heading}>
+        <Text style={styles.heading} accessibilityRole="header">
           {isFamily ? 'You’re all set' : 'Join or create an organization'}
         </Text>
         <Text style={styles.body}>

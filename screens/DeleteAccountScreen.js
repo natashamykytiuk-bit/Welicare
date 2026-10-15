@@ -83,7 +83,9 @@ export default function DeleteAccountScreen({ navigation }) {
       >
         <BackButton navigation={navigation} />
 
-        <Text style={styles.heading}>Delete your account</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Delete your account
+        </Text>
         <Text style={styles.body}>
           This permanently deletes your Welicare account. It can't be undone.
         </Text>

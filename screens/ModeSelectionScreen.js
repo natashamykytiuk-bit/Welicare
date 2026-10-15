@@ -157,6 +157,8 @@ export default function ModeSelectionScreen({ navigation }) {
                 Settings, where the picture is changed. */}
             <TouchableOpacity
               onPress={() => navigation.navigate('Settings')}
+              // The avatar is 36pt; 4pt each side reaches the 44pt minimum.
+              hitSlop={4}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel="Your profile and settings"
@@ -194,7 +196,9 @@ export default function ModeSelectionScreen({ navigation }) {
 
         <OrgIdBadge />
 
-        <Text style={styles.heading}>How are you using Welicare today?</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          How are you using Welicare today?
+        </Text>
 
         {loadError ? (
           <LoadError onRetry={() => setReloadKey((k) => k + 1)} />

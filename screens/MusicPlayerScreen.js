@@ -177,7 +177,7 @@ export default function MusicPlayerScreen({ navigation, route }) {
           <Text style={styles.backLink}>← Back to activities</Text>
         </TouchableOpacity>
 
-        <Text style={styles.title} numberOfLines={2}>
+        <Text style={styles.title} accessibilityRole="header" numberOfLines={2}>
           {title}
           {/* Nested Text so the artist sits inline after the title, set
               apart by a thin divider and a lighter, muted sans face. */}

@@ -69,7 +69,9 @@ export default function ActivityLogScreen({ navigation }) {
         ListHeaderComponent={
           <>
             <BackButton navigation={navigation} />
-            <Text style={styles.heading}>Activity log</Text>
+            <Text style={styles.heading} accessibilityRole="header">
+              Activity log
+            </Text>
             <Text style={styles.body}>
               Recent changes to members, residents and permissions in your organization. Only
               administrators can see this.

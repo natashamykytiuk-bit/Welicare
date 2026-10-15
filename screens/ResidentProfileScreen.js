@@ -165,7 +165,8 @@ export default function ResidentProfileScreen({ navigation, route }) {
   );
 
   const mayEdit = !viewOnly && !!access && canEditResident(access.viewer, access.org, resident);
-  const mayArchive = !viewOnly && !!access && canArchiveResident(access.viewer, access.org, resident);
+  const mayArchive =
+    !viewOnly && !!access && canArchiveResident(access.viewer, access.org, resident);
   const archived = isArchived(resident);
 
   // Archive or restore, then reload so the banner and buttons follow.
@@ -189,7 +190,9 @@ export default function ResidentProfileScreen({ navigation, route }) {
       <SafeAreaView style={styles.flex}>
         <ScrollView contentContainerStyle={styles.content}>
           <BackButton navigation={navigation} />
-          <Text style={styles.heading}>Resident Profile</Text>
+          <Text style={styles.heading} accessibilityRole="header">
+            Resident Profile
+          </Text>
           <Text style={styles.body}>Choose a resident to see their profile and activity.</Text>
           <TouchableOpacity
             style={styles.primaryButton}
@@ -234,7 +237,9 @@ export default function ResidentProfileScreen({ navigation, route }) {
               size={88}
               readOnly={viewOnly}
             />
-            <Text style={styles.heading}>{resident?.name || 'Unnamed resident'}</Text>
+            <Text style={styles.heading} accessibilityRole="header">
+              {resident?.name || 'Unnamed resident'}
+            </Text>
             {resident?.preferredName && resident.preferredName !== resident.name ? (
               <Text style={styles.body}>Likes to be called {resident.preferredName}</Text>
             ) : null}

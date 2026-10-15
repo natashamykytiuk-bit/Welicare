@@ -291,7 +291,9 @@ export default function MovieLibraryScreen({ navigation }) {
         ListHeaderComponent={
           <>
             <BackButton navigation={navigation} />
-            <Text style={styles.heading}>Movie Library</Text>
+            <Text style={styles.heading} accessibilityRole="header">
+              Movie Library
+            </Text>
             <Text style={styles.body}>
               Search YouTube or paste a link to add movies and shows. Residents only ever see what’s
               added here.
@@ -300,6 +302,7 @@ export default function MovieLibraryScreen({ navigation }) {
             <Text style={styles.sectionLabel}>Search YouTube</Text>
             <View style={styles.searchRow}>
               <TextInput
+                accessibilityLabel="Search YouTube"
                 style={styles.searchInput}
                 value={searchText}
                 onChangeText={setSearchText}
@@ -319,7 +322,11 @@ export default function MovieLibraryScreen({ navigation }) {
               </TouchableOpacity>
             </View>
             {searching ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
-            {searchError ? <Text style={styles.error}>{searchError}</Text> : null}
+            {searchError ? (
+              <Text style={styles.error} accessibilityRole="alert">
+                {searchError}
+              </Text>
+            ) : null}
             {searchResults.map((video) => (
               <View key={video.videoId} style={styles.resultCard}>
                 {video.thumbnailUrl ? (
@@ -357,6 +364,7 @@ export default function MovieLibraryScreen({ navigation }) {
             <Text style={styles.sectionLabel}>Paste a YouTube link</Text>
             <View style={styles.searchRow}>
               <TextInput
+                accessibilityLabel="Paste a YouTube link"
                 style={styles.searchInput}
                 value={urlText}
                 onChangeText={setUrlText}
@@ -377,7 +385,11 @@ export default function MovieLibraryScreen({ navigation }) {
                 <Ionicons name="link" size={20} color={colors.white} />
               </TouchableOpacity>
             </View>
-            {urlError ? <Text style={styles.error}>{urlError}</Text> : null}
+            {urlError ? (
+              <Text style={styles.error} accessibilityRole="alert">
+                {urlError}
+              </Text>
+            ) : null}
             {urlPreview ? (
               <View style={styles.resultCard}>
                 <Image source={{ uri: urlPreview.thumbnailUrl }} style={styles.thumbnail} />
@@ -423,7 +435,11 @@ export default function MovieLibraryScreen({ navigation }) {
             {libraryLoading ? (
               <ActivityIndicator color={colors.primary} style={styles.spinner} />
             ) : null}
-            {libraryError ? <Text style={styles.error}>{libraryError}</Text> : null}
+            {libraryError ? (
+              <Text style={styles.error} accessibilityRole="alert">
+                {libraryError}
+              </Text>
+            ) : null}
             {!libraryLoading && !libraryError && filteredLibrary.length === 0 ? (
               <Text style={styles.note}>No movies match these filters yet.</Text>
             ) : null}
@@ -515,6 +531,7 @@ export default function MovieLibraryScreen({ navigation }) {
 
               <Text style={styles.fieldLabel}>Title</Text>
               <TextInput
+                accessibilityLabel="Title"
                 style={styles.input}
                 value={formTitle}
                 onChangeText={setFormTitle}
@@ -524,6 +541,7 @@ export default function MovieLibraryScreen({ navigation }) {
 
               <Text style={styles.fieldLabel}>Channel</Text>
               <TextInput
+                accessibilityLabel="Channel"
                 style={styles.input}
                 value={formChannelTitle}
                 onChangeText={setFormChannelTitle}
@@ -546,7 +564,11 @@ export default function MovieLibraryScreen({ navigation }) {
                 onChange={setFormDecade}
               />
 
-              {formError ? <Text style={styles.error}>{formError}</Text> : null}
+              {formError ? (
+                <Text style={styles.error} accessibilityRole="alert">
+                  {formError}
+                </Text>
+              ) : null}
 
               <View style={styles.modalActions}>
                 <TouchableOpacity

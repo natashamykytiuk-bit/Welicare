@@ -50,7 +50,9 @@ export default function CreateOrganizationScreen({ navigation }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Create an organization</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Create an organization
+        </Text>
 
         {error ? (
           <Text style={styles.errorBanner} accessibilityRole="alert">

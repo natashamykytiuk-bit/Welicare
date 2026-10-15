@@ -43,7 +43,9 @@ export default function JoinOrganizationScreen({ navigation }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Join an organization</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Join an organization
+        </Text>
         <Text style={styles.body}>
           Enter the code your organization gave you. Their administrator will approve your request
           before you can see their residents.

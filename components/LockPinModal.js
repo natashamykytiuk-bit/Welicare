@@ -114,7 +114,9 @@ export default function LockPinModal({ visible, onSuccess, onCancel }) {
             </TouchableOpacity>
 
             <Text style={styles.eyebrow}>PIN REQUIRED</Text>
-            <Text style={styles.heading}>Enter your PIN</Text>
+            <Text style={styles.heading} accessibilityRole="header">
+              Enter your PIN
+            </Text>
 
             {error ? (
               <Text style={styles.errorBanner} accessibilityRole="alert">

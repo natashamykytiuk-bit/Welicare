@@ -98,7 +98,9 @@ export default function PINSetupScreen({ navigation, route }) {
         {mode !== 'reset' ? (
           <Text style={styles.stepIndicator}>STEP 2 OF 3 — SET YOUR PIN</Text>
         ) : null}
-        <Text style={styles.heading}>{mode === 'reset' ? 'Set a new PIN' : 'Set your PIN'}</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          {mode === 'reset' ? 'Set a new PIN' : 'Set your PIN'}
+        </Text>
         <Text style={styles.body}>
           {mode === 'reset'
             ? 'Choose a new PIN to protect staff and family modes on this device.'

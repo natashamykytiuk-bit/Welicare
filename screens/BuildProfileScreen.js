@@ -141,6 +141,7 @@ function TextField({
     <View style={styles.field}>
       {label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
       <TextInput
+        accessibilityLabel={label || placeholder}
         style={[styles.input, multiline && styles.inputMultiline]}
         value={value}
         onChangeText={onChangeText}
@@ -401,7 +402,7 @@ export default function BuildProfileScreen({ navigation, route }) {
             behalf, so "yourself" would read wrong — name the resident
             instead. Uses the saved name, not the field being edited, so
             the heading doesn't change with every keystroke. */}
-        <Text style={styles.heading}>
+        <Text style={styles.heading} accessibilityRole="header">
           {returnTo === 'CaregiverResidents' || returnTo === 'ResidentProfile'
             ? `About ${savedName || 'this resident'}`
             : 'Tell us about yourself'}

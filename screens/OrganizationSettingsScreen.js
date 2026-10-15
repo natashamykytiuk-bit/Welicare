@@ -24,7 +24,9 @@ export default function OrganizationSettingsScreen({ navigation }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Connecting with a care home</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Connecting with a care home
+        </Text>
         <Text style={styles.body}>
           Your family account stays your own. To connect with a care home that uses Welicare, you
           link one person at a time from Family Mode → My Residents.

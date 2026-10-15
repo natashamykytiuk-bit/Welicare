@@ -54,7 +54,9 @@ export default function ResidentPhotoManageScreen({ navigation, route }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Manage photos</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Manage photos
+        </Text>
         <Text style={styles.body}>
           Every photo shared for {residentName}. Delete any that shouldn't be in their album.
         </Text>

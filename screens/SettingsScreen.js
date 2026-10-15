@@ -116,7 +116,9 @@ export default function SettingsScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.content}>
         <BackButton navigation={navigation} />
 
-        <Text style={styles.heading}>Settings</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Settings
+        </Text>
 
         {loadError ? (
           <LoadError

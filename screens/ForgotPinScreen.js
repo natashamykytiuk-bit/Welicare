@@ -57,7 +57,9 @@ export default function ForgotPinScreen({ navigation, route }) {
       >
         <BackButton navigation={navigation} />
 
-        <Text style={styles.heading}>Forgot your PIN?</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Forgot your PIN?
+        </Text>
         <Text style={styles.body}>Confirm your account password to set a new PIN.</Text>
 
         {error ? (

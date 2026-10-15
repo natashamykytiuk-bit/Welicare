@@ -398,7 +398,7 @@ export default function SignUpScreen({ navigation, route }) {
       <Text style={styles.stepIndicator}>
         {finishSetup ? 'STEP 1 OF 3 — FINISH SETTING UP' : 'STEP 1 OF 3 — CREATE ACCOUNT'}
       </Text>
-      <Text style={styles.heading}>
+      <Text style={styles.heading} accessibilityRole="header">
         {finishSetup ? 'Finish setting up your account' : 'Create Account'}
       </Text>
       <Text style={styles.subheading}>

@@ -91,7 +91,9 @@ export default function PlaceholderScreen({
           </View>
         ) : null}
         {showOrgId ? <OrgIdBadge /> : null}
-        <Text style={styles.heading}>{title}</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          {title}
+        </Text>
         <Text style={styles.body}>{description}</Text>
         <View style={styles.badge}>
           <Text style={styles.badgeText}>Coming soon</Text>

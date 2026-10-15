@@ -14,7 +14,9 @@ export default function CaregiverModeScreen({ navigation }) {
           onPress={() => navigation.navigate('ModeSelection', { animation: 'slide_from_left' })}
         />
 
-        <Text style={styles.heading}>Caregiver Mode</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Caregiver Mode
+        </Text>
         <Text style={styles.body}>
           Manage residents, track engagement, and find activity ideas.
         </Text>
@@ -53,7 +55,6 @@ export default function CaregiverModeScreen({ navigation }) {
           <Text style={styles.cardTitle}>Manage Music & Videos</Text>
           <Text style={styles.cardSubtitle}>Curate what residents can play</Text>
         </TouchableOpacity>
-
       </ScrollView>
     </SafeAreaView>
   );

@@ -109,7 +109,9 @@ export default function PendingApprovalScreen({ navigation }) {
         ) : state === 'declined' ? (
           <>
             <Ionicons name="information-circle-outline" size={48} color={colors.primary} />
-            <Text style={styles.heading}>Your request wasn’t approved</Text>
+            <Text style={styles.heading} accessibilityRole="header">
+              Your request wasn’t approved
+            </Text>
             <Text style={styles.body}>
               The organization’s administrator didn’t approve your request to join. If you think
               this is a mistake, ask them for their code and try again.
@@ -126,7 +128,9 @@ export default function PendingApprovalScreen({ navigation }) {
         ) : (
           <>
             <Ionicons name="time-outline" size={48} color={colors.primary} />
-            <Text style={styles.heading}>Waiting for approval</Text>
+            <Text style={styles.heading} accessibilityRole="header">
+              Waiting for approval
+            </Text>
             <Text style={styles.body}>
               {orgName
                 ? `Your request to join ${orgName} has been sent. Their administrator needs to approve it before you can continue.`
@@ -153,9 +157,7 @@ export default function PendingApprovalScreen({ navigation }) {
                 accessibilityRole="button"
                 accessibilityLabel="Cancel request"
               >
-                <Text style={styles.linkText}>
-                  {cancelling ? 'Cancelling…' : 'Cancel request'}
-                </Text>
+                <Text style={styles.linkText}>{cancelling ? 'Cancelling…' : 'Cancel request'}</Text>
               </TouchableOpacity>
             </View>
           </>

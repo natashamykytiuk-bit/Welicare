@@ -185,7 +185,9 @@ export default function PINEntryScreen({ navigation, route }) {
                 </View>
 
                 <Text style={styles.eyebrow}>PIN REQUIRED</Text>
-                <Text style={styles.heading}>Enter your PIN</Text>
+                <Text style={styles.heading} accessibilityRole="header">
+                  Enter your PIN
+                </Text>
                 <Text style={styles.body}>
                   to access <Text style={styles.bodyEmphasis}>{destinationLabel(destination)}</Text>
                 </Text>

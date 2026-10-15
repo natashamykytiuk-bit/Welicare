@@ -144,7 +144,9 @@ export default function GameShell({
         <ScrollView contentContainerStyle={styles.centred}>
           {phase === 'setup' ? (
             <>
-              <Text style={styles.heading}>{title}</Text>
+              <Text style={styles.heading} accessibilityRole="header">
+                {title}
+              </Text>
               {description ? <Text style={styles.body}>{description}</Text> : null}
               <View style={styles.difficultyRow} accessibilityRole="radiogroup">
                 {DIFFICULTIES.map((option) => {
@@ -206,7 +208,9 @@ export default function GameShell({
             </>
           ) : (
             <>
-              <Text style={styles.heading}>{completionMessage}</Text>
+              <Text style={styles.heading} accessibilityRole="header">
+                {completionMessage}
+              </Text>
               <View style={styles.completeButtons}>
                 <BigButton label="Play again" onPress={startRound} />
                 <BigButton label="Back to games" onPress={() => navigation.goBack()} secondary />

@@ -140,7 +140,9 @@ export default function SignInScreen({ navigation }) {
       >
         <BackButton navigation={navigation} />
 
-        <Text style={styles.heading}>Welcome back</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Welcome back
+        </Text>
         <Text style={styles.subheading}>Sign in to continue</Text>
 
         {error ? (

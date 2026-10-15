@@ -86,7 +86,9 @@ export default function OverallStatsScreen({ navigation }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Overall Stats</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Overall Stats
+        </Text>
 
         {loadError ? (
           <LoadError onRetry={load} />

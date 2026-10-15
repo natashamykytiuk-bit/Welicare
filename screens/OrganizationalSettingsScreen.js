@@ -370,7 +370,9 @@ export default function OrganizationalSettingsScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
       >
         <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Organizational Settings</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Organizational Settings
+        </Text>
 
         {!org ? (
           <Text style={styles.body}>You are not part of an organization yet.</Text>

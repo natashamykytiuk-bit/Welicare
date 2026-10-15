@@ -81,7 +81,9 @@ export default function HourTrackerScreen({ navigation }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <BackButton navigation={navigation} />
-        <Text style={styles.heading}>Hour Tracker</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Hour Tracker
+        </Text>
 
         {loadError ? (
           <LoadError onRetry={load} />

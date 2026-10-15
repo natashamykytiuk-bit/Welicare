@@ -28,7 +28,9 @@ export default function GamesScreen({ navigation, route }) {
           <HomeButton navigation={navigation} destination="ModeSelection" />
         </View>
 
-        <Text style={styles.heading}>Games</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          Games
+        </Text>
         <Text style={styles.body}>Pick a game to play.</Text>
 
         <View style={styles.grid}>

@@ -137,7 +137,9 @@ export default function MoviesSelectionScreen({ navigation, route }) {
         ListHeaderComponent={
           <>
             <BackButton navigation={navigation} size={60} />
-            <Text style={styles.heading}>Movies &amp; Videos</Text>
+            <Text style={styles.heading} accessibilityRole="header">
+              Movies &amp; Videos
+            </Text>
             <Text style={styles.body}>Choose something to watch.</Text>
 
             {residentId ? (

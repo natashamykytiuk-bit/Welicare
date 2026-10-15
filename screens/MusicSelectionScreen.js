@@ -191,7 +191,9 @@ export default function MusicSelectionScreen({ navigation, route }) {
         ListHeaderComponent={
           <>
             <BackButton navigation={navigation} size={60} />
-            <Text style={styles.heading}>Music</Text>
+            <Text style={styles.heading} accessibilityRole="header">
+              Music
+            </Text>
             <Text style={styles.body}>Choose a song to play.</Text>
 
             {residentId ? (
@@ -228,7 +230,9 @@ export default function MusicSelectionScreen({ navigation, route }) {
             {loading ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
             {error ? (
               <View style={styles.errorBox}>
-                <Text style={styles.error}>{error}</Text>
+                <Text style={styles.error} accessibilityRole="alert">
+                  {error}
+                </Text>
               </View>
             ) : null}
             {!loading && !error && showFavouritesEmptyState ? (

@@ -276,7 +276,7 @@ export default function ActivityMenuScreen({ navigation, route }) {
           </View>
         ) : null}
 
-        <Text style={styles.heading}>
+        <Text style={styles.heading} accessibilityRole="header">
           {timeGreeting()}
           {greetingName ? `, ${greetingName}` : ''}.
         </Text>
