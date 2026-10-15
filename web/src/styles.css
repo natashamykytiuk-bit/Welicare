@@ -12,3 +12,53 @@ h1, h2, h3 { font-family: 'Lora', Georgia, serif; }
 :focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
 .skip-link { position: absolute; left: -9999px; }
 .skip-link:focus { left: 16px; top: 16px; background: var(--color-surface); padding: 8px 12px; }
+
+/* Splash while auth loads (Splash.tsx). */
+.splash {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--color-background);
+}
+.splash img { max-width: calc(100% - 32px); height: auto; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* Sign-in and message screens. */
+.auth-card {
+  max-width: 28rem;
+  /* A 16px gutter on narrow screens. */
+  width: calc(100% - 32px);
+  margin: 10vh auto;
+  padding: 32px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+.auth-card form { display: flex; flex-direction: column; gap: 8px; }
+.auth-card label { font-weight: 700; }
+.auth-card input {
+  min-height: 48px;
+  padding: 8px 12px;
+  font: inherit;
+  border: 1px solid var(--color-textMuted);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+.auth-card a { color: var(--color-primary); }
+button {
+  min-height: 48px;
+  padding: 0 20px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-white);
+  background: var(--color-primary);
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+button:hover { background: var(--color-primaryDark); }
+button:disabled { opacity: 0.7; cursor: wait; }
+.form-error { color: var(--color-destructive); margin: 0; }

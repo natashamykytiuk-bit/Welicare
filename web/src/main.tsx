@@ -3,6 +3,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { colors, radii } from '@shared/theme';
+import App from './App';
 import './styles.css';
 
 const root = document.documentElement.style;
@@ -13,6 +14,6 @@ for (const [name, value] of Object.entries(radii)) root.setProperty(`--radius-${
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <main id="main">Welicare portal</main>
+    <App />
   </StrictMode>
 );
