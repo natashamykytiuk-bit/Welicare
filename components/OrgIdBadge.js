@@ -13,7 +13,10 @@ import { fetchInviteCode } from '../utils/inviteCode';
 // private/invite doc (see fetchInviteCode), so this is a two-step lookup:
 // the user's orgId first, then that org's code. Renders nothing while
 // loading or if the signed-in user hasn't connected to an organization.
-export default function OrgIdBadge() {
+//
+// Pass `orgId` (a string, or null for none) when the screen has already read
+// the user's doc, so the badge skips its own users/{uid} read.
+export default function OrgIdBadge({ orgId: knownOrgId } = {}) {
   const [inviteCode, setInviteCode] = useState(undefined); // undefined = loading, null = none
 
   useEffect(() => {
@@ -26,8 +29,10 @@ export default function OrgIdBadge() {
       // an error block. fetchInviteCode already swallows its own errors;
       // this catch covers the user-doc read.
       try {
-        const userSnap = await getDoc(doc(db, 'users', uid));
-        const orgId = userSnap.data()?.orgId;
+        const orgId =
+          knownOrgId !== undefined
+            ? knownOrgId
+            : (await getDoc(doc(db, 'users', uid))).data()?.orgId;
         const code = orgId ? await fetchInviteCode(orgId) : null;
         if (!cancelled) setInviteCode(code);
       } catch (e) {
@@ -39,7 +44,7 @@ export default function OrgIdBadge() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [knownOrgId]);
 
   if (!inviteCode) return null;
 

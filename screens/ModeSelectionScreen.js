@@ -13,10 +13,12 @@ import {
   View,
 } from 'react-native';
 import LoadError from '../components/LoadError';
+import { millisOf } from '../components/ResidentAvatar';
 import UserAvatar from '../components/UserAvatar';
 import OrgIdBadge from '../components/OrgIdBadge';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import { peekHomeSnapshot, saveHomeSnapshot } from '../utils/homeSnapshot';
 
 // The hub screen after login. Each entry describes one mode card (other
 // than Resident Mode, which gets its own large card above these):
@@ -60,14 +62,21 @@ const MODES = [
 ];
 
 export default function ModeSelectionScreen({ navigation }) {
+  // The on-device copy of this screen from last time (utils/homeSnapshot.js),
+  // so a cold start draws the cards on the first frame; the load below then
+  // replaces every field with fresh data.
+  const [cached] = useState(() => peekHomeSnapshot(auth.currentUser?.uid));
   // undefined while loading, then either the role string or null
-  const [role, setRole] = useState(undefined);
-  const [fullName, setFullName] = useState('');
+  const [role, setRole] = useState(cached ? cached.role : undefined);
+  const [fullName, setFullName] = useState(cached?.fullName ?? '');
   // The optional profile picture's last change (users/{uid}.avatarUpdatedAt),
   // for the top-right avatar's image cache key; null = none.
-  const [avatarUpdatedAt, setAvatarUpdatedAt] = useState(null);
-  const [facilityName, setFacilityName] = useState('');
-  const [allModes, setAllModes] = useState(false);
+  const [avatarUpdatedAt, setAvatarUpdatedAt] = useState(cached?.avatarUpdatedAt ?? null);
+  const [facilityName, setFacilityName] = useState(cached?.facilityName ?? '');
+  // users/{uid}.orgId (null = none), handed to OrgIdBadge so it doesn't
+  // read the same user doc again.
+  const [orgId, setOrgId] = useState(cached?.orgId ?? null);
+  const [allModes, setAllModes] = useState(cached?.allModes ?? false);
   // true when the user doc couldn't be loaded — without it we don't know
   // the role, so the mode cards can't be shown. reloadKey re-runs the load
   // effect when "Try again" is tapped.
@@ -82,10 +91,16 @@ export default function ModeSelectionScreen({ navigation }) {
       const uid = auth.currentUser?.uid;
       if (!uid) return;
       setLoadError(false);
+      // Start the facility-name read now with the orgId we already know, so it
+      // runs alongside the profile read instead of after it. Errors are
+      // dropped here; a miss is retried (and logged) below.
+      const knownOrgId = peekHomeSnapshot(uid)?.orgId;
+      const earlyOrgRead = knownOrgId
+        ? getDoc(doc(db, 'organizations', knownOrgId)).catch(() => null)
+        : null;
       let data;
+      let allModesClaim;
       try {
-        const snap = await getDoc(doc(db, 'users', uid));
-        data = snap.data();
         // Planning/preview access: an `allModes` custom claim on the Auth
         // token shows every mode card regardless of role. A custom claim
         // rather than a users-doc field because users can write their own
@@ -93,9 +108,16 @@ export default function ModeSelectionScreen({ navigation }) {
         // SDK can (scripts/setAllModesAccess.js). It only changes which
         // cards show; what each mode can actually read/write is still
         // enforced by the rules and Cloud Functions against the real role.
-        const token = await auth.currentUser.getIdTokenResult();
+        // Fetched together: neither depends on the other, and the token can
+        // need a network refresh after a cold start.
+        const [snap, token] = await Promise.all([
+          getDoc(doc(db, 'users', uid)),
+          auth.currentUser.getIdTokenResult(),
+        ]);
+        data = snap.data();
         if (cancelled) return;
-        setAllModes(token.claims.allModes === true);
+        allModesClaim = token.claims.allModes === true;
+        setAllModes(allModesClaim);
       } catch (e) {
         console.error('[ModeSelection] failed to load user:', e.code, e.message, e);
         if (!cancelled) setLoadError(true);
@@ -104,16 +126,33 @@ export default function ModeSelectionScreen({ navigation }) {
       setRole(data?.role ?? null);
       setFullName(data?.fullName || data?.username || '');
       setAvatarUpdatedAt(data?.avatarUpdatedAt ?? null);
+      setOrgId(data?.orgId ?? null);
+      let name = '';
       if (data?.orgId) {
         // The facility name is only a label in the header, so a failure
         // here is logged but doesn't block the mode cards.
         try {
-          const orgSnap = await getDoc(doc(db, 'organizations', data.orgId));
-          if (!cancelled) setFacilityName(orgSnap.data()?.name ?? '');
+          const orgSnap =
+            (data.orgId === knownOrgId && (await earlyOrgRead)) ||
+            (await getDoc(doc(db, 'organizations', data.orgId)));
+          name = orgSnap.data()?.name ?? '';
         } catch (e) {
           console.error('[ModeSelection] failed to load organization name:', e.code, e.message, e);
+          // Keep showing the last known name rather than blanking the label.
+          name = data.orgId === knownOrgId ? (peekHomeSnapshot(uid)?.facilityName ?? '') : '';
         }
       }
+      if (cancelled) return;
+      setFacilityName(name);
+      // Only the hub's own header and card choice — see utils/homeSnapshot.js.
+      saveHomeSnapshot(uid, {
+        role: data?.role ?? null,
+        fullName: data?.fullName || data?.username || '',
+        avatarUpdatedAt: millisOf(data?.avatarUpdatedAt) || null,
+        facilityName: name,
+        orgId: data?.orgId ?? null,
+        allModes: allModesClaim,
+      });
     }
     loadUser();
     return () => {
@@ -124,10 +163,15 @@ export default function ModeSelectionScreen({ navigation }) {
   // Coming back from Settings (where the profile picture is changed), re-read
   // the profile so a new or removed picture shows straight away. Optional
   // chaining keeps screens rendered without a navigator (tests) working.
-  useEffect(
-    () => navigation?.addListener?.('focus', () => setReloadKey((k) => k + 1)),
-    [navigation]
-  );
+  // The first focus fires right after mount, when the effect above is
+  // already loading — skip it so the profile isn't fetched twice at startup.
+  useEffect(() => {
+    let firstFocus = true;
+    return navigation?.addListener?.('focus', () => {
+      if (firstFocus) firstFocus = false;
+      else setReloadKey((k) => k + 1);
+    });
+  }, [navigation]);
 
   return (
     <SafeAreaView style={styles.flex}>
@@ -194,7 +238,8 @@ export default function ModeSelectionScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        <OrgIdBadge />
+        {/* Waits for the profile load above so it can reuse its orgId. */}
+        {role !== undefined ? <OrgIdBadge orgId={orgId} /> : null}
 
         <Text style={styles.heading} accessibilityRole="header">
           How are you using Welicare today?

@@ -4,7 +4,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/atkinson-hyperlegible';
 import { Lora_400Regular, Lora_700Bold } from '@expo-google-fonts/lora';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -16,6 +16,7 @@ import { ResidentLockProvider } from './contexts/ResidentLockContext';
 import { nextOnboardingRoute } from './utils/onboarding';
 import { colors } from './theme';
 import { withTimeout } from './utils/withTimeout';
+import { clearHomeSnapshots, loadHomeSnapshot, saveHomeSnapshot } from './utils/homeSnapshot';
 
 import ActivityMenuScreen from './screens/ActivityMenuScreen';
 import AddResidentScreen from './screens/AddResidentScreen';
@@ -31,7 +32,6 @@ import CreateOrganizationScreen from './screens/CreateOrganizationScreen';
 import CurateResidentMoviesScreen from './screens/CurateResidentMoviesScreen';
 import CurateResidentMusicScreen from './screens/CurateResidentMusicScreen';
 import EmailVerificationScreen from './screens/EmailVerificationScreen';
-import FamilyFeedScreen from './screens/FamilyFeedScreen';
 import FamilyModeScreen from './screens/FamilyModeScreen';
 import FamilyResidentsScreen from './screens/FamilyResidentsScreen';
 import FamilyStatsScreen from './screens/FamilyStatsScreen';
@@ -77,6 +77,9 @@ import WelcomeScreen from './screens/WelcomeScreen';
 import WordGamesScreen from './screens/WordGamesScreen';
 
 const Stack = createNativeStackNavigator();
+// Lets the background onboarding check below move the user off a cached
+// first screen that turned out to be wrong.
+const navigationRef = createNavigationContainerRef();
 
 // How long startup waits for the user's own doc before offering Try again.
 const STARTUP_TIMEOUT_MS = 15000;
@@ -109,6 +112,9 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       const verifiedUser = u && u.emailVerified ? u : null;
+      // Any sign-out (or a forced one, e.g. a disabled account) wipes the
+      // cached hub so the next person on this device never sees it.
+      if (!u) clearHomeSnapshots();
       setUser(verifiedUser);
     });
     return unsubscribe;
@@ -130,15 +136,31 @@ export default function App() {
     let cancelled = false;
     async function loadOnboardingStatus() {
       setOnboardingError(false);
+      // Optimistic launch: if this user last landed on the hub, show it now
+      // from the on-device snapshot (no network) and confirm below. Only the
+      // hub is trusted this way — onboarding steps always wait for Firestore.
+      const cached = await loadHomeSnapshot(user.uid);
+      if (cancelled) return;
+      const optimistic = cached?.route === 'ModeSelection';
+      if (optimistic) setOnboardingStatus({ route: 'ModeSelection' });
       try {
         // Bounded so a stalled connection ends in LoadError (Try again)
         // instead of an endless startup spinner.
         const snap = await withTimeout(getDoc(doc(db, 'users', user.uid)), STARTUP_TIMEOUT_MS);
         if (cancelled) return;
-        setOnboardingStatus({ route: nextOnboardingRoute(snap.data()) });
+        const route = nextOnboardingRoute(snap.data());
+        saveHomeSnapshot(user.uid, { route });
+        setOnboardingStatus({ route });
+        // The cached hub was wrong (e.g. now awaiting approval): initialRouteName
+        // only applies on mount, so reset the already-mounted navigator.
+        if (optimistic && route !== 'ModeSelection' && navigationRef.isReady()) {
+          navigationRef.reset({ index: 0, routes: [{ name: route }] });
+        }
       } catch (e) {
         console.error('[App] failed to load onboarding status:', e.code, e.message, e);
-        if (!cancelled) setOnboardingError(true);
+        // With the hub already showing, its own load surfaces errors (and
+        // Try again) — swapping the whole app to LoadError would be jarring.
+        if (!cancelled && !optimistic) setOnboardingError(true);
       }
     }
     loadOnboardingStatus();
@@ -184,7 +206,7 @@ export default function App() {
     // — this is the only place a single Provider can reach all of them.
     // Other modes just never call useResidentLock(), so it's inert for them.
     <ResidentLockProvider>
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         {/*
         Only one of the two branches below is ever rendered, based on
         whether `user` is signed in. Swapping between them resets the
@@ -331,7 +353,6 @@ export default function App() {
               <Stack.Screen name="BuildProfile" component={BuildProfileScreen} />
               <Stack.Screen name="ResidentProfile" component={ResidentProfileScreen} />
               <Stack.Screen name="ConversationStarters" component={ConversationStartersScreen} />
-              <Stack.Screen name="FamilyFeed" component={FamilyFeedScreen} />
             </>
           ) : (
             <>
