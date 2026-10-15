@@ -342,6 +342,7 @@ export default function MovieLibraryScreen({ navigation }) {
                 ) : (
                   <TouchableOpacity
                     style={styles.addButton}
+                    hitSlop={4}
                     onPress={() => openAddModal(video)}
                     activeOpacity={0.8}
                     accessibilityRole="button"
@@ -390,6 +391,7 @@ export default function MovieLibraryScreen({ navigation }) {
                 ) : (
                   <TouchableOpacity
                     style={styles.addButton}
+                    hitSlop={4}
                     onPress={() =>
                       openAddModal({ videoId: urlPreview.videoId, title: '', channelTitle: '' })
                     }
@@ -456,6 +458,7 @@ export default function MovieLibraryScreen({ navigation }) {
               </View>
               <TouchableOpacity
                 style={[styles.iconButton, isGlobal && styles.iconButtonDisabled]}
+                hitSlop={4}
                 onPress={() => openEditModal(entry)}
                 disabled={isGlobal}
                 activeOpacity={0.7}
@@ -471,6 +474,7 @@ export default function MovieLibraryScreen({ navigation }) {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.iconButton, isGlobal && styles.iconButtonDisabled]}
+                hitSlop={4}
                 onPress={() => setConfirmTarget(entry)}
                 disabled={isGlobal}
                 activeOpacity={0.7}
@@ -675,7 +679,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     borderRadius: radii.sm,
     fontFamily: fonts.sansRegular,
     fontSize: 16,
@@ -813,7 +817,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     borderRadius: radii.sm,
     fontFamily: fonts.sansRegular,
     fontSize: 16,

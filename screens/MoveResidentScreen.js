@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansBold,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     borderRadius: radii.sm,
     paddingHorizontal: 16,
     fontSize: 20,

@@ -357,6 +357,7 @@ export default function ResidentModeScreen({ navigation }) {
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel={item.name}
+              accessibilityHint="Opens this resident's activities"
             >
               {/* Photo if they have one, else initials. */}
               <ResidentAvatar
@@ -380,6 +381,7 @@ export default function ResidentModeScreen({ navigation }) {
                 activeOpacity={0.7}
                 accessibilityRole="button"
                 accessibilityLabel={`Options for ${item.name}`}
+                accessibilityHint="Shows options such as edit and archive"
               >
                 <Ionicons name="ellipsis-vertical" size={18} color={colors.textMuted} />
               </TouchableOpacity>
@@ -394,8 +396,16 @@ export default function ResidentModeScreen({ navigation }) {
         animationType="fade"
         onRequestClose={() => setMenuFor(null)}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setMenuFor(null)}>
-          <View style={styles.menuSheet}>
+        {/* Backdrop is a sibling behind the sheet so VoiceOver can reach each
+            menu item (a wrapping Pressable reads as one unlabelled button). */}
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setMenuFor(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Close menu"
+          />
+          <View style={styles.menuSheet} accessibilityViewIsModal>
             {menuFor && optionsFor(menuFor).edit ? (
               <TouchableOpacity
                 style={styles.menuItem}
@@ -436,7 +446,7 @@ export default function ResidentModeScreen({ navigation }) {
               </TouchableOpacity>
             ) : null}
           </View>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -446,7 +456,7 @@ export default function ResidentModeScreen({ navigation }) {
         onRequestClose={() => (removing ? null : setConfirmTarget(null))}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.confirmSheet}>
+          <View style={styles.confirmSheet} accessibilityViewIsModal>
             <Text style={styles.confirmTitle}>Delete {confirmTarget?.name} permanently?</Text>
             <Text style={styles.confirmBody}>
               This permanently deletes {confirmTarget?.name}’s profile, life story, safety notes and
@@ -565,12 +575,14 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     textAlign: 'center',
   },
+  // 44pt, the minimum touch target; it sits in the card corner so the
+  // bigger hit area doesn't push the card's content around.
   menuButton: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 28,
-    height: 28,
+    top: 0,
+    right: 0,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },

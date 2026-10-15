@@ -173,9 +173,9 @@ export default function ActivityMenuScreen({ navigation, route }) {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
           {!locked ? (
-            <BackButton navigation={navigation} style={styles.iconNoMargin} />
+            <BackButton navigation={navigation} style={styles.iconNoMargin} size={60} />
           ) : (
-            // Same footprint as BackButton's 40x40 so headerCenter's
+            // Same footprint as the 60x60 BackButton so headerCenter's
             // avatar+name stays centered instead of drifting toward the
             // now-empty left edge — the back button itself is genuinely
             // gone (no goBack, no accessibility target), just its layout
@@ -200,6 +200,7 @@ export default function ActivityMenuScreen({ navigation, route }) {
             <TouchableOpacity
               style={styles.iconButton}
               onPress={toggleLock}
+              hitSlop={4}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={locked ? 'Unlock screen' : 'Lock screen'}
@@ -213,6 +214,7 @@ export default function ActivityMenuScreen({ navigation, route }) {
             <TouchableOpacity
               style={styles.iconButton}
               onPress={() => withPinIfLocked(openSettings)}
+              hitSlop={4}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Edit resident info"
@@ -220,13 +222,14 @@ export default function ActivityMenuScreen({ navigation, route }) {
               <Ionicons name="settings-outline" size={22} color={colors.textPrimary} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.iconButton}
+              // 60pt like the other Resident Mode home buttons (see HomeButton).
+              style={[styles.iconButton, styles.homeButton]}
               onPress={() => withPinIfLocked(goHome)}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Return to Mode Selection"
             >
-              <Ionicons name="home-outline" size={22} color={colors.textPrimary} />
+              <Ionicons name="home-outline" size={30} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -319,7 +322,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   iconNoMargin: { marginBottom: 0 },
-  headerBackSpacer: { width: 40, height: 40 },
+  headerBackSpacer: { width: 60, height: 60 },
+  homeButton: { width: 60, height: 60 },
   headerCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   residentAvatar: {
     width: 40,

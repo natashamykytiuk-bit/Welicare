@@ -67,11 +67,14 @@ export default function PlaceholderScreen({
                   navigation={navigation}
                   onPress={onBackPress}
                   style={styles.iconNoMargin}
+                  // Resident Mode activities (the ones with a home button) get the 60pt size.
+                  size={homeDestination ? 60 : undefined}
                 />
               ) : null}
               {settingsTarget ? (
                 <TouchableOpacity
                   style={styles.iconButton}
+                  hitSlop={4}
                   onPress={() => navigation.navigate(settingsTarget)}
                   activeOpacity={0.7}
                   accessibilityRole="button"

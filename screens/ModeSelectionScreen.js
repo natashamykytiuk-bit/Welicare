@@ -174,6 +174,7 @@ export default function ModeSelectionScreen({ navigation }) {
         <View style={styles.topRow}>
           <TouchableOpacity
             style={styles.iconButton}
+            hitSlop={4}
             onPress={() => navigation.navigate('Settings')}
             activeOpacity={0.7}
             accessibilityRole="button"

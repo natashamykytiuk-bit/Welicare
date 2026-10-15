@@ -200,6 +200,7 @@ export default function AISuggestionsScreen({ navigation, route, kind, title, de
           {homeDestination ? (
             <TouchableOpacity
               style={styles.iconButton}
+              hitSlop={4}
               onPress={() => (locked ? requestPin(goHome) : goHome())}
               activeOpacity={0.7}
               accessibilityRole="button"
@@ -300,6 +301,7 @@ function RateButtons({ rated, onRate }) {
       {rated !== 'bad' ? (
         <TouchableOpacity
           style={styles.rateButton}
+          hitSlop={4}
           onPress={() => onRate('good')}
           disabled={Boolean(rated)}
           activeOpacity={0.7}
@@ -316,6 +318,7 @@ function RateButtons({ rated, onRate }) {
       {rated !== 'good' ? (
         <TouchableOpacity
           style={styles.rateButton}
+          hitSlop={4}
           onPress={() => onRate('bad')}
           disabled={Boolean(rated)}
           activeOpacity={0.7}

@@ -269,7 +269,7 @@ export default function ResidentPhotoAlbumScreen({ navigation, route }) {
       <View style={styles.headerRow}>
         {/* Back returns to the Activity Menu; Home is PIN-gated while
             Resident Mode is locked (see HomeButton). */}
-        <BackButton navigation={navigation} style={styles.iconNoMargin} />
+        <BackButton navigation={navigation} style={styles.iconNoMargin} size={60} />
         <HomeButton navigation={navigation} destination="ModeSelection" />
       </View>
       <View style={styles.body}>{body}</View>

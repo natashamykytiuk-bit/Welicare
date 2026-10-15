@@ -17,6 +17,11 @@ export const colors = {
   // so the visual hierarchy is unchanged.
   textMuted: '#54625B',
   border: 'rgba(26,46,37,0.14)',
+  // Outline for form fields (text inputs, Dropdown, PasswordField). The soft
+  // `border` above is ~1.3:1, fine for cards but too faint to show where a
+  // field is; WCAG 1.4.11 needs 3:1 for that. This is 3.4:1 on background,
+  // 3.8:1 on surface, 3.2:1 on mistBackground. Same green-grey family.
+  borderStrong: '#76837C',
   destructive: '#A03020',
   white: '#FFFFFF',
   activities: {

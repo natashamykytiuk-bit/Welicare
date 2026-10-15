@@ -4,6 +4,7 @@ import GameShell from '../components/games/GameShell';
 import gentleHaptic from '../components/games/gentleHaptic';
 import Piece from '../components/games/molehunt/Piece';
 import ProgressDots from '../components/games/ProgressDots';
+import useReduceMotion from '../hooks/useReduceMotion';
 import { MOLEHUNT_ASSETS, MOLE_CLIP_BOTTOM, PIECE_BOXES } from '../games/molehunt/assets';
 import { fieldLayout } from '../games/molehunt/layout';
 import {
@@ -226,6 +227,7 @@ function Molehill({ slot, up, onPress }) {
   const wasUp = useRef(up);
   // Set by a tap, so the next "going down" knows it was a find.
   const tapped = useRef(false);
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
     const goingUp = up && !wasUp.current;
@@ -233,6 +235,28 @@ function Molehill({ slot, up, onPress }) {
     const wasFound = tapped.current;
     wasUp.current = up;
     tapped.current = false;
+
+    // Reduce Motion: the mole appears and disappears in place (no rise,
+    // bounce or pulse). A found mole still gets its happy pose and the
+    // sparkle, which is only an opacity fade, before it goes.
+    if (reduceMotion) {
+      if (goingUp) {
+        setPose('normal');
+        rise.setValue(1);
+      } else if (goingDown && wasFound) {
+        setPose('happy');
+        Animated.sequence([
+          Animated.timing(sparkle, { toValue: 1, duration: 180, useNativeDriver: true }),
+          Animated.timing(sparkle, { toValue: 0, duration: 320, useNativeDriver: true }),
+        ]).start(() => {
+          rise.setValue(0);
+          setPose('normal');
+        });
+      } else if (goingDown) {
+        rise.setValue(0);
+      }
+      return;
+    }
 
     const sink = Animated.timing(rise, {
       toValue: 0,
@@ -278,7 +302,7 @@ function Molehill({ slot, up, onPress }) {
       // Moving on untapped: just sink quietly, no celebration.
       sink.start();
     }
-  }, [up, rise, scale, sparkle]);
+  }, [up, rise, scale, sparkle, reduceMotion]);
 
   // Occasional blinks while up, only when blink art exists.
   useEffect(() => {

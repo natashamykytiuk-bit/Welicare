@@ -187,6 +187,7 @@ export default function FamilyResidentsScreen({ navigation }) {
           <BackButton navigation={navigation} style={styles.iconNoMargin} />
           <TouchableOpacity
             style={styles.iconButton}
+            hitSlop={4}
             onPress={() => navigation.navigate('Settings')}
             activeOpacity={0.7}
             accessibilityRole="button"
@@ -462,7 +463,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     color: colors.textPrimary,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     borderRadius: radii.sm,
     backgroundColor: colors.background,
     paddingHorizontal: 14,

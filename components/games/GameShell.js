@@ -130,7 +130,7 @@ export default function GameShell({
         </View>
       ) : null}
       <View style={styles.headerRow}>
-        <BackButton navigation={navigation} style={styles.iconNoMargin} />
+        <BackButton navigation={navigation} style={styles.iconNoMargin} size={60} />
         <HomeButton navigation={navigation} destination="ModeSelection" />
       </View>
 

@@ -85,6 +85,8 @@ export default function MoviesPlayerScreen({ navigation, route }) {
       <View style={styles.content}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
+          // Residents use this link, so give it a 60pt-tall tap area.
+          style={{ minHeight: 60, justifyContent: 'center' }}
           accessibilityRole="link"
           accessibilityLabel="Back to activities"
         >

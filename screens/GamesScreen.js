@@ -24,7 +24,7 @@ export default function GamesScreen({ navigation, route }) {
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
-          <BackButton navigation={navigation} style={styles.iconNoMargin} />
+          <BackButton navigation={navigation} style={styles.iconNoMargin} size={60} />
           <HomeButton navigation={navigation} destination="ModeSelection" />
         </View>
 

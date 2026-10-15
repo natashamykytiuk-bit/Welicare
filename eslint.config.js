@@ -22,6 +22,8 @@ module.exports = defineConfig([
       'node_modules/*',
       '.agents/*',
       'Claude outputs/*',
+      // The web portal has its own lint/typecheck setup (web/package.json).
+      'web/*',
     ],
   },
   {

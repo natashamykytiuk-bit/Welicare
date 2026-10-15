@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, fonts, radii } from '../theme';
 
 // Tap-to-open dropdown list, used in place of @react-native-picker/picker —
@@ -30,6 +30,9 @@ export default function Dropdown({
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel ?? label}
+        // The field shows the current value; the hint says tapping opens choices.
+        accessibilityValue={value ? { text: value } : undefined}
+        accessibilityHint="Opens a list to choose from"
       >
         <Text style={[styles.fieldText, !value && styles.placeholderText]}>
           {value || placeholder}
@@ -38,8 +41,17 @@ export default function Dropdown({
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+        {/* The tap-outside-to-close layer is a sibling behind the sheet, not a
+            wrapper around it: a Pressable is one accessibility element, so
+            wrapping the sheet hid every option from VoiceOver. */}
+        <View style={styles.backdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setOpen(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Close list"
+          />
+          <View style={styles.sheet} accessibilityViewIsModal>
             {label ? <Text style={styles.sheetTitle}>{label}</Text> : null}
             <FlatList
               data={options}
@@ -61,8 +73,8 @@ export default function Dropdown({
                 </TouchableOpacity>
               )}
             />
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </>
   );
@@ -75,7 +87,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     borderRadius: radii.sm,
     paddingHorizontal: 16,
     marginBottom: 20,

@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
 import GameShell from '../components/games/GameShell';
 import gentleHaptic from '../components/games/gentleHaptic';
+import useReduceMotion from '../hooks/useReduceMotion';
 import { buildDeck, canFlip, isMatch, isRoundComplete } from '../games/memoryMatch/logic';
 import { colors, radii } from '../theme';
 
@@ -83,6 +84,11 @@ export function MemoryMatchBoard({ difficulty, onComplete }) {
     } else {
       setFaceUpIds(showing);
       setPaused(true);
+      // VoiceOver users only heard the second card as they tapped it, so say
+      // both pictures before they turn back. Kept gentle, never "wrong".
+      AccessibilityInfo.announceForAccessibility(
+        `${first.label} and ${card.label}. Let's try another pair.`
+      );
       later(() => {
         setFaceUpIds([]);
         setPaused(false);
@@ -129,6 +135,7 @@ export function MemoryMatchBoard({ difficulty, onComplete }) {
 function Card({ card, size, faceUp, matched, onPress }) {
   const reveal = useRef(new Animated.Value(faceUp ? 1 : 0)).current;
   const scale = useRef(new Animated.Value(1)).current;
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
     Animated.timing(reveal, {
@@ -139,12 +146,13 @@ function Card({ card, size, faceUp, matched, onPress }) {
   }, [faceUp, reveal]);
 
   useEffect(() => {
-    if (!matched) return;
+    // Reduce Motion: skip the pulse; the fade and haptic still mark the match.
+    if (!matched || reduceMotion) return;
     Animated.sequence([
       Animated.timing(scale, { toValue: 1.08, duration: 180, useNativeDriver: true }),
       Animated.timing(scale, { toValue: 1, duration: 220, useNativeDriver: true }),
     ]).start();
-  }, [matched, scale]);
+  }, [matched, scale, reduceMotion]);
 
   const accent = colors.activities[card.accent];
   const backOpacity = reveal.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });

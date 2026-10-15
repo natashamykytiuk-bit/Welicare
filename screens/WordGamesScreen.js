@@ -3,6 +3,7 @@ import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 import GameShell from '../components/games/GameShell';
 import gentleHaptic from '../components/games/gentleHaptic';
 import ProgressDots from '../components/games/ProgressDots';
+import useReduceMotion from '../hooks/useReduceMotion';
 import { buildRound, isCorrect, isRoundComplete } from '../games/finishThePhrase/logic';
 import { colors, fonts, radii } from '../theme';
 
@@ -49,6 +50,7 @@ export function FinishThePhraseBoard({ difficulty, onComplete }) {
   const [faded, setFaded] = useState(() => new Set());
   const [solved, setSolved] = useState(false);
   const pulse = useRef(new Animated.Value(1)).current;
+  const reduceMotion = useReduceMotion();
 
   // Pending timers, cleared if the resident leaves mid-round.
   const timers = useRef([]);
@@ -66,10 +68,13 @@ export function FinishThePhraseBoard({ difficulty, onComplete }) {
     }
     setSolved(true);
     gentleHaptic();
-    Animated.sequence([
-      Animated.timing(pulse, { toValue: 1.06, duration: 200, useNativeDriver: true }),
-      Animated.timing(pulse, { toValue: 1, duration: 240, useNativeDriver: true }),
-    ]).start();
+    // Reduce Motion: no pulse; the completed phrase and haptic are feedback enough.
+    if (!reduceMotion) {
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.06, duration: 200, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 240, useNativeDriver: true }),
+      ]).start();
+    }
     later(() => {
       const answered = index + 1;
       if (isRoundComplete(answered, round)) {

@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     borderRadius: radii.sm,
     fontFamily: fonts.sansRegular,
     fontSize: 16,

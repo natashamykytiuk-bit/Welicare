@@ -647,6 +647,9 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('orgId', null) == null &&
         getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('orgId', null) == orgId;
 
+      // TODO(follow-up): owner-only (createdBy) for now, so other
+      // Administrators can't edit these details (removeOrgMember is
+      // owner-only too). Decide whether any Administrator of the org should.
       // The owner may edit the display details OrganizationalSettingsScreen
       // shows, and nothing else. In particular not createdBy/adminId
       // (ownership moves via transferOrgAdmin) and not isPersonal —
@@ -667,11 +670,14 @@ service cloud.firestore {
       // org together with its residents, library and invite codes.
 
       // The org's current invite code, for OrgIdBadge and the settings
-      // screens. Readable by the org's own members only; written only by
-      // the Cloud Functions that issue codes.
+      // screens. Readable by the org's own Caregivers and Administrators
+      // only — volunteers don't invite people, so they don't need the code
+      // (OrgIdBadge just hides for them). Written only by the Cloud
+      // Functions that issue codes.
       match /private/{docId} {
         allow get: if verified() &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == orgId;
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId == orgId &&
+          me().role in ['Caregiver', 'Administrator'];
       }
     }
 

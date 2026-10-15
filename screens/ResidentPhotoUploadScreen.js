@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     minHeight: 56,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     borderRadius: radii.sm,
     padding: 10,
     backgroundColor: colors.background,

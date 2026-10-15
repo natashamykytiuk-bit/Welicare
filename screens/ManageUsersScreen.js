@@ -553,7 +553,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansRegular,
     backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     borderRadius: radii.sm,
     paddingHorizontal: 16,
     paddingVertical: 15,

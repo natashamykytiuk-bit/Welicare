@@ -67,6 +67,11 @@ export default function MusicPlayerScreen({ navigation, route }) {
   // dimensions (no flex/percentage sizing), so this measures the wrapper
   // via onLayout instead of hardcoding a fixed height.
   const [playerLayout, setPlayerLayout] = useState({ width: 0, height: 0 });
+  // Drives the app's own Play/Pause button. Starts true (the player
+  // autoplays) and goes back to true on every song change, which also
+  // autoplays; YouTubeEmbed reports pauses made with YouTube's controls.
+  const [playing, setPlaying] = useState(true);
+  useEffect(() => setPlaying(true), [videoId]);
   // Logs time spent in the player to activitySessions, same as the games,
   // so it shows under the resident's engagement on Resident Profile. Each
   // song counts as a "round": started when it comes up, completed when it
@@ -164,6 +169,8 @@ export default function MusicPlayerScreen({ navigation, route }) {
       <ScrollView contentContainerStyle={styles.content}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
+          // Residents use this link, so give it a 60pt-tall tap area.
+          style={{ minHeight: 60, justifyContent: 'center' }}
           accessibilityRole="link"
           accessibilityLabel="Back to activities"
         >
@@ -190,6 +197,8 @@ export default function MusicPlayerScreen({ navigation, route }) {
                 width={playerLayout.width}
                 videoId={videoId}
                 onEnded={handleEnded}
+                playing={playing}
+                onPlayingChange={setPlaying}
               />
             ) : null}
             {residentId ? (
@@ -217,10 +226,11 @@ export default function MusicPlayerScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* Previous/next only appear when there's actually a queue to move
-            through — a single song keeps the screen as simple as before. */}
-        {queue.length > 1 ? (
-          <View style={styles.controls}>
+        {/* Play/Pause is always there (bigger and clearer for residents and
+            VoiceOver than YouTube's small in-video controls). Previous/next
+            only appear when there's actually a queue to move through. */}
+        <View style={styles.controls}>
+          {queue.length > 1 ? (
             <TouchableOpacity
               style={[styles.controlButton, !hasPrevious && styles.controlDisabled]}
               onPress={playPrevious}
@@ -231,9 +241,16 @@ export default function MusicPlayerScreen({ navigation, route }) {
             >
               <Ionicons name="play-skip-back" size={28} color={colors.primary} />
             </TouchableOpacity>
-            <Text style={styles.position}>
-              {currentIndex + 1} of {queue.length}
-            </Text>
+          ) : null}
+          <TouchableOpacity
+            style={styles.controlButton}
+            onPress={() => setPlaying((p) => !p)}
+            accessibilityRole="button"
+            accessibilityLabel={playing ? 'Pause' : 'Play'}
+          >
+            <Ionicons name={playing ? 'pause' : 'play'} size={28} color={colors.primary} />
+          </TouchableOpacity>
+          {queue.length > 1 ? (
             <TouchableOpacity
               style={[styles.controlButton, !hasNext && styles.controlDisabled]}
               onPress={() => playUpNext(0)}
@@ -244,7 +261,12 @@ export default function MusicPlayerScreen({ navigation, route }) {
             >
               <Ionicons name="play-skip-forward" size={28} color={colors.primary} />
             </TouchableOpacity>
-          </View>
+          ) : null}
+        </View>
+        {queue.length > 1 ? (
+          <Text style={[styles.position, styles.positionCentered]}>
+            {currentIndex + 1} of {queue.length}
+          </Text>
         ) : null}
 
         {upNext.length > 0 ? (
@@ -357,6 +379,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   controlDisabled: { opacity: 0.35 },
+  positionCentered: { textAlign: 'center', marginTop: 8 },
   position: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.textMuted },
   upNext: { width: '100%', marginTop: 16 },
   upNextHeading: {

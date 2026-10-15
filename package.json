@@ -68,7 +68,8 @@
       "/node_modules/",
       "/functions/",
       "/tests/rules/",
-      "/tests/functions/"
+      "/tests/functions/",
+      "/web/"
     ],
     "testTimeout": 30000
   },

@@ -6,7 +6,14 @@ import { colors, radii } from '../theme';
 // NumberPad for the actual tap-driven input.
 export default function PinDots({ value, length = 4 }) {
   return (
-    <View style={styles.row}>
+    // One element for VoiceOver, so it hears progress instead of nothing;
+    // the live region makes Android announce each change too.
+    <View
+      style={styles.row}
+      accessible
+      accessibilityLabel={`${value.length} of ${length} digits entered`}
+      accessibilityLiveRegion="polite"
+    >
       {Array.from({ length }).map((_, i) => (
         <View key={i} style={[styles.dot, i < value.length && styles.dotFilled]} />
       ))}
@@ -26,7 +33,8 @@ const styles = StyleSheet.create({
     height: 13,
     borderRadius: radii.circular,
     borderWidth: 2,
-    borderColor: colors.border,
+    // textMuted, not border: the faint border was ~1.3:1, below the 3:1 UI minimum.
+    borderColor: colors.textMuted,
     backgroundColor: colors.surface,
   },
   dotFilled: {

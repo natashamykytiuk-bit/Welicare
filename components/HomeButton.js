@@ -11,6 +11,7 @@ import { colors, radii } from '../theme';
 // asks for the PIN first instead of navigating straight away, because it's
 // a way OUT of Resident Mode. (Back buttons on these screens aren't gated —
 // they only return to the activity menu, which stays inside Resident Mode.)
+// 60pt, matching the Resident Mode BackButton size, because residents use it.
 export default function HomeButton({ navigation, destination = 'ModeSelection' }) {
   const { locked, requestPin } = useResidentLock();
 
@@ -30,15 +31,15 @@ export default function HomeButton({ navigation, destination = 'ModeSelection' }
       accessibilityRole="button"
       accessibilityLabel="Return to Mode Selection"
     >
-      <Ionicons name="home-outline" size={20} color={colors.textPrimary} />
+      <Ionicons name="home-outline" size={30} color={colors.textPrimary} />
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   iconButton: {
-    width: 40,
-    height: 40,
+    width: 60,
+    height: 60,
     borderRadius: radii.circular,
     alignItems: 'center',
     justifyContent: 'center',

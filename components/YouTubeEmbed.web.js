@@ -31,13 +31,25 @@ function loadYouTubeApi() {
 
 // autoplay (default true) only affects the first video; a later videoId
 // change is always a deliberate switch, so it starts playing.
-export default function YouTubeEmbed({ videoId, width, height, onEnded, autoplay = true }) {
+// `playing` / `onPlayingChange`: optional controlled play/pause, same as the
+// native version.
+export default function YouTubeEmbed({
+  videoId,
+  width,
+  height,
+  onEnded,
+  autoplay = true,
+  playing,
+  onPlayingChange,
+}) {
   const containerRef = useRef(null);
   const playerRef = useRef(null);
   // Held in a ref so the player's event handler always calls the latest
   // onEnded without the player being rebuilt when the callback changes.
   const onEndedRef = useRef(onEnded);
   onEndedRef.current = onEnded;
+  const onPlayingChangeRef = useRef(onPlayingChange);
+  onPlayingChangeRef.current = onPlayingChange;
 
   // Creates the player once. The API replaces the element it's given with
   // its iframe, so it gets an inner div rather than the React-owned one.
@@ -55,6 +67,10 @@ export default function YouTubeEmbed({ videoId, width, height, onEnded, autoplay
         playerVars: { autoplay: autoplay ? 1 : 0, playsinline: 1, rel: 0 },
         events: {
           onStateChange: (e) => {
+            if (e.data === YT.PlayerState.PLAYING) onPlayingChangeRef.current?.(true);
+            if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) {
+              onPlayingChangeRef.current?.(false);
+            }
             if (e.data === YT.PlayerState.ENDED) onEndedRef.current?.();
           },
         },
@@ -68,6 +84,15 @@ export default function YouTubeEmbed({ videoId, width, height, onEnded, autoplay
     // Only on mount — video and size changes are applied by the effects below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Applies the screen's Play/Pause button. Skipped until the player exists
+  // (playVideo is only there once the API has built it).
+  useEffect(() => {
+    const player = playerRef.current;
+    if (playing === undefined || !player?.playVideo) return;
+    if (playing) player.playVideo();
+    else player.pauseVideo();
+  }, [playing]);
 
   // Switch songs in the same player (loadVideoById also starts playback).
   // Once a user has interacted, the browser allows this to autoplay.

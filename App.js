@@ -24,6 +24,7 @@ import BuildProfileScreen from './screens/BuildProfileScreen';
 import CaregiverModeScreen from './screens/CaregiverModeScreen';
 import CaregiverResidentsScreen from './screens/CaregiverResidentsScreen';
 import ChangeUsernameScreen from './screens/ChangeUsernameScreen';
+import AccessibilityStatementScreen from './screens/AccessibilityStatementScreen';
 import DeleteAccountScreen from './screens/DeleteAccountScreen';
 import ConversationStartersScreen from './screens/ConversationStartersScreen';
 import CreateOrganizationScreen from './screens/CreateOrganizationScreen';
@@ -232,6 +233,11 @@ export default function App() {
               {/* "Change Username" on SettingsScreen. */}
               <Stack.Screen name="ChangeUsername" component={ChangeUsernameScreen} />
               <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
+              {/* "Accessibility" row in SettingsScreen's About section. */}
+              <Stack.Screen
+                name="AccessibilityStatement"
+                component={AccessibilityStatementScreen}
+              />
               {/* Reusable PIN check — every mode entry (and Resident Mode's
                 exit) routes through here with a `destination` param.
                 transparentModal keeps the screen underneath mounted and

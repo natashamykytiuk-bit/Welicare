@@ -224,6 +224,11 @@ export default function SettingsScreen({ navigation }) {
 
         <Text style={styles.sectionLabel}>About</Text>
         <View style={styles.card}>
+          <Row
+            label="Accessibility"
+            onPress={() => navigation.navigate('AccessibilityStatement')}
+            showArrow
+          />
           <InfoRow label="Version" value={APP_VERSION} last />
         </View>
 

@@ -190,7 +190,7 @@ export default function MusicSelectionScreen({ navigation, route }) {
         windowSize={7}
         ListHeaderComponent={
           <>
-            <BackButton navigation={navigation} />
+            <BackButton navigation={navigation} size={60} />
             <Text style={styles.heading}>Music</Text>
             <Text style={styles.body}>Choose a song to play.</Text>
 
