@@ -1,0 +1,14 @@
+/* Base styles. Colours and radii come from shared/theme.js via CSS
+   variables set in main.tsx. */
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-textPrimary);
+  font: 18px/1.5 'Atkinson Hyperlegible', system-ui, sans-serif;
+}
+h1, h2, h3 { font-family: 'Lora', Georgia, serif; }
+/* A clear focus ring for keyboard users (WCAG 2.4.7), never removed. */
+:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
+.skip-link { position: absolute; left: -9999px; }
+.skip-link:focus { left: 16px; top: 16px; background: var(--color-surface); padding: 8px 12px; }

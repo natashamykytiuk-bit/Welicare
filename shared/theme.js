@@ -1,0 +1,68 @@
+// Central design tokens for the whole app.
+export const colors = {
+  background: '#F1EDE6',
+  surface: '#FAFAF7',
+  primary: '#1E5C47',
+  primaryDark: '#163D30',
+  // Darkened from #C17F5A (same hue) for readability: 5.2:1 on background
+  // and 6.1:1 for white text on it — was 2.8:1 and 3.3:1, below the 4.5:1
+  // WCAG minimum for normal text. Matters doubly for older users.
+  secondary: '#8D5435',
+  mist: '#B5CEBE',
+  mistBackground: '#DDE8E2',
+  textPrimary: '#1A2E25',
+  // Darkened from #6B7E74 (same hue) so secondary text reads clearly: now
+  // 5.5:1 on background, 6.1:1 on surface, 5.1:1 on mistBackground (was
+  // 3.7 / 4.1 / 3.4:1). Still clearly lighter than textPrimary (12.3:1),
+  // so the visual hierarchy is unchanged.
+  textMuted: '#54625B',
+  border: 'rgba(26,46,37,0.14)',
+  // Outline for form fields (text inputs, Dropdown, PasswordField). The soft
+  // `border` above is ~1.3:1, fine for cards but too faint to show where a
+  // field is; WCAG 1.4.11 needs 3:1 for that. This is 3.4:1 on background,
+  // 3.8:1 on surface, 3.2:1 on mistBackground. Same green-grey family.
+  borderStrong: '#76837C',
+  destructive: '#A03020',
+  white: '#FFFFFF',
+  activities: {
+    music: { icon: '#1E5C47', bg: '#DDE8E2' },
+    // trivia and moviesVideos use the darkened secondary terracotta: the
+    // old #C17F5A was 2.5:1 on this tile, below the 3:1 icons need; now 4.7:1.
+    trivia: { icon: '#8D5435', bg: '#F0E0D0' },
+    meditation: { icon: '#7A6FA5', bg: '#EAE7F2' },
+    conversation: { icon: '#2D7D8F', bg: '#DAF0F4' },
+    photoAlbum: { icon: '#8A6040', bg: '#F0E8DF' },
+    games: { icon: '#5A7A3A', bg: '#E4EDD9' },
+    moviesVideos: { icon: '#8D5435', bg: '#F0E0D0' },
+  },
+  // Molehunt's placeholder scene (games/molehunt/assets.js) until the
+  // illustrator's artwork arrives. Soft, natural tones; the mole's fur is
+  // dark enough to stand out against both the grass and the clay mound,
+  // and its light muzzle keeps the face readable inside the dark hole.
+  molehunt: {
+    sky: '#DDEBF1',
+    horizon: '#C9E0A8',
+    grass: '#9CC46E',
+    grassDark: '#86B05A',
+    clay: '#C99C6E',
+    clayDark: '#A97C50',
+    holeDark: '#3A2A1F',
+    moleFur: '#6B4226',
+    moleMuzzle: '#EBCFAE',
+    moleFeature: '#22160F',
+    sparkle: '#FFF1A8',
+  },
+};
+
+export const fonts = {
+  serifBold: 'Lora_700Bold',
+  serifRegular: 'Lora_400Regular',
+  sansRegular: 'AtkinsonHyperlegible_400Regular',
+  sansBold: 'AtkinsonHyperlegible_700Bold',
+};
+
+export const radii = {
+  sm: 14,
+  lg: 22,
+  circular: 999,
+};
