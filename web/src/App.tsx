@@ -1,23 +1,16 @@
-// Routes. Each role's area sits behind RequireRole; "/" sends a signed-in
-// person to their own home. Role homes are placeholders until the screens
-// are built.
+// Routes. "/" is the public product page (LandingPage) for everyone; each
+// role's area sits behind RequireRole, and signing in sends a person to
+// their own home. Role homes are placeholders until the screens are built.
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { ROLES } from '@shared/constants';
 import AdminLayout from './admin/AdminLayout';
 import ApprovalsPage from './admin/ApprovalsPage';
-import { AuthProvider, useAuth } from './auth/AuthProvider';
+import { AuthProvider } from './auth/AuthProvider';
 import { RequireRole } from './auth/RequireRole';
-import { homePathFor } from './auth/routing';
 import InfoPage from './pages/InfoPage';
+import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import Splash from './Splash';
-
-function Home() {
-  const { loading, user, profile } = useAuth();
-  if (loading) return <Splash />;
-  return <Navigate to={user ? homePathFor(profile) : '/login'} replace />;
-}
 
 const soon = (who: string) => (
   <InfoPage title={`Welcome, ${who}`} body="Your portal screens are coming soon." />
@@ -31,7 +24,7 @@ export default function App() {
           Skip to main content
         </a>
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route

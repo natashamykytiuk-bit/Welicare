@@ -94,3 +94,91 @@ table { width: 100%; border-collapse: collapse; background: var(--color-surface)
 th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--color-border); }
 th { color: var(--color-textMuted); font-weight: 700; }
 td.actions { display: flex; gap: 8px; justify-content: flex-end; white-space: nowrap; }
+
+/* ---- Public landing page (LandingPage.tsx) ---- */
+/* Links styled as buttons (the landing page's calls to action). */
+a.button {
+  display: inline-flex; align-items: center; min-height: 48px; padding: 0 20px;
+  font-weight: 700; text-decoration: none; color: var(--color-white);
+  background: var(--color-primary); border: 2px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+}
+a.button:hover { background: var(--color-primaryDark); }
+a.button.secondary { color: var(--color-primary); background: var(--color-surface); }
+a.button.secondary:hover { background: var(--color-mistBackground); }
+
+.site-header {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 32px;
+  max-width: 1200px; margin: 0 auto; padding: 16px;
+}
+.site-header img { height: 40px; width: auto; }
+/* Nudged down so the links sit level with the "Welicare" wordmark, not
+   the leaf above it. */
+.site-header nav { display: flex; gap: 24px; flex: 1; padding-top: 18px; }
+.site-header nav a { color: var(--color-textMuted); text-decoration: none; padding: 8px 0; }
+.site-header nav a:hover { color: var(--color-primary); text-decoration: underline; text-underline-offset: 6px; }
+
+.hero {
+  display: grid; grid-template-columns: 1.1fr 1fr; gap: 48px; align-items: center;
+  max-width: 1200px; margin: 0 auto; padding: 32px 16px 24px;
+}
+/* balance: even line lengths, and the non-breaking hyphens in the copy
+   keep "one-on-one" on one line. */
+.hero h1 { text-wrap: balance; font-size: clamp(2rem, 4vw, 3rem); line-height: 1.2; margin: 0 0 16px; color: var(--color-primaryDark); }
+.lead { font-size: 1.2rem; max-width: 34rem; color: var(--color-textMuted); }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+
+.section { max-width: 1200px; margin: 0 auto; padding: 48px 16px; }
+.section > h2 { text-wrap: balance; font-size: clamp(1.6rem, 3vw, 2.25rem); text-align: center; margin: 0 0 32px; }
+
+.feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+.feature {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-top: 6px solid; border-radius: var(--radius-lg); padding: 24px;
+}
+.feature h3 { margin: 0 0 8px; }
+.feature p { margin: 0; color: var(--color-textMuted); }
+
+.showcase { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+
+.steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; counter-reset: step; }
+.steps li { counter-increment: step; background: var(--color-mistBackground); border-radius: var(--radius-lg); padding: 24px; }
+.steps li::before {
+  content: counter(step); display: grid; place-items: center; width: 44px; height: 44px;
+  border-radius: var(--radius-circular); background: var(--color-primary); color: var(--color-white); font-weight: 700;
+}
+.steps h3 { margin: 12px 0 4px; }
+.steps p { margin: 0; }
+
+.cta { text-align: center; background: var(--color-primary); color: var(--color-white); border-radius: var(--radius-lg); margin-bottom: 48px; width: calc(100% - 32px); }
+.cta h2 { margin-bottom: 8px !important; }
+.cta a.button { color: var(--color-primary); background: var(--color-surface); border-color: var(--color-surface); }
+.site-footer { text-align: center; color: var(--color-textMuted); padding: 0 16px 32px; }
+
+/* iPad frame and the drawn app screens inside it. */
+.device { margin: 0; }
+.device figcaption { text-align: center; color: var(--color-textMuted); margin-top: 12px; }
+.device-bezel { background: var(--color-textPrimary); border-radius: 32px; padding: 16px; box-shadow: 0 24px 48px var(--color-border); }
+.device-screen { background: var(--color-background); border-radius: 18px; aspect-ratio: 4 / 3; overflow: hidden; }
+.demo { height: 100%; padding: 6%; display: flex; flex-direction: column; justify-content: center; }
+.demo-title { font-family: 'Lora', Georgia, serif; font-weight: 700; font-size: clamp(1rem, 2.2vw, 1.6rem); margin: 0 0 12px; }
+.demo-kicker { color: var(--color-textMuted); margin: 0 0 8px; }
+.demo-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; flex: 1; }
+.demo-tile { border-radius: var(--radius-sm); display: flex; align-items: center; gap: 10px; padding: 0 12px; color: var(--color-textPrimary); font-weight: 700; font-size: clamp(0.8rem, 1.4vw, 1.05rem); }
+.demo-tile svg { width: 26px; height: 26px; flex-shrink: 0; }
+.demo-answers { display: grid; gap: 10px; }
+.demo-answers span { background: var(--act-trivia-bg); color: var(--act-trivia-icon); border-radius: var(--radius-sm); padding: 10px 14px; font-weight: 700; }
+.demo-music { align-items: center; text-align: center; }
+.demo-cover { width: 34%; aspect-ratio: 1; border-radius: var(--radius-sm); background: linear-gradient(135deg, var(--color-mist), var(--color-primary)); margin-bottom: 12px; }
+.demo-music .demo-title { margin: 0; }
+.demo-progress { width: 70%; height: 8px; border-radius: var(--radius-circular); background: var(--color-mistBackground); margin: 8px 0 12px; }
+.demo-progress span { display: block; width: 40%; height: 100%; border-radius: inherit; background: var(--color-primary); }
+.demo-play { width: 52px; height: 52px; border-radius: var(--radius-circular); background: var(--color-primary); position: relative; }
+.demo-play::after { content: ''; position: absolute; left: 20px; top: 15px; border: 11px solid transparent; border-left: 17px solid var(--color-white); border-right: 0; }
+
+@media (max-width: 800px) {
+  .hero, .showcase, .steps { grid-template-columns: 1fr; }
+  .hero { padding-top: 24px; }
+  .site-header nav { display: none; }
+  .site-header { justify-content: space-between; }
+}

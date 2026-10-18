@@ -66,6 +66,9 @@ export default function LoginPage() {
       <p>
         <Link to="/reset-password">Forgot your password?</Link>
       </p>
+      <p>
+        <Link to="/">← Back to the Welicare home page</Link>
+      </p>
     </main>
   );
 }
