@@ -579,17 +579,16 @@ export default function SignUpScreen({ navigation, route }) {
       <View style={[styles.splitContainer, !isTablet && styles.splitContainerPhone]}>
         {isTablet ? (
           <View style={styles.brandPanel}>
-            {/* The logo is dark green, the same as this panel, so it sits on
-                a light plate to stay readable. */}
-            <View style={styles.logoPlate}>
-              <Image
-                source={require('../assets/welicare-logo.png')}
-                style={styles.logo}
-                resizeMode="contain"
-                accessibilityRole="image"
-                accessibilityLabel="Welicare"
-              />
-            </View>
+            {/* The on-green version of the logo: cream lettering baked onto
+                the same #1E5C47 as colors.primary, so it blends into this
+                panel without needing a light plate behind it. */}
+            <Image
+              source={require('../assets/welicare-logo-on-green.png')}
+              style={styles.logo}
+              resizeMode="contain"
+              accessibilityRole="image"
+              accessibilityLabel="Welicare"
+            />
             <Text style={styles.tagline}>Bringing joy to every day</Text>
           </View>
         ) : null}
@@ -616,15 +615,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 32,
   },
-  logoPlate: {
-    backgroundColor: colors.background,
-    borderRadius: radii.lg,
-    paddingVertical: 20,
-    paddingHorizontal: 28,
-    marginBottom: 20,
-  },
   // 773×248 image, kept at that shape.
-  logo: { width: 240, height: 77 },
+  logo: { width: 240, height: 77, marginBottom: 20 },
   tagline: {
     fontFamily: fonts.sansRegular,
     fontSize: 16,
