@@ -22,12 +22,17 @@ export function usePortalLink() {
   return { signedIn, portalLink };
 }
 
-export default function SiteLayout({ children }: { children: ReactNode }) {
+// `title` names the page in the browser tab, and it's the first thing a
+// screen reader announces after navigating. React 19 moves <title> into
+// <head> wherever it's rendered.
+export default function SiteLayout({ title, children }: { title?: string; children: ReactNode }) {
   const { portalLink } = usePortalLink();
   return (
     <>
+      <title>{title ? `${title} · Welicare` : 'Welicare'}</title>
       <header className="site-header">
-        <Link to="/"><img src="/welicare-logo.png" alt="Welicare" height={40} /></Link>
+        {/* The alt text is the link's name, so it says where the link goes. */}
+        <Link to="/"><img src="/welicare-logo.png" alt="Welicare home" height={40} /></Link>
         {/* NavLink sets aria-current="page" on the active link, which the
             stylesheet uses for the selected look. `end` keeps "Overview"
             from matching every path under "/". */}

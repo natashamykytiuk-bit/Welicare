@@ -122,9 +122,41 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 
 /* Our Story: one readable text column. */
 .story { max-width: 40rem; }
-.story .story-hero { display: block; padding: 0; }
+/* .hero.story-hero, not just .story-hero: .hero's own padding comes later in
+   this file and would otherwise win, indenting the heading past the text. */
+.hero.story-hero { display: block; padding: 0; }
 .story .lead { max-width: none; }
-.story-signoff { font-weight: 700; margin: 0 0 32px; }
+.story-signoff { font-weight: 700; margin: 8px 0 32px; }
+
+/* Our Story with the founder's portrait: text column on the left, photo on
+   the right; on phones the photo moves above the text (see @media below). */
+/* The text column fills whatever the photo leaves (up to the section's
+   1200px), so the page doesn't sit in a narrow strip with wide empty sides.
+   Lines stay readable: at 1200px the text column is still under ~50rem. */
+.story-layout {
+  display: grid; grid-template-columns: minmax(0, 1fr) 20rem;
+  align-items: start; gap: 0 48px;
+}
+/* margin 0: .hero's `margin: 0 auto` would centre the heading in the grid,
+   away from the left-aligned text under it. */
+.story-layout .story-hero { grid-column: 1 / -1; margin: 0; }
+.story-layout .story { grid-column: 1; grid-row: 2; max-width: none; }
+.founder { grid-column: 2; grid-row: 2; margin: 8px 0 0; }
+/* A white mat and soft shadow, like a framed photo, with the primary colour
+   as a thin outer rule so it matches the site's accents. */
+.founder img {
+  /* Cropped in CSS, not in the file: the frame is shorter than the photo's
+     own 3:4, so a tenth of its height is hidden. object-position 30% puts
+     30% of that hidden part at the top (a little empty wall) and 70% at the
+     bottom (the shirt sleeves). */
+  display: block; width: 100%; height: auto; aspect-ratio: 5 / 6;
+  object-fit: cover; object-position: 50% 30%;
+  border: 8px solid var(--color-surface); outline: 2px solid var(--color-primary);
+  border-radius: var(--radius-lg); box-shadow: 0 16px 32px var(--color-border);
+}
+.founder figcaption { display: flex; flex-direction: column; gap: 2px; margin-top: 16px; text-align: center; }
+.founder figcaption strong { font-family: 'Lora', Georgia, serif; font-size: 1.2rem; color: var(--color-primaryDark); }
+.founder figcaption span { color: var(--color-textMuted); }
 
 .hero {
   display: grid; grid-template-columns: 1.1fr 1fr; gap: 48px; align-items: center;
@@ -208,6 +240,10 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 .demo-play::after { content: ''; position: absolute; left: 20px; top: 15px; border: 11px solid transparent; border-left: 17px solid var(--color-white); border-right: 0; }
 
 @media (max-width: 800px) {
+  /* Photo above the story, narrower so the text starts on the first screen. */
+  .story-layout { grid-template-columns: minmax(0, 1fr); }
+  .founder { grid-column: 1; grid-row: 2; width: min(16rem, 70%); justify-self: center; margin-bottom: 32px; }
+  .story-layout .story { grid-row: 3; }
   .hero, .showcase, .steps { grid-template-columns: 1fr; }
   .hero { padding-top: 24px; }
   /* The nav is the only way between pages, so it stays: it wraps onto its

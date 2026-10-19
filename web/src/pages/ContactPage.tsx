@@ -73,7 +73,7 @@ export default function ContactPage() {
   }
 
   return (
-    <SiteLayout>
+    <SiteLayout title="Contact">
       <article className="section story contact">
         <div className="hero story-hero">
           <h1>Get in touch</h1>
