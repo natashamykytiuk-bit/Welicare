@@ -184,6 +184,37 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 
 .showcase { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
 
+/* Role sections: a drawn screen beside what each person gets. Every other
+   row puts the screen on the right so the page doesn't read as one column. */
+.role { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; margin-bottom: 64px; }
+.role:nth-of-type(even) .device { order: 2; }
+.role-label { display: inline-block; margin: 0 0 12px; padding: 6px 14px; border-radius: var(--radius-circular); font-weight: 700; }
+.role h3 { font-family: 'Lora', Georgia, serif; font-size: clamp(1.4rem, 2.4vw, 1.9rem); line-height: 1.25; margin: 0 0 12px; color: var(--color-primaryDark); }
+.role-summary { font-size: 1.15rem; color: var(--color-textMuted); margin: 0 0 16px; }
+/* Ticks instead of bullets, drawn with borders so they take the theme colour. */
+.role-points { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.role-points li { position: relative; padding-left: 32px; }
+.role-points li::before {
+  content: ''; position: absolute; left: 4px; top: 5px; width: 8px; height: 14px;
+  border: solid var(--color-primary); border-width: 0 3px 3px 0; transform: rotate(45deg);
+}
+.role-others { background: var(--color-mistBackground); border-radius: var(--radius-lg); padding: 20px 24px; max-width: 52rem; margin: 0 auto; }
+.role-others p { margin: 0; }
+
+/* Drawn Mode Selection screen (hero). */
+.demo-resident-card { display: flex; flex-direction: column; gap: 2px; background: var(--color-primary); color: var(--color-white); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 10px; font-size: clamp(0.75rem, 1.3vw, 0.95rem); }
+.demo-resident-card strong { font-size: clamp(0.9rem, 1.6vw, 1.15rem); }
+.demo-modes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; flex: 1; }
+.demo-mode { display: flex; align-items: center; justify-content: space-between; gap: 6px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 0 12px; font-weight: 700; font-size: clamp(0.75rem, 1.3vw, 1rem); color: var(--color-textPrimary); }
+.demo-pin { background: var(--color-mistBackground); color: var(--color-primary); border-radius: var(--radius-circular); padding: 2px 8px; font-size: 0.75em; }
+
+/* Drawn screens for the role rows. */
+.demo-list { display: grid; gap: 10px; }
+.demo-list span { background: var(--act-conversation-bg); color: var(--color-textPrimary); border-radius: var(--radius-sm); padding: 10px 14px; font-size: clamp(0.8rem, 1.4vw, 1rem); }
+.demo-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; flex: 1; margin-bottom: 12px; }
+.demo-photos span { border-radius: var(--radius-sm); }
+.demo-pill { align-self: flex-start; background: var(--color-primary); color: var(--color-white); border-radius: var(--radius-sm); padding: 8px 16px; font-weight: 700; font-size: clamp(0.8rem, 1.4vw, 1rem); }
+
 .steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; counter-reset: step; }
 .steps li { counter-increment: step; background: var(--color-mistBackground); border-radius: var(--radius-lg); padding: 24px; }
 .steps li::before {
@@ -196,7 +227,6 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 .cta { text-align: center; background: var(--color-primary); color: var(--color-white); border-radius: var(--radius-lg); margin-bottom: 48px; width: calc(100% - 32px); }
 .cta h2 { margin-bottom: 8px !important; }
 .cta a.button { color: var(--color-primary); background: var(--color-surface); border-color: var(--color-surface); }
-.cta-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 
 /* Contact page: shares the Our Story text column (.story). */
 .note-box {
@@ -247,7 +277,10 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
   .story-layout { grid-template-columns: minmax(0, 1fr); }
   .founder { grid-column: 1; grid-row: 2; width: min(16rem, 70%); justify-self: center; margin-bottom: 32px; }
   .story-layout .story { grid-row: 3; }
-  .hero, .showcase, .steps { grid-template-columns: 1fr; }
+  .hero, .showcase, .steps, .role { grid-template-columns: 1fr; }
+  /* Stacked: always the screen first, then the text. */
+  .role:nth-of-type(even) .device { order: 0; }
+  .role { gap: 24px; }
   .hero { padding-top: 24px; }
   /* The nav is the only way between pages, so it stays: it wraps onto its
      own full-width row under the logo and button. */

@@ -1,48 +1,46 @@
 // The public home page (the "Overview" tab): a short product tour of the Welicare iPad app for
-// care homes and families visiting the site. Everyone lands here, signed in
-// or not. The portal itself (approvals and, later, the rest of the admin
-// tools) sits behind the "Sign in" button. A signed-in person instead sees
-// "Open your dashboard", which goes to their own home (homePathFor).
+// care homes and families visiting the site. Its calls to action lead to the
+// Contact page, since the site's current job is finding pilot sites.
 //
 // The "screenshots" are drawn in HTML/CSS (DeviceFrame + the *Demo
 // components) rather than images, so they stay crisp, use the shared theme
 // colours and never go stale with a real resident's photo or name in them.
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
-import SiteLayout, { usePortalLink } from '../components/SiteLayout';
+import SiteLayout from '../components/SiteLayout';
 
-// Main features, in the order a care team meets them. Each card's accent is
-// the matching activity colour from the app's theme.
+// Main features, following the README's "Main Features" list. Each card's
+// accent is the matching activity colour from the app's theme.
 const FEATURES = [
   {
     title: 'Life-story profiles',
-    body: 'Where they grew up, the work they did, the songs they loved. Every resident’s story lives in one place the whole team can use.',
+    body: 'A guided, optional questionnaire, filled in with family or the resident, collects their preferred name, hometown, career, family, hobbies and favourite music.',
     accent: 'photoAlbum',
   },
   {
-    title: 'Personalized trivia & conversation',
-    body: 'AI turns each profile into questions and conversation starters about that person’s own life, not generic bingo.',
+    title: 'Personalized with AI',
+    body: 'Each profile becomes trivia questions, conversation starters, activity ideas and music and movie suggestions about that person’s own life, not generic bingo.',
     accent: 'trivia',
   },
   {
-    title: 'Music and videos they’ll recognize',
-    body: 'A library built around each resident’s favourite artists and era, ready to play with one tap.',
+    title: 'Curated music & video',
+    body: 'A starter set of 80+ music videos, plus a shared library staff and family build from YouTube. Residents only browse what’s been chosen for them.',
     accent: 'music',
   },
   {
-    title: 'Gentle games',
-    body: 'Memory Match, Molehunt and word games with big targets, no timers and no way to lose, just warm encouragement.',
+    title: 'A Resident Mode to hand over',
+    body: 'Big, simple activity tiles with a PIN lock, so a resident can explore on their own without wandering into staff screens. Guest mode covers group sessions.',
     accent: 'games',
   },
   {
-    title: 'Guided meditation & photo albums',
-    body: 'Calming sessions and family photos for quieter moments, side by side with a caregiver.',
-    accent: 'meditation',
+    title: 'Organizations & approvals',
+    body: 'Care homes join with an invite code like MGK7-4TXR, and administrators approve each request. Residents and music libraries belong to the facility.',
+    accent: 'conversation',
   },
   {
-    title: 'Built for the whole care team',
-    body: 'Administrators, staff caregivers, volunteers and family each get their own mode, with approvals, hours and activity logs.',
-    accent: 'conversation',
+    title: 'Designed for older adults',
+    body: 'Atkinson Hyperlegible type made for low vision, a high-contrast palette, and labels on every control for VoiceOver and TalkBack.',
+    accent: 'meditation',
   },
 ] as const;
 
@@ -125,9 +123,117 @@ function MusicDemo() {
   );
 }
 
-export default function LandingPage() {
-  const { signedIn, portalLink } = usePortalLink();
+// The Mode Selection screen everyone lands on after signing in (the
+// README's first screenshot), styled after ModeSelectionScreen: a big
+// Resident Mode card, then the staff and family modes, each behind a PIN.
+function ModeSelectionDemo() {
+  const modes = ['Family Mode', 'Caregiver Mode', 'Volunteer Mode', 'Admin Mode'];
+  return (
+    <div className="demo">
+      <p className="demo-title">How are you using Welicare today?</p>
+      <div className="demo-resident-card">
+        <strong>Resident Mode</strong>
+        <span>Music, trivia, photo albums and more</span>
+      </div>
+      <div className="demo-modes">
+        {modes.map((m) => (
+          <div key={m} className="demo-mode">
+            {m}
+            <span className="demo-pin">PIN</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
+// A caregiver's AI conversation starters, written from the (made-up)
+// resident's life story.
+function ConversationDemo() {
+  const starters = [
+    'What was harvest time like on the farm?',
+    'Which Patsy Cline song would you sing along to?',
+    'Tell me about the river in Saskatoon.',
+  ];
+  return (
+    <div className="demo">
+      <p className="demo-kicker">Conversation starters for Margaret</p>
+      <p className="demo-title">From her life story</p>
+      <div className="demo-list">
+        {starters.map((q) => <span key={q}>{q}</span>)}
+      </div>
+    </div>
+  );
+}
+
+// The resident's photo album as family see it: shared photos (drawn as
+// soft colour gradients in the activity colours, never real photos) and an "Add photos" button.
+function PhotoAlbumDemo() {
+  const tiles = ['photoAlbum', 'music', 'meditation', 'conversation', 'games', 'trivia'];
+  return (
+    <div className="demo">
+      <p className="demo-kicker">Shared by her daughter</p>
+      <p className="demo-title">Margaret’s photo album</p>
+      <div className="demo-photos">
+        {tiles.map((t) => <span key={t} style={{ background: `linear-gradient(160deg, var(--act-${t}-bg) 35%, var(--act-${t}-icon))` }} />)}
+      </div>
+      <span className="demo-pill">Add photos</span>
+    </div>
+  );
+}
+
+// One section per role: residents, caregivers, family. Each row is a drawn
+// screen next to what that person gets, alternating sides on wide screens
+// (see .role in styles.css). The points follow the README.
+const ROLES = [
+  {
+    id: 'residents',
+    label: 'Resident view',
+    accent: 'games',
+    title: 'A calm, simple space made to be handed over',
+    summary: 'Resident Mode holds every activity a resident uses, on big, colourful tiles that are easy to see and tap.',
+    points: [
+      'Music, trivia, conversation, games, photos, guided meditation and movies, one tap away',
+      'Games with big targets, no timers and no way to lose, just warm encouragement',
+      'A PIN lock, so residents can explore freely but can’t leave for staff screens',
+      'Guest mode for group activities, or before a profile has been made',
+    ],
+    caption: 'Resident Mode: every activity one big tap away',
+    Demo: ActivityMenuDemo,
+  },
+  {
+    id: 'caregivers',
+    label: 'Caregivers',
+    accent: 'conversation',
+    title: 'Every session prepared before you sit down',
+    summary: 'For recreation therapists and staff caregivers: everyone in your facility, and ideas made for each of them.',
+    points: [
+      'See and update the profiles of every resident in your facility',
+      'AI activity ideas, conversation starters and music and movie suggestions from each life story',
+      'Build the facility’s music and video library, and choose what each resident can see',
+      'Track engagement across residents with overall stats',
+    ],
+    caption: 'Conversation starters written from the resident’s own life',
+    Demo: ConversationDemo,
+  },
+  {
+    id: 'family',
+    label: 'Family members',
+    accent: 'photoAlbum',
+    title: 'Share what only family knows',
+    summary: 'The details that make a visit land often live with family. Welicare gives them a place to go.',
+    points: [
+      'Help fill in the life-story questionnaire: hometown, work, family, favourite songs',
+      'Share photos to their loved one’s album, ready for the next visit',
+      'View the profile and recent activity once they’re in a care home',
+      'Caring at home? You get your own family organization to manage everything',
+    ],
+    caption: 'Family photos, shared straight to the resident’s album',
+    Demo: PhotoAlbumDemo,
+  },
+] as const;
+
+export default function LandingPage() {
   return (
     <SiteLayout>
       <section className="hero">
@@ -140,11 +246,13 @@ export default function LandingPage() {
           </p>
           <div className="hero-actions">
             <a className="button" href="#features">See what it does</a>
-            {signedIn ? portalLink : <Link className="button secondary" to="/login">Administrator sign in</Link>}
+            <Link className="button secondary" to="/contact">Pilot Welicare at your site</Link>
           </div>
         </div>
-        <DeviceFrame caption="Resident Mode: every activity one big tap away">
-          <ActivityMenuDemo />
+        {/* The resident menu has its own row further down (ROLES), so the
+            hero shows the screen that ties the roles together. */}
+        <DeviceFrame caption="One app, with a mode for each person in the circle of care">
+          <ModeSelectionDemo />
         </DeviceFrame>
       </section>
 
@@ -158,6 +266,36 @@ export default function LandingPage() {
             </article>
           ))}
         </div>
+      </section>
+
+      <section id="roles" className="section roles" aria-labelledby="roles-heading">
+        <h2 id="roles-heading">A mode for everyone in the circle of care</h2>
+        {ROLES.map(({ id, label, accent, title, summary, points, caption, Demo }) => (
+          <article key={id} id={id} className="role" aria-labelledby={`${id}-title`}>
+            <DeviceFrame caption={caption}>
+              <Demo />
+            </DeviceFrame>
+            <div className="role-copy">
+              {/* The pill uses an activity pair (dark icon colour on its pale
+                  tile), the same contrast the app uses on its tiles. */}
+              <p className="role-label" style={{ background: `var(--act-${accent}-bg)`, color: `var(--act-${accent}-icon)` }}>
+                {label}
+              </p>
+              <h3 id={`${id}-title`}>{title}</h3>
+              <p className="role-summary">{summary}</p>
+              <ul className="role-points">
+                {points.map((pt) => <li key={pt}>{pt}</li>)}
+              </ul>
+            </div>
+          </article>
+        ))}
+        <aside className="role-others" aria-label="Administrators and volunteers">
+          <p>
+            <strong>Administrators</strong> approve join requests, manage users and organization
+            settings, and see an activity log. <strong>Volunteers</strong> can view residents, run
+            sessions and track their hours, without editing profiles.
+          </p>
+        </aside>
       </section>
 
       <section className="section showcase">
@@ -183,14 +321,8 @@ export default function LandingPage() {
 
       <section className="section cta">
         <h2>Running a care home?</h2>
-        <p>
-          Welicare is looking for pilot sites. Administrators already using it sign in here to
-          approve staff and manage their organization.
-        </p>
-        <div className="cta-actions">
-          <Link className="button" to="/contact">Interested in a pilot? Get in touch</Link>
-          {portalLink}
-        </div>
+        <p>Welicare is looking for care homes to pilot the app. I'd love to hear from you.</p>
+        <Link className="button" to="/contact">Interested in a pilot? Get in touch</Link>
       </section>
     </SiteLayout>
   );
