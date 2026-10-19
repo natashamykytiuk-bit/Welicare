@@ -122,6 +122,9 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 
 /* Our Story: one readable text column. */
 .story { max-width: 40rem; }
+/* Book-style first-line indent for the founder's letter. Scoped to
+   .story-layout so the Contact page (which also uses .story) isn't indented. */
+.story-layout .story .lead { text-indent: 2em; }
 /* .hero.story-hero, not just .story-hero: .hero's own padding comes later in
    this file and would otherwise win, indenting the heading past the text. */
 .hero.story-hero { display: block; padding: 0; }

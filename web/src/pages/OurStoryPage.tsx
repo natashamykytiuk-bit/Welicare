@@ -34,11 +34,14 @@ export default function OurStoryPage() {
             The inspiration for Welicare came from my own personal experiences working with
             mid-to-late-stage dementia patients. I have worked with this population for over four
             years, and have seen firsthand how limited resources and staffing can make it difficult to
-            provide meaningful, individualized care. Generic programming like bingo and word games doesn't do much for a resident who spent 40
+            provide meaningful, individualized care.
+          </p>
+          <p className="lead">
+            Generic programming like bingo and word games doesn't do much for a resident who spent 40
             years working on a farm or who lights up at Patsy Cline. Often, the most meaningful details
             that would make a one-on-one session land live in a family member's head or a binder in a
-            filing cabinet. Welicare takes this information and puts it somewhere it can actually be useful in the
-            moment: on a shared iPad with the resident sitting right there.
+            filing cabinet. Welicare takes this information and puts it somewhere it can actually be
+            useful in the moment: on a shared iPad with the resident sitting right there.
           </p>
           <p className="lead">
             Caregiving is unique. In a world increasingly reliant on AI and automation, this job can't
