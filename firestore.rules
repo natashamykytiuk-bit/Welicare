@@ -757,6 +757,32 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Messages from the public website's Contact page (web/src/pages/
+    // ContactPage.tsx). Anyone may create one, signed in or not, but only
+    // with exactly the form's fields, within its lengths, and with
+    // status "new" and a server timestamp, so nothing else can be
+    // smuggled in or backdated.
+    // Nobody reads them from the app: an "Administrator" here is only an
+    // organization's admin, and anyone can sign up with that role, so it
+    // can't guard visitors' names and emails. Read them in the Firebase
+    // console (or with the Admin SDK) instead.
+    match /contactRequests/{requestId} {
+      allow create: if validContactRequest(request.resource.data);
+      allow read, update, delete: if false;
+    }
+    function validContactRequest(d) {
+      return d.keys().hasOnly(['name', 'email', 'organization', 'role', 'message', 'wantsPilot', 'createdAt', 'status']) &&
+        d.keys().hasAll(['name', 'email', 'organization', 'role', 'message', 'wantsPilot', 'createdAt', 'status']) &&
+        d.name is string && d.name.size() > 0 && d.name.size() <= 100 &&
+        d.email is string && d.email.size() > 0 && d.email.size() <= 200 &&
+        d.organization is string && d.organization.size() <= 150 &&
+        d.message is string && d.message.size() > 0 && d.message.size() <= 3000 &&
+        d.role in ['Care home administrator', 'Staff caregiver / recreation therapist', 'Family member', 'Other'] &&
+        d.wantsPilot is bool &&
+        d.status == 'new' &&
+        d.createdAt == request.time;
+    }
+
     // Shared video library powering Music (MusicSelectionScreen). Each
     // entry is scoped by facilityId: either the literal string "global"
     // (the shared admin-curated baseline — written only by

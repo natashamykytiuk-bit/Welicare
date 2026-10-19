@@ -117,6 +117,14 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 .site-header nav { display: flex; gap: 24px; flex: 1; padding-top: 18px; }
 .site-header nav a { color: var(--color-textMuted); text-decoration: none; padding: 8px 0; }
 .site-header nav a:hover { color: var(--color-primary); text-decoration: underline; text-underline-offset: 6px; }
+/* The current page's link (NavLink sets aria-current), drawn like a held hover. */
+.site-header nav a[aria-current="page"] { color: var(--color-primary); font-weight: 700; text-decoration: underline; text-underline-offset: 6px; }
+
+/* Our Story: one readable text column. */
+.story { max-width: 40rem; }
+.story .story-hero { display: block; padding: 0; }
+.story .lead { max-width: none; }
+.story-signoff { font-weight: 700; margin: 0 0 32px; }
 
 .hero {
   display: grid; grid-template-columns: 1.1fr 1fr; gap: 48px; align-items: center;
@@ -153,6 +161,29 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 .cta { text-align: center; background: var(--color-primary); color: var(--color-white); border-radius: var(--radius-lg); margin-bottom: 48px; width: calc(100% - 32px); }
 .cta h2 { margin-bottom: 8px !important; }
 .cta a.button { color: var(--color-primary); background: var(--color-surface); border-color: var(--color-surface); }
+.cta-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+
+/* Contact page: shares the Our Story text column (.story). */
+.note-box {
+  background: var(--color-mistBackground); border-left: 6px solid var(--color-primary);
+  border-radius: var(--radius-sm); padding: 16px 20px; margin: 24px 0;
+}
+.contact-form { display: flex; flex-direction: column; gap: 8px; }
+.contact-form label { font-weight: 700; margin-top: 8px; }
+.contact-form .optional { font-weight: 400; color: var(--color-textMuted); }
+.contact-form input:not([type="checkbox"]), .contact-form select, .contact-form textarea {
+  width: 100%; min-height: 48px; padding: 10px 12px; font: inherit;
+  color: var(--color-textPrimary); background: var(--color-surface);
+  border: 1px solid var(--color-textMuted); border-radius: var(--radius-sm);
+}
+.contact-form textarea { resize: vertical; }
+.contact-form label.checkbox { display: flex; align-items: center; gap: 12px; font-weight: 400; min-height: 48px; cursor: pointer; }
+.contact-form input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--color-primary); flex-shrink: 0; }
+.contact-form button { align-self: flex-start; margin-top: 16px; }
+/* Off-screen rather than display:none: some bots skip fields that are display:none. */
+.honeypot { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.contact-thanks { background: var(--color-mistBackground); border-radius: var(--radius-lg); padding: 24px; }
+.contact-thanks p { font-size: 1.3rem; font-weight: 700; margin: 0 0 16px; }
 .site-footer { text-align: center; color: var(--color-textMuted); padding: 0 16px 32px; }
 
 /* iPad frame and the drawn app screens inside it. */
@@ -179,6 +210,8 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 @media (max-width: 800px) {
   .hero, .showcase, .steps { grid-template-columns: 1fr; }
   .hero { padding-top: 24px; }
-  .site-header nav { display: none; }
+  /* The nav is the only way between pages, so it stays: it wraps onto its
+     own full-width row under the logo and button. */
   .site-header { justify-content: space-between; }
+  .site-header nav { order: 3; flex-basis: 100%; padding-top: 0; }
 }

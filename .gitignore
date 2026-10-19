@@ -62,3 +62,6 @@ Claude outputs/
 .env
 /secrets/
 *service-account*.json
+
+# Firebase CLI deploy cache
+.firebase/

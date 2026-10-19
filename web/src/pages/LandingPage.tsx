@@ -1,4 +1,4 @@
-// The public home page: a short product tour of the Welicare iPad app for
+// The public home page (the "Overview" tab): a short product tour of the Welicare iPad app for
 // care homes and families visiting the site. Everyone lands here, signed in
 // or not. The portal itself (approvals and, later, the rest of the admin
 // tools) sits behind the "Sign in" button. A signed-in person instead sees
@@ -9,8 +9,7 @@
 // colours and never go stale with a real resident's photo or name in them.
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
-import { useAuth } from '../auth/AuthProvider';
-import { homePathFor } from '../auth/routing';
+import SiteLayout, { usePortalLink } from '../components/SiteLayout';
 
 // Main features, in the order a care team meets them. Each card's accent is
 // the matching activity colour from the app's theme.
@@ -127,91 +126,72 @@ function MusicDemo() {
 }
 
 export default function LandingPage() {
-  const { loading, user, profile } = useAuth();
-  // While auth is still loading, show "Sign in": it's right for most
-  // visitors, and the login page forwards a signed-in person anyway.
-  const signedIn = !loading && !!user;
-  const portalLink = signedIn ? (
-    <Link className="button" to={homePathFor(profile)}>Open your dashboard</Link>
-  ) : (
-    <Link className="button" to="/login">Sign in</Link>
-  );
+  const { signedIn, portalLink } = usePortalLink();
 
   return (
-    <>
-      <header className="site-header">
-        <img src="/welicare-logo.png" alt="Welicare" height={40} />
-        <nav aria-label="Site">
-          <a href="#features">Features</a>
-          <a href="#how">How it works</a>
-        </nav>
-        {portalLink}
-      </header>
-
-      <main id="main">
-        <section className="hero">
-          <div className="hero-copy">
-            <h1>Meaningful one&#8209;on&#8209;one time for people living with dementia</h1>
-            <p className="lead">
-              Welicare is an iPad app that turns each resident’s life story into personalized
-              music, trivia, conversation and gentle games, so every visit feels like it was made
-              just for them.
-            </p>
-            <div className="hero-actions">
-              <a className="button" href="#features">See what it does</a>
-              {signedIn ? portalLink : <Link className="button secondary" to="/login">Administrator sign in</Link>}
-            </div>
+    <SiteLayout>
+      <section className="hero">
+        <div className="hero-copy">
+          <h1>Meaningful one&#8209;on&#8209;one time for people living with dementia</h1>
+          <p className="lead">
+            Welicare is an iPad app that turns each resident’s life story into personalized
+            music, trivia, conversation and gentle games, so every visit feels like it was made
+            just for them.
+          </p>
+          <div className="hero-actions">
+            <a className="button" href="#features">See what it does</a>
+            {signedIn ? portalLink : <Link className="button secondary" to="/login">Administrator sign in</Link>}
           </div>
-          <DeviceFrame caption="Resident Mode: every activity one big tap away">
-            <ActivityMenuDemo />
-          </DeviceFrame>
-        </section>
+        </div>
+        <DeviceFrame caption="Resident Mode: every activity one big tap away">
+          <ActivityMenuDemo />
+        </DeviceFrame>
+      </section>
 
-        <section id="features" className="section">
-          <h2>Everything a visit needs, prepared in advance</h2>
-          <div className="feature-grid">
-            {FEATURES.map((f) => (
-              <article key={f.title} className="feature" style={{ borderTopColor: `var(--act-${f.accent}-icon)` }}>
-                <h3>{f.title}</h3>
-                <p>{f.body}</p>
-              </article>
-            ))}
-          </div>
-        </section>
+      <section id="features" className="section">
+        <h2>Everything a visit needs, prepared in advance</h2>
+        <div className="feature-grid">
+          {FEATURES.map((f) => (
+            <article key={f.title} className="feature" style={{ borderTopColor: `var(--act-${f.accent}-icon)` }}>
+              <h3>{f.title}</h3>
+              <p>{f.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
 
-        <section className="section showcase">
-          <DeviceFrame caption="Trivia written from the resident’s own life">
-            <TriviaDemo />
-          </DeviceFrame>
-          <DeviceFrame caption="Songs from their era, ready to play">
-            <MusicDemo />
-          </DeviceFrame>
-        </section>
+      <section className="section showcase">
+        <DeviceFrame caption="Trivia written from the resident’s own life">
+          <TriviaDemo />
+        </DeviceFrame>
+        <DeviceFrame caption="Songs from their era, ready to play">
+          <MusicDemo />
+        </DeviceFrame>
+      </section>
 
-        <section id="how" className="section">
-          <h2>How it works</h2>
-          <ol className="steps">
-            {STEPS.map(([title, body]) => (
-              <li key={title}>
-                <h3>{title}</h3>
-                <p>{body}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
+      <section id="how" className="section">
+        <h2>How it works</h2>
+        <ol className="steps">
+          {STEPS.map(([title, body]) => (
+            <li key={title}>
+              <h3>{title}</h3>
+              <p>{body}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
 
-        <section className="section cta">
-          <h2>Running a care home?</h2>
-          <p>Administrators sign in here to approve staff and manage their organization.</p>
+      <section className="section cta">
+        <h2>Running a care home?</h2>
+        <p>
+          Welicare is looking for pilot sites. Administrators already using it sign in here to
+          approve staff and manage their organization.
+        </p>
+        <div className="cta-actions">
+          <Link className="button" to="/contact">Interested in a pilot? Get in touch</Link>
           {portalLink}
-        </section>
-      </main>
-
-      <footer className="site-footer">
-        <p>Welicare · Made for dementia care teams and families. Not yet on the App Store.</p>
-        {/* Same notice as the README and LICENSE. */}
-        <p>Copyright © 2026 Natasha Mykytiuk. All rights reserved.</p>
-      </footer>
-    </>
+        </div>
+      </section>
+    </SiteLayout>
   );
 }

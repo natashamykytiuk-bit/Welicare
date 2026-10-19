@@ -3,6 +3,7 @@
 // their own home. Role homes are placeholders until the screens are built.
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { ROLES } from '@shared/constants';
+import ContactPage from './pages/ContactPage';
 import AdminLayout from './admin/AdminLayout';
 import ApprovalsPage from './admin/ApprovalsPage';
 import { AuthProvider } from './auth/AuthProvider';
@@ -10,6 +11,7 @@ import { RequireRole } from './auth/RequireRole';
 import InfoPage from './pages/InfoPage';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import OurStoryPage from './pages/OurStoryPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 
 const soon = (who: string) => (
@@ -68,6 +70,8 @@ export default function App() {
           </Route>
           <Route path="/caregiver/*" element={<RequireRole roles={[ROLES.CAREGIVER]}>{soon('Caregiver')}</RequireRole>} />
           <Route path="/family/*" element={<RequireRole roles={[ROLES.FAMILY]}>{soon('Family Caregiver')}</RequireRole>} />
+          <Route path="/our-story" element={<OurStoryPage />} />
+          <Route path="/contact" element={<ContactPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
