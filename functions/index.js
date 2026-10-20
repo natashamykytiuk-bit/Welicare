@@ -22,6 +22,8 @@ const { isAtHomeResident, mayDeleteResident } = require('./residentAccess');
 // so they pick up the Montréal region too.
 exports.generateSuggestions = require('./ai').generateSuggestions;
 exports.searchYouTube = require('./youtube').searchYouTube;
+// The public website's Contact form, rate-limited per IP (contactRequest.js).
+exports.submitContactRequest = require('./contactRequest').makeSubmitContactRequest();
 
 // A BulkWriter that remembers the outcome of every write it's given.
 //

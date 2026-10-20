@@ -1,15 +1,18 @@
 // "Contact": a short form for care homes, staff and families who want to
-// hear more or pilot Welicare. Works signed out: each submission is one
-// addDoc to contactRequests, and firestore.rules check the exact field set,
-// lengths and role, so the form's limits here are only a convenience — the
-// rules are what actually enforce them.
+// hear more or pilot Welicare. Works signed out: each submission calls the
+// submitContactRequest Cloud Function (functions/contactRequest.js), which
+// checks the fields, rate-limits each IP address and writes the message.
+// Browsers can't write contactRequests directly (firestore.rules), so the
+// form's limits here are only a convenience.
 import { useState, type FormEvent } from 'react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { Link } from 'react-router';
 import SiteLayout from '../components/SiteLayout';
-import { db } from '../firebase';
+import { functions } from '../firebase';
 
-// Must match the role list in firestore.rules (contactRequests).
+const submitContactRequest = httpsCallable(functions, 'submitContactRequest');
+
+// Must match ROLES in functions/contactRequest.js.
 const ROLES = [
   'Care home administrator',
   'Staff caregiver / recreation therapist',
@@ -17,7 +20,7 @@ const ROLES = [
   'Other',
 ] as const;
 
-// Max lengths, also enforced by firestore.rules.
+// Max lengths, also enforced by the function.
 const MAX = { name: 100, email: 200, organization: 150, message: 3000 };
 
 export default function ContactPage() {
@@ -48,7 +51,7 @@ export default function ContactPage() {
       organization: organization.trim(),
       message: message.trim(),
     };
-    // `required` lets whitespace-only answers through; the rules would
+    // `required` lets whitespace-only answers through; the function would
     // reject them, so say so here instead of showing a generic failure.
     if (!clean.name || !clean.email || !clean.message) {
       setError('Please fill in your name, email and message.');
@@ -56,17 +59,17 @@ export default function ContactPage() {
     }
     setSending(true);
     try {
-      await addDoc(collection(db, 'contactRequests'), {
-        ...clean,
-        role,
-        wantsPilot,
-        createdAt: serverTimestamp(),
-        status: 'new',
-      });
+      await submitContactRequest({ ...clean, role, wantsPilot });
       setSent(true);
-    } catch {
+    } catch (err) {
       // Keep everything they typed so they can just try again.
-      setError('Sorry, your message couldn’t be sent. Please try again in a moment.');
+      // resource-exhausted is the per-IP limit (functions/contactRequest.js).
+      const code = (err as { code?: string }).code;
+      setError(
+        code === 'functions/resource-exhausted'
+          ? 'You’ve sent several messages already. Please try again later.'
+          : 'Sorry, your message couldn’t be sent. Please try again in a moment.'
+      );
     } finally {
       setSending(false);
     }

@@ -2,6 +2,7 @@
 // app (these values aren't secret — firestore.rules enforce access). The
 // app's firebaseConfig.js can't be shared because it imports React Native.
 import { initializeApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { connectAuthEmulator, getAuth } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
@@ -27,6 +28,19 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 // Must match setGlobalOptions in functions/index.js, or calls go to us-central1.
 export const functions = getFunctions(app, 'northamerica-northeast1');
+
+// App Check (reCAPTCHA Enterprise) proves calls come from this website, not
+// a script reusing the public config above. Only started once a site key is
+// set in web/.env (VITE_RECAPTCHA_SITE_KEY); the Contact form's function
+// requires it only when CONTACT_APP_CHECK=on in functions/.env, so the key
+// must ship here first. Skipped in the emulator, which doesn't check tokens.
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined;
+if (RECAPTCHA_SITE_KEY && !USE_EMULATORS) {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaEnterpriseProvider(RECAPTCHA_SITE_KEY),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
 
 if (USE_EMULATORS) {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
