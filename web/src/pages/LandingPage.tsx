@@ -14,12 +14,12 @@ import SiteLayout from '../components/SiteLayout';
 const FEATURES = [
   {
     title: 'Life-story profiles',
-    body: 'A guided, optional questionnaire, filled in with family or the resident, collects their preferred name, hometown, career, family, hobbies and favourite music.',
+    body: 'A guided questionnaire, filled in with family or the resident, collects their preferred name, hometown, hobbies, and favourite music.',
     accent: 'photoAlbum',
   },
   {
     title: 'Personalized with AI',
-    body: 'Each profile becomes trivia questions, conversation starters, activity ideas and music and movie suggestions about that person’s own life, not generic bingo.',
+    body: 'Each profile becomes trivia questions, conversation starters, activity ideas and music and movie suggestions about that person’s own life.',
     accent: 'trivia',
   },
   {
@@ -29,12 +29,12 @@ const FEATURES = [
   },
   {
     title: 'A Resident Mode to hand over',
-    body: 'Big, simple activity tiles with a PIN lock, so a resident can explore on their own without wandering into staff screens. Guest mode covers group sessions.',
+    body: 'Big, simple activity tiles with a PIN lock, so a resident can explore on their own.',
     accent: 'games',
   },
   {
     title: 'Organizations & approvals',
-    body: 'Care homes join with an invite code like MGK7-4TXR, and administrators approve each request. Residents and music libraries belong to the facility.',
+    body: 'Caregivers join with an invite code, and administrators approve each request. Residents and music libraries belong to the facility.',
     accent: 'conversation',
   },
   {
@@ -52,11 +52,13 @@ const STEPS = [
 ] as const;
 
 // An iPad-shaped frame for the drawn screens. Hidden from screen readers:
-// the caption under each one says what it shows.
-function DeviceFrame({ children, caption }: { children: ReactNode; caption: string }) {
+// the caption under each one says what it shows. `interactive` frames hold
+// real links (the hero's mode buttons), so they stay visible to assistive
+// tech: focusable links inside aria-hidden would be unreachable by name.
+function DeviceFrame({ children, caption, interactive = false }: { children: ReactNode; caption: string; interactive?: boolean }) {
   return (
     <figure className="device">
-      <div className="device-bezel" aria-hidden="true">
+      <div className="device-bezel" aria-hidden={interactive ? undefined : true}>
         <div className="device-screen">{children}</div>
       </div>
       <figcaption>{caption}</figcaption>
@@ -126,21 +128,28 @@ function MusicDemo() {
 // The Mode Selection screen everyone lands on after signing in (the
 // README's first screenshot), styled after ModeSelectionScreen: a big
 // Resident Mode card, then the staff and family modes, each behind a PIN.
+// Each mode links down to its row in the roles section (ROLES ids).
 function ModeSelectionDemo() {
-  const modes = ['Family Mode', 'Caregiver Mode', 'Volunteer Mode', 'Admin Mode'];
+  const modes = [
+    ['Family Mode', '#family'],
+    ['Caregiver Mode', '#caregivers'],
+    ['Volunteer Mode', '#volunteers'],
+    ['Admin Mode', '#administrators'],
+  ];
   return (
     <div className="demo">
       <p className="demo-title">How are you using Welicare today?</p>
-      <div className="demo-resident-card">
+      <a className="demo-resident-card" href="#residents">
         <strong>Resident Mode</strong>
         <span>Music, trivia, photo albums and more</span>
-      </div>
+      </a>
       <div className="demo-modes">
-        {modes.map((m) => (
-          <div key={m} className="demo-mode">
+        {modes.map(([m, href]) => (
+          <a key={m} className="demo-mode" href={href}>
             {m}
-            <span className="demo-pin">PIN</span>
-          </div>
+            {/* Decorative: "PIN" would otherwise be read as part of the link name. */}
+            <span className="demo-pin" aria-hidden="true">PIN</span>
+          </a>
         ))}
       </div>
     </div>
@@ -182,7 +191,54 @@ function PhotoAlbumDemo() {
   );
 }
 
-// One section per role: residents, caregivers, family. Each row is a drawn
+// An administrator's join requests: people who entered the facility's
+// invite code, waiting for approval. Names are made up.
+function JoinRequestsDemo() {
+  const requests = [
+    ['Priya S.', 'Caregiver'],
+    ['Tom W.', 'Volunteer'],
+    ['Linda M.', 'Family member'],
+  ];
+  return (
+    <div className="demo">
+      <p className="demo-kicker">Invite code MGK7-4TXR</p>
+      <p className="demo-title">Join requests</p>
+      <div className="demo-list demo-rows">
+        {requests.map(([name, role]) => (
+          <span key={name} style={{ background: 'var(--act-trivia-bg)' }}>
+            <span>{name} · {role}</span>
+            <span className="demo-pill">Approve</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// A volunteer's logged sessions and running total of hours.
+function VolunteerHoursDemo() {
+  const sessions = [
+    ['Margaret · Music', '45 min'],
+    ['Walter · Trivia', '30 min'],
+    ['Group · Photo stories', '1 hr'],
+  ];
+  return (
+    <div className="demo">
+      <p className="demo-kicker">This month · 12.5 hours</p>
+      <p className="demo-title">Your sessions</p>
+      <div className="demo-list demo-rows">
+        {sessions.map(([what, time]) => (
+          <span key={what} style={{ background: 'var(--act-music-bg)' }}>
+            <span>{what}</span>
+            <strong>{time}</strong>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// One section per role: residents, caregivers, family, volunteers, administrators. Each row is a drawn
 // screen next to what that person gets, alternating sides on wide screens
 // (see .role in styles.css). The points follow the README.
 const ROLES = [
@@ -231,6 +287,36 @@ const ROLES = [
     caption: 'Family photos, shared straight to the resident’s album',
     Demo: PhotoAlbumDemo,
   },
+  {
+    id: 'volunteers',
+    label: 'Volunteers',
+    accent: 'music',
+    title: 'Ready to help from your first visit',
+    summary: 'Volunteers get everything they need to run a good session, without the responsibility of managing profiles.',
+    points: [
+      'View residents’ profiles and the ideas made for each of them',
+      'Run one-on-one or group sessions with every activity',
+      'Track your volunteer hours as you go',
+      'Profiles stay read-only, so records stay in staff hands',
+    ],
+    caption: 'Every session counted toward your volunteer hours',
+    Demo: VolunteerHoursDemo,
+  },
+  {
+    id: 'administrators',
+    label: 'Administrators',
+    accent: 'trivia',
+    title: 'Your facility, set up and secure',
+    summary: 'Administrators decide who joins the facility and keep its settings in order.',
+    points: [
+      'Share one invite code and approve each request to join',
+      'Manage users and their roles',
+      'Update organization settings',
+      'Review an activity log of changes across the facility',
+    ],
+    caption: 'Join requests waiting for approval',
+    Demo: JoinRequestsDemo,
+  },
 ] as const;
 
 export default function LandingPage() {
@@ -251,7 +337,7 @@ export default function LandingPage() {
         </div>
         {/* The resident menu has its own row further down (ROLES), so the
             hero shows the screen that ties the roles together. */}
-        <DeviceFrame caption="One app, with a mode for each person in the circle of care">
+        <DeviceFrame interactive caption="One app, with a mode for each person in the circle of care">
           <ModeSelectionDemo />
         </DeviceFrame>
       </section>
@@ -289,13 +375,6 @@ export default function LandingPage() {
             </div>
           </article>
         ))}
-        <aside className="role-others" aria-label="Administrators and volunteers">
-          <p>
-            <strong>Administrators</strong> approve join requests, manage users and organization
-            settings, and see an activity log. <strong>Volunteers</strong> can view residents, run
-            sessions and track their hours, without editing profiles.
-          </p>
-        </aside>
       </section>
 
       <section className="section showcase">

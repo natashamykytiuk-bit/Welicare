@@ -198,8 +198,6 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
   content: ''; position: absolute; left: 4px; top: 5px; width: 8px; height: 14px;
   border: solid var(--color-primary); border-width: 0 3px 3px 0; transform: rotate(45deg);
 }
-.role-others { background: var(--color-mistBackground); border-radius: var(--radius-lg); padding: 20px 24px; max-width: 52rem; margin: 0 auto; }
-.role-others p { margin: 0; }
 
 /* Drawn Mode Selection screen (hero). */
 .demo-resident-card { display: flex; flex-direction: column; gap: 2px; background: var(--color-primary); color: var(--color-white); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 10px; font-size: clamp(0.75rem, 1.3vw, 0.95rem); }
@@ -210,7 +208,10 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 
 /* Drawn screens for the role rows. */
 .demo-list { display: grid; gap: 10px; }
-.demo-list span { background: var(--act-conversation-bg); color: var(--color-textPrimary); border-radius: var(--radius-sm); padding: 10px 14px; font-size: clamp(0.8rem, 1.4vw, 1rem); }
+.demo-list > span { background: var(--act-conversation-bg); color: var(--color-textPrimary); border-radius: var(--radius-sm); padding: 10px 14px; font-size: clamp(0.8rem, 1.4vw, 1rem); }
+/* Rows with a label on the left and a pill or time on the right (admin and volunteer screens). */
+.demo-rows > span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.demo-rows .demo-pill { align-self: center; padding: 4px 10px; font-size: 0.8em; }
 .demo-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; flex: 1; margin-bottom: 12px; }
 .demo-photos span { border-radius: var(--radius-sm); }
 .demo-pill { align-self: flex-start; background: var(--color-primary); color: var(--color-white); border-radius: var(--radius-sm); padding: 8px 16px; font-weight: 700; font-size: clamp(0.8rem, 1.4vw, 1rem); }
@@ -287,3 +288,13 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
   .site-header { justify-content: space-between; }
   .site-header nav { order: 3; flex-basis: 100%; padding-top: 0; }
 }
+
+/* Hero mode buttons link to their role sections: scroll there smoothly
+   (unless the visitor prefers reduced motion) and show they're clickable. */
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+a.demo-resident-card, a.demo-mode { text-decoration: none; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+a.demo-resident-card:hover, a.demo-mode:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }
+a.demo-resident-card:focus-visible, a.demo-mode:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
+#residents, #caregivers, #family, #volunteers, #administrators { scroll-margin-top: 16px; }
