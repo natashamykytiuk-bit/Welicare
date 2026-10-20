@@ -92,6 +92,12 @@ export default function ContactPage() {
         <p className="note-box">
           Welicare is not yet on the App Store. We are currently looking for pilot sites.
         </p>
+        {/* For people who'd rather use their own email than the form. Shown
+            before the form so it isn't missed, and kept after sending. */}
+        <p className="contact-email">
+          Prefer email? Write to us at{' '}
+          <a href="mailto:contact@welicare.ca">contact@welicare.ca</a>, or use the form below.
+        </p>
 
         {sent ? (
           // role="status" so screen readers announce the swap from the form.

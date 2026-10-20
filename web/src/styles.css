@@ -238,6 +238,9 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
   background: var(--color-mistBackground); border-left: 6px solid var(--color-primary);
   border-radius: var(--radius-sm); padding: 16px 20px; margin: 24px 0;
 }
+/* Email alternative above the form; the address wraps on narrow phones. */
+.contact-email { overflow-wrap: anywhere; }
+.contact-email a { color: var(--color-primary); font-weight: 700; text-underline-offset: 4px; }
 .contact-form { display: flex; flex-direction: column; gap: 8px; }
 .contact-form label { font-weight: 700; margin-top: 8px; }
 .contact-form .optional { font-weight: 400; color: var(--color-textMuted); }
