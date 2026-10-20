@@ -400,7 +400,7 @@ export default function LandingPage() {
 
       <section className="section cta">
         <h2>Running a care home?</h2>
-        <p>Welicare is looking for care homes to pilot the app. I'd love to hear from you.</p>
+        <p>Welicare is looking for care homes to pilot the app. We'd love to hear from you.</p>
         <Link className="button" to="/contact">Interested in a pilot? Get in touch</Link>
       </section>
     </SiteLayout>

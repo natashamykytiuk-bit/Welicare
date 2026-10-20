@@ -4,10 +4,12 @@
 // screens and the role homes) is switched off below, not deleted: uncomment
 // those imports and routes, and the <AuthProvider> wrapper, to bring it back.
 // While it's off, any portal URL (/login, /admin, …) falls through to the
-// "*" route and lands on the Overview.
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
+// "*" route and shows the "page not found" page.
+import { BrowserRouter, Route, Routes } from 'react-router';
+// (Add Navigate back to this import when the portal is switched on.)
 import ContactPage from './pages/ContactPage';
 import LandingPage from './pages/LandingPage';
+import NotFoundPage from './pages/NotFoundPage';
 import OurStoryPage from './pages/OurStoryPage';
 // --- Portal (switched off) ---
 // import { ROLES } from '@shared/constants';
@@ -81,7 +83,9 @@ export default function App() {
         <Route path="/caregiver/*" element={<RequireRole roles={[ROLES.CAREGIVER]}>{soon('Caregiver')}</RequireRole>} />
         <Route path="/family/*" element={<RequireRole roles={[ROLES.FAMILY]}>{soon('Family Caregiver')}</RequireRole>} />
         --- end of portal --- */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Unknown addresses get a "page not found" page rather than a silent
+            redirect, so a broken link is visible as one. */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
   );

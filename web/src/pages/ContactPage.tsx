@@ -76,7 +76,10 @@ export default function ContactPage() {
   }
 
   return (
-    <SiteLayout title="Contact">
+    <SiteLayout
+      title="Contact"
+      description="Get in touch about Welicare, or ask about piloting the app at your care home. For administrators, recreation therapists and families."
+    >
       <article className="section story contact">
         <div className="hero story-hero">
           <h1>Get in touch</h1>
@@ -93,7 +96,10 @@ export default function ContactPage() {
         {sent ? (
           // role="status" so screen readers announce the swap from the form.
           <div className="contact-thanks" role="status">
-            <p>Thank you for your response!</p>
+            {/* Says what happened and what comes next, with the address
+                they gave so they know where to look. */}
+            <p>Thank you, your message was sent.</p>
+            <p className="contact-thanks-detail">We'll reply to {email.trim()} as soon as we can.</p>
             <Link className="button secondary" to="/">Back to the overview</Link>
           </div>
         ) : (

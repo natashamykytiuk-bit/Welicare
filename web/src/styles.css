@@ -11,7 +11,8 @@ h1, h2, h3 { font-family: 'Lora', Georgia, serif; }
 /* A clear focus ring for keyboard users (WCAG 2.4.7), never removed. */
 :focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
 .skip-link { position: absolute; left: -9999px; }
-.skip-link:focus { left: 16px; top: 16px; background: var(--color-surface); padding: 8px 12px; }
+/* min-height: a 44px tap target (WCAG 2.5.5) once it appears on focus. */
+.skip-link:focus { left: 16px; top: 16px; background: var(--color-surface); padding: 8px 12px; min-height: 44px; display: inline-flex; align-items: center; }
 
 /* Splash while auth loads (Splash.tsx). */
 .splash {
@@ -115,7 +116,8 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 /* Nudged down so the links sit level with the "Welicare" wordmark, not
    the leaf above it. */
 .site-header nav { display: flex; gap: 24px; flex: 1; padding-top: 18px; }
-.site-header nav a { color: var(--color-textMuted); text-decoration: none; padding: 8px 0; }
+/* inline-flex + min-height: a full 44px tap target (they measured 43px). */
+.site-header nav a { color: var(--color-textMuted); text-decoration: none; padding: 8px 0; display: inline-flex; align-items: center; min-height: 44px; }
 .site-header nav a:hover { color: var(--color-primary); text-decoration: underline; text-underline-offset: 6px; }
 /* The current page's link (NavLink sets aria-current), drawn like a held hover. */
 .site-header nav a[aria-current="page"] { color: var(--color-primary); font-weight: 700; text-decoration: underline; text-underline-offset: 6px; }
@@ -203,7 +205,9 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 .demo-resident-card { display: flex; flex-direction: column; gap: 2px; background: var(--color-primary); color: var(--color-white); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 10px; font-size: clamp(0.75rem, 1.3vw, 0.95rem); }
 .demo-resident-card strong { font-size: clamp(0.9rem, 1.6vw, 1.15rem); }
 .demo-modes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; flex: 1; }
-.demo-mode { display: flex; align-items: center; justify-content: space-between; gap: 6px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 0 12px; font-weight: 700; font-size: clamp(0.75rem, 1.3vw, 1rem); color: var(--color-textPrimary); }
+/* min-height 44px: these are real links, and on phones the shrinking
+   drawn screen made them only 38px tall. */
+.demo-mode { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 6px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 0 12px; font-weight: 700; font-size: clamp(0.75rem, 1.3vw, 1rem); color: var(--color-textPrimary); }
 .demo-pin { background: var(--color-mistBackground); color: var(--color-primary); border-radius: var(--radius-circular); padding: 2px 8px; font-size: 0.75em; }
 
 /* Drawn screens for the role rows. */
@@ -250,7 +254,13 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 .honeypot { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .contact-thanks { background: var(--color-mistBackground); border-radius: var(--radius-lg); padding: 24px; }
 .contact-thanks p { font-size: 1.3rem; font-weight: 700; margin: 0 0 16px; }
+/* The "we'll reply to…" line under the thank-you: regular weight, and long
+   email addresses wrap instead of pushing the box wider. */
+.contact-thanks p.contact-thanks-detail { font-size: 1.1rem; font-weight: 400; overflow-wrap: anywhere; }
 .site-footer { text-align: center; color: var(--color-textMuted); padding: 0 16px 32px; }
+/* Footer links: centred, wrapping, each a 44px tap target. */
+.site-footer nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 24px; }
+.site-footer nav a { color: var(--color-primary); display: inline-flex; align-items: center; min-height: 44px; text-underline-offset: 4px; }
 
 /* iPad frame and the drawn app screens inside it. */
 .device { margin: 0; }

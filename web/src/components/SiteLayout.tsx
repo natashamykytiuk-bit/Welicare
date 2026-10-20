@@ -7,16 +7,33 @@
 import type { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router';
 
+// Used when a page doesn't pass its own title or description (the Overview).
+const DEFAULT_TITLE = 'Welicare · Personalized activities for people living with dementia';
+const DEFAULT_DESCRIPTION =
+  'Welicare is an iPad app that turns each resident’s life story into personalized music, trivia, conversation and gentle games for people living with dementia.';
+
 // `title` names the page in the browser tab, and it's the first thing a
-// screen reader announces after navigating. React 19 moves <title> into
-// <head> wherever it's rendered.
-export default function SiteLayout({ title, children }: { title?: string; children: ReactNode }) {
+// screen reader announces after navigating. `description` is the page's
+// summary in search results and link previews. React 19 moves <title> and
+// <meta> into <head> wherever they're rendered, so each page gets its own.
+export default function SiteLayout({
+  title,
+  description = DEFAULT_DESCRIPTION,
+  children,
+}: {
+  title?: string;
+  description?: string;
+  children: ReactNode;
+}) {
   return (
     <>
-      <title>{title ? `${title} · Welicare` : 'Welicare'}</title>
+      <title>{title ? `${title} · Welicare` : DEFAULT_TITLE}</title>
+      <meta name="description" content={description} />
       <header className="site-header">
-        {/* The alt text is the link's name, so it says where the link goes. */}
-        <Link to="/"><img src="/welicare-logo.png" alt="Welicare home" height={40} /></Link>
+        {/* The alt text is the link's name, so it says where the link goes.
+            width + height (the file is 773×248) reserve the space before the
+            image loads, so the header doesn't jump. */}
+        <Link to="/"><img src="/welicare-logo.png" alt="Welicare home" width={125} height={40} /></Link>
         {/* NavLink sets aria-current="page" on the active link, which the
             stylesheet uses for the selected look. `end` keeps "Overview"
             from matching every path under "/". */}
@@ -31,9 +48,16 @@ export default function SiteLayout({ title, children }: { title?: string; childr
       <main id="main">{children}</main>
 
       <footer className="site-footer">
+        {/* A second way between pages for people who've scrolled to the end. */}
+        <nav aria-label="Footer">
+          <Link to="/">Overview</Link>
+          <Link to="/our-story">Our Story</Link>
+          <Link to="/contact">Contact</Link>
+        </nav>
         <p>Welicare · Made for dementia care teams and families. Not yet on the App Store.</p>
-        {/* Same notice as the README and LICENSE. */}
-        <p>Copyright © 2026 Natasha Mykytiuk. All rights reserved.</p>
+        {/* Same notice as the README and LICENSE. The year is read at render
+            time so it never goes stale. */}
+        <p>Copyright © {new Date().getFullYear()} Natasha Mykytiuk. All rights reserved.</p>
       </footer>
     </>
   );
