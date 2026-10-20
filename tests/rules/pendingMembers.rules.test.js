@@ -101,6 +101,26 @@ describe('join requests on the user doc', () => {
   });
 });
 
+describe('leaving a facility by re-pointing orgId', () => {
+  // A facility member who made a personal org of their own before joining.
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (admin) => {
+      await setDoc(doc(admin.firestore(), 'organizations', 'myOwnOrg'), {
+        isPersonal: true,
+        createdBy: 'caregiverA',
+      });
+    });
+  });
+
+  it('a member cannot switch their orgId to an org they created', async () => {
+    // That would skip removeOrgMember's cleanup and keep their resident
+    // links in orgA.
+    await assertFails(
+      updateDoc(doc(fsAs('caregiverA'), 'users', 'caregiverA'), { orgId: 'myOwnOrg' })
+    );
+  });
+});
+
 describe('a pending user is not a member', () => {
   it("cannot read the facility's residents or its invite code", async () => {
     await assertFails(getDoc(doc(fsAs('pendingA'), 'residents', 'r1')));

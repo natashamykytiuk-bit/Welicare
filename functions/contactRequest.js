@@ -57,13 +57,17 @@ function validateContactRequest(data) {
 }
 
 // The rate-limit key for a request: a hash of the caller's IP address, so
-// rateLimits/* never holds raw addresses. Behind Google's front end the
-// original client is the FIRST entry of X-Forwarded-For; rawRequest.ip is
-// the fallback (e.g. in the emulator).
+// rateLimits/* never holds raw addresses. The LAST X-Forwarded-For entry,
+// not the first: Google's front end appends the address it actually saw to
+// whatever the caller sent, so the first entry is caller-chosen — a bot
+// sending a made-up one per request would get a fresh limit every time and
+// could use up the shared daily total, shutting the form for everyone. Same
+// reasoning as resolveSignInEmail in index.js. rawRequest.ip is the
+// fallback (e.g. in the emulator).
 function clientKey(rawRequest) {
   const forwarded = rawRequest?.headers?.['x-forwarded-for'];
   const ip =
-    (typeof forwarded === 'string' && forwarded.split(',')[0].trim()) ||
+    (typeof forwarded === 'string' && forwarded.split(',').pop().trim()) ||
     rawRequest?.ip ||
     'unknown';
   return createHash('sha256').update(`contact:${ip}`).digest('hex').slice(0, 32);

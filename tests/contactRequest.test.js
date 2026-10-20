@@ -6,7 +6,7 @@
 //   role. These are the checks firestore.rules used to make before the form
 //   moved to a Cloud Function.
 // - Extra fields never reach Firestore: only the known ones are returned.
-// - clientKey groups requests by the caller's IP (the first
+// - clientKey groups requests by the caller's IP (the last
 //   X-Forwarded-For entry) without exposing the address itself.
 
 import { clientKey, validateContactRequest } from '../functions/contactRequest';
@@ -58,9 +58,9 @@ describe('validateContactRequest', () => {
 });
 
 describe('clientKey', () => {
-  test('uses the first X-Forwarded-For address, so proxies after it don’t matter', () => {
-    const a = clientKey({ headers: { 'x-forwarded-for': '203.0.113.5, 10.0.0.1' } });
-    const b = clientKey({ headers: { 'x-forwarded-for': '203.0.113.5, 10.0.0.2' } });
+  test('uses the last X-Forwarded-For address, so a made-up first one doesn’t matter', () => {
+    const a = clientKey({ headers: { 'x-forwarded-for': '1.1.1.1, 203.0.113.5' } });
+    const b = clientKey({ headers: { 'x-forwarded-for': '2.2.2.2, 203.0.113.5' } });
     expect(a).toBe(b);
   });
 

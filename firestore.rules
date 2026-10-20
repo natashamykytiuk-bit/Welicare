@@ -294,6 +294,16 @@ service cloud.firestore {
           // (Clearing your own orgId used to be allowed, which let people
           // leave a facility and join another while keeping access. Only
           // the server clears it now — removeOrgMember, deleteOrganization.)
+          //
+          // Only from NO orgId. Otherwise a member of a facility who had
+          // made themselves a personal org earlier (any role may — see the
+          // organizations create rule) could re-point orgId at it: that
+          // leaves the facility without removeOrgMember's cleanup, so they
+          // keep their assignedCaregivers links to its residents, unseen by
+          // its administrator, and are free to join another facility too.
+          // Setting it the first time (createPersonalOrganization at
+          // sign-up) is the only client path that needs this.
+          resource.data.get('orgId', null) == null &&
           getAfter(/databases/$(database)/documents/organizations/$(request.resource.data.orgId)).data.createdBy == request.auth.uid
         ) &&
         // A join request (pendingOrgId/pendingSince) is recorded only by the
