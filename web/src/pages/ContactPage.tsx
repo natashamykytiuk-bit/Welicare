@@ -79,18 +79,18 @@ export default function ContactPage() {
           <h1>Get in touch</h1>
         </div>
         <p className="lead">
-          Interested in learning more about Welicare, or in testing it at your site? I'd love to hear
+          Interested in learning more about Welicare, or in testing it at your site? We would love to hear
           from you, whether you're a care home administrator, a recreation therapist, or a family
           member.
         </p>
         <p className="note-box">
-          Welicare is not yet on the App Store. I'm currently looking for care homes to pilot the app.
+          Welicare is not yet on the App Store. We are currently looking for pilot sites.
         </p>
 
         {sent ? (
           // role="status" so screen readers announce the swap from the form.
           <div className="contact-thanks" role="status">
-            <p>Thanks! I'll get back to you soon.</p>
+            <p>Thank you for your response!</p>
             <Link className="button secondary" to="/">Back to the overview</Link>
           </div>
         ) : (
