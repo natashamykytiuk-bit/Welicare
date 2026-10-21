@@ -96,7 +96,7 @@ export default function ContactPage() {
             before the form so it isn't missed, and kept after sending. */}
         <p className="contact-email">
           Prefer email? Write to us at{' '}
-          <a href="mailto:contact@welicare.ca">contact@welicare.ca</a>, or use the form below.
+          <a href="mailto:contact@welicare.ca">contact@welicare.ca</a>.
         </p>
 
         {sent ? (
