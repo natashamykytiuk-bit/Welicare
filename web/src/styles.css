@@ -177,7 +177,7 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 .section > h2 { text-wrap: balance; font-size: clamp(1.6rem, 3vw, 2.25rem); text-align: center; margin: 0 0 32px; }
 /* One-line summary under a section heading. The negative top margin pulls it
    up against the h2 (whose own margin-bottom spaces it from the content). */
-.section-dek { text-wrap: balance; text-align: center; color: var(--color-textMuted); font-size: 1.1rem; max-width: 46rem; margin: -20px auto 32px; }
+.section-dek { text-wrap: balance; text-align: center; color: var(--color-textMuted); font-size: 1.2rem; max-width: 60rem; margin: -20px auto 32px; }
 
 .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
 .feature {
@@ -225,7 +225,7 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
   border-radius: 0 0 var(--radius-lg) var(--radius-lg); padding: 32px;
 }
 .role h3 { font-family: 'Lora', Georgia, serif; font-size: clamp(1.4rem, 2.4vw, 1.9rem); line-height: 1.25; margin: 0 0 12px; color: var(--color-primaryDark); }
-.role-summary { font-size: 1.15rem; color: var(--color-textMuted); margin: 0 0 16px; }
+.role-summary { font-size: 1.2rem; color: var(--color-textMuted); margin: 0 0 16px; }
 /* Ticks instead of bullets, drawn with borders so they take the theme colour. */
 .role-points { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .role-points li { position: relative; padding-left: 32px; }
