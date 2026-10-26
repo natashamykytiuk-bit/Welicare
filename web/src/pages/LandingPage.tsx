@@ -470,7 +470,7 @@ export default function LandingPage() {
       <section id="features" className="section">
         <h2>Everything a visit needs, prepared in advance</h2>
         <p className="section-dek">
-          Each resident’s life story becomes music, trivia and conversation made just for them.
+          Personalized trivia and conversation from each resident’s life story, with music and videos chosen for them.
         </p>
         <div className="feature-grid">
           {FEATURES.map((f) => (
