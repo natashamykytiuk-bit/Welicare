@@ -10,38 +10,64 @@ import type { KeyboardEvent, ReactNode } from 'react';
 import { Link } from 'react-router';
 import SiteLayout from '../components/SiteLayout';
 
+// Line icons for the feature badges (24×24, drawn with `currentColor` so the
+// badge's accent colour tints them). Decorative only: the card's heading
+// already says what each one is.
+const FEATURE_ICONS = {
+  // A person: the resident whose life story is collected.
+  profile: <><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" /></>,
+  // A sparkle: AI-made content.
+  sparkle: <><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /><path d="M19 16v4M17 18h4" /></>,
+  // A music note.
+  music: <><path d="M9 18V5l11-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="17" cy="16" r="3" /></>,
+  // A padlock: Resident Mode's PIN lock.
+  lock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
+  // A building: the care facility.
+  building: <><path d="M4 21V5l8-3 8 3v16" /><path d="M2 21h20M9 9h2M13 9h2M9 13h2M13 13h2M10 21v-4h4v4" /></>,
+  // An eye: legibility and low vision.
+  eye: <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>,
+} as const;
+
 // Main features, following the README's "Main Features" list. Each card's
-// accent is the matching activity colour from the app's theme.
+// accent is an activity colour from the app's theme, picked so no two
+// neighbouring cards (across a row or down a column of the 3×2 grid) share
+// a hue — the brown and terracotta pair sit in opposite corners.
 const FEATURES = [
   {
     title: 'Life-story profiles',
     body: 'A guided questionnaire, filled in with family or the resident, collects their preferred name, hometown, hobbies, and favourite music.',
     accent: 'photoAlbum',
+    icon: 'profile',
   },
   {
     title: 'Personalized with AI',
     body: 'Each profile becomes trivia questions, conversation starters, activity ideas and music and movie suggestions about that person’s own life.',
-    accent: 'trivia',
+    accent: 'meditation',
+    icon: 'sparkle',
   },
   {
     title: 'Curated music & video',
     body: 'A starter set of 80+ music videos, plus a shared library staff and family build from YouTube. Residents only browse what’s been chosen for them.',
     accent: 'music',
+    icon: 'music',
   },
   {
     title: 'A Resident Mode to hand over',
     body: 'Big, simple activity tiles with a PIN lock, so a resident can explore on their own.',
     accent: 'games',
+    icon: 'lock',
   },
   {
     title: 'Organizations & approvals',
     body: 'Caregivers join with an invite code, and administrators approve each request. Residents and music libraries belong to the facility.',
     accent: 'conversation',
+    icon: 'building',
   },
   {
     title: 'Designed for older adults',
     body: 'Atkinson Hyperlegible type made for low vision, a high-contrast palette, and labels on every control for VoiceOver and TalkBack.',
-    accent: 'meditation',
+    accent: 'trivia',
+    icon: 'eye',
   },
 ] as const;
 
@@ -443,32 +469,49 @@ export default function LandingPage() {
 
       <section id="features" className="section">
         <h2>Everything a visit needs, prepared in advance</h2>
+        <p className="section-dek">
+          Each resident’s life story becomes music, trivia and conversation made just for them.
+        </p>
         <div className="feature-grid">
           {FEATURES.map((f) => (
-            <article key={f.title} className="feature" style={{ borderTopColor: `var(--act-${f.accent}-icon)` }}>
+            <article key={f.title} className="feature">
+              <span
+                className="feature-badge"
+                aria-hidden="true"
+                style={{ background: `var(--act-${f.accent}-bg)`, color: `var(--act-${f.accent}-icon)` }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  {FEATURE_ICONS[f.icon]}
+                </svg>
+              </span>
               <h3>{f.title}</h3>
               <p>{f.body}</p>
             </article>
           ))}
         </div>
+        {/* The two demos sit here, right under the features they show, rather
+            than in a separate unlabelled strip further down the page. */}
+        <div className="showcase">
+          <DeviceFrame caption="Trivia written from the resident’s own life">
+            <TriviaDemo />
+          </DeviceFrame>
+          <DeviceFrame caption="Songs from their era, ready to play">
+            <MusicDemo />
+          </DeviceFrame>
+        </div>
       </section>
 
       <section id="roles" className="section roles" aria-labelledby="roles-heading">
         <h2 id="roles-heading">A mode for everyone in the circle of care</h2>
+        <p className="section-dek">
+          Residents, caregivers, family, volunteers and administrators each get their own view.
+        </p>
         <RoleTabs />
-      </section>
-
-      <section className="section showcase">
-        <DeviceFrame caption="Trivia written from the resident’s own life">
-          <TriviaDemo />
-        </DeviceFrame>
-        <DeviceFrame caption="Songs from their era, ready to play">
-          <MusicDemo />
-        </DeviceFrame>
       </section>
 
       <section id="how" className="section">
         <h2>How it works</h2>
+        <p className="section-dek">Three steps from a resident’s story to a shared moment.</p>
         <ol className="steps">
           {STEPS.map(([title, body]) => (
             <li key={title}>

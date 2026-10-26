@@ -166,6 +166,14 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 .hero {
   display: grid; grid-template-columns: 1.1fr 1fr; gap: 48px; align-items: center;
   max-width: 1200px; margin: 0 auto; padding: 32px 16px 24px;
+  /* Fill the first screen (minus the ~94px header) so the next section's
+     heading doesn't peek up at the bottom of the hero. align-content: start
+     keeps the content near the top (the spare height falls below it) so the
+     headline isn't pushed down, while align-items: center still lines the
+     text and iPad columns up with each other. svh keeps it stable on mobile
+     as the browser's address bar shows and hides. */
+  min-height: calc(100svh - 96px);
+  align-content: start;
 }
 /* balance: even line lengths, and the non-breaking hyphens in the copy
    keep "one-on-one" on one line. */
@@ -175,16 +183,28 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 
 .section { max-width: 1200px; margin: 0 auto; padding: 48px 16px; }
 .section > h2 { text-wrap: balance; font-size: clamp(1.6rem, 3vw, 2.25rem); text-align: center; margin: 0 0 32px; }
+/* One-line summary under a section heading. The negative top margin pulls it
+   up against the h2 (whose own margin-bottom spaces it from the content). */
+.section-dek { text-wrap: balance; text-align: center; color: var(--color-textMuted); font-size: 1.1rem; max-width: 46rem; margin: -20px auto 32px; }
 
 .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
 .feature {
   background: var(--color-surface); border: 1px solid var(--color-border);
-  border-top: 6px solid; border-radius: var(--radius-lg); padding: 24px;
+  border-radius: var(--radius-lg); padding: 24px;
 }
+/* Tinted icon square above each feature heading; its colours come inline
+   from the card's activity accent (bg tint + darker icon stroke). */
+.feature-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; border-radius: var(--radius-sm); margin-bottom: 16px;
+}
+.feature-badge svg { width: 26px; height: 26px; }
 .feature h3 { margin: 0 0 8px; }
 .feature p { margin: 0; color: var(--color-textMuted); }
 
 .showcase { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+/* The showcase demos now live inside the Features section, under the grid. */
+.feature-grid + .showcase { margin-top: 40px; }
 
 /* Role tabs (RoleTabs): a browser-like row of modes, and the selected
    one's panel underneath. The row scrolls sideways on phones rather than
