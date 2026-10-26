@@ -22,7 +22,7 @@ const ROLES = [
   'Care home administrator',
   'Staff caregiver / recreation therapist',
   'Family member',
-  'Other',
+  'Other (care aide, nurse, researcher…)',
 ];
 
 // Max lengths, matching the form's maxLength attributes.

@@ -186,11 +186,32 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 
 .showcase { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
 
-/* Role sections: a drawn screen beside what each person gets. Every other
-   row puts the screen on the right so the page doesn't read as one column. */
-.role { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; margin-bottom: 64px; }
-.role:nth-of-type(even) .device { order: 2; }
-.role-label { display: inline-block; margin: 0 0 12px; padding: 6px 14px; border-radius: var(--radius-circular); font-weight: 700; }
+/* Role tabs (RoleTabs): a browser-like row of modes, and the selected
+   one's panel underneath. The row scrolls sideways on phones rather than
+   wrapping, so the modes always read as one line. */
+.role-tabs {
+  display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
+  border-bottom: 1px solid var(--color-border); padding: 0 8px;
+}
+.role-tabs::-webkit-scrollbar { display: none; }
+/* Unselected tabs are quiet; the selected one takes its mode colour and
+   sits over the row's bottom border so it joins the panel, like a browser tab.
+   min-height 48px: a full tap target. */
+.role-tab {
+  flex-shrink: 0; min-height: 48px; padding: 0 18px; margin-bottom: -1px;
+  color: var(--color-textMuted); background: var(--color-mistBackground);
+  border: 1px solid var(--color-border); border-bottom: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0; white-space: nowrap;
+}
+.role-tab:hover { background: var(--color-surface); color: var(--color-textPrimary); }
+.role-tab[aria-selected="true"] { font-weight: 700; border-bottom: 1px solid transparent; }
+/* The panel: screen beside the writeup on every screen size. The top rule
+   takes the selected mode's colour (set inline). */
+.role {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-top: 4px solid;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg); padding: 32px;
+}
 .role h3 { font-family: 'Lora', Georgia, serif; font-size: clamp(1.4rem, 2.4vw, 1.9rem); line-height: 1.25; margin: 0 0 12px; color: var(--color-primaryDark); }
 .role-summary { font-size: 1.15rem; color: var(--color-textMuted); margin: 0 0 16px; }
 /* Ticks instead of bullets, drawn with borders so they take the theme colour. */
@@ -291,10 +312,29 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
   .story-layout { grid-template-columns: minmax(0, 1fr); }
   .founder { grid-column: 1; grid-row: 2; width: min(16rem, 70%); justify-self: center; margin-bottom: 32px; }
   .story-layout .story { grid-row: 3; }
-  .hero, .showcase, .steps, .role { grid-template-columns: 1fr; }
-  /* Stacked: always the screen first, then the text. */
-  .role:nth-of-type(even) .device { order: 0; }
-  .role { gap: 24px; }
+  .hero, .showcase { grid-template-columns: 1fr; }
+  /* Still side by side, but the screen narrower so the text has room. */
+  .role { grid-template-columns: 2fr 3fr; gap: 16px; padding: 16px 12px; align-items: start; }
+  .role h3 { font-size: 1.15rem; }
+  .role-summary { font-size: 1rem; }
+  .role-points { gap: 8px; font-size: 0.95rem; }
+  .role .device-bezel { padding: 6px; border-radius: 14px; }
+  .role .device-screen { border-radius: 9px; }
+  .role .device figcaption { font-size: 0.8rem; }
+  /* Each drawn screen packs a lot into a small frame here, so its text shrinks too. */
+  .role .demo { padding: 5%; font-size: 0.55rem; }
+  .role .demo-title { font-size: 0.7rem; margin-bottom: 4px; }
+  .role .demo-kicker { margin-bottom: 2px; }
+  .role .demo-tiles, .role .demo-list, .role .demo-photos { gap: 3px; }
+  .role .demo-tile, .role .demo-list > span, .role .demo-pill { font-size: 0.5rem; padding: 2px 4px; gap: 3px; }
+  .role .demo-tile svg { width: 10px; height: 10px; }
+  .role .demo-photos { margin-bottom: 4px; }
+  /* How it works: a compact numbered list, the number beside each step
+     instead of above it in a tall card. */
+  .steps { grid-template-columns: 1fr; gap: 12px; }
+  .steps li { display: grid; grid-template-columns: 44px 1fr; column-gap: 16px; align-items: center; padding: 16px; }
+  .steps li::before { grid-row: span 2; }
+  .steps h3 { margin: 0; font-size: 1.1rem; }
   .hero { padding-top: 24px; }
   /* The nav is the only way between pages, so it stays: it wraps onto its
      own full-width row under the logo and button. */
@@ -310,4 +350,5 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 a.demo-resident-card, a.demo-mode { text-decoration: none; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; }
 a.demo-resident-card:hover, a.demo-mode:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }
 a.demo-resident-card:focus-visible, a.demo-mode:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
+/* The tab buttons carry the role ids the hero links to. */
 #residents, #caregivers, #family, #volunteers, #administrators { scroll-margin-top: 16px; }

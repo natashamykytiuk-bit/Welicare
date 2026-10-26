@@ -17,7 +17,7 @@ const ROLES = [
   'Care home administrator',
   'Staff caregiver / recreation therapist',
   'Family member',
-  'Other',
+  'Other (care aide, nurse, researcher…)',
 ] as const;
 
 // Max lengths, also enforced by the function.
@@ -27,7 +27,9 @@ export default function ContactPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [organization, setOrganization] = useState('');
-  const [role, setRole] = useState<string>(ROLES[0]);
+  // Starts empty so the dropdown shows "Select one…" rather than silently
+  // defaulting to the first role — see the placeholder <option> below.
+  const [role, setRole] = useState<string>('');
   const [message, setMessage] = useState('');
   const [wantsPilot, setWantsPilot] = useState(false);
   // Honeypot: hidden from people, but simple bots fill in every field.
@@ -53,8 +55,8 @@ export default function ContactPage() {
     };
     // `required` lets whitespace-only answers through; the function would
     // reject them, so say so here instead of showing a generic failure.
-    if (!clean.name || !clean.email || !clean.message) {
-      setError('Please fill in your name, email and message.');
+    if (!clean.name || !clean.email || !clean.message || !role) {
+      setError('Please fill in your name, email, role and message.');
       return;
     }
     setSending(true);
@@ -123,7 +125,11 @@ export default function ContactPage() {
               value={organization} onChange={(e) => setOrganization(e.target.value)} />
 
             <label htmlFor="c-role">I am a…</label>
-            <select id="c-role" name="role" value={role} onChange={(e) => setRole(e.target.value)}>
+            {/* Placeholder is the empty default; `required` plus the disabled
+                empty option force a real choice, so no one is mislabelled.
+                The function also rejects any role not in ROLES. */}
+            <select id="c-role" name="role" required value={role} onChange={(e) => setRole(e.target.value)}>
+              <option value="" disabled>Select one…</option>
               {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
 

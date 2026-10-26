@@ -5,7 +5,8 @@
 // The "screenshots" are drawn in HTML/CSS (DeviceFrame + the *Demo
 // components) rather than images, so they stay crisp, use the shared theme
 // colours and never go stale with a real resident's photo or name in them.
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { Link } from 'react-router';
 import SiteLayout from '../components/SiteLayout';
 
@@ -238,9 +239,9 @@ function VolunteerHoursDemo() {
   );
 }
 
-// One section per role: residents, caregivers, family, volunteers, administrators. Each row is a drawn
-// screen next to what that person gets, alternating sides on wide screens
-// (see .role in styles.css). The points follow the README.
+// One tab per role: residents, caregivers, family, volunteers, administrators.
+// Each panel is a drawn screen beside what that person gets (see RoleTabs and
+// .role in styles.css). The points follow the README.
 const ROLES = [
   {
     id: 'residents',
@@ -319,6 +320,104 @@ const ROLES = [
   },
 ] as const;
 
+type RoleId = (typeof ROLES)[number]['id'];
+
+// Reads a role id from the URL hash (e.g. "#family"), so the hero's mode
+// buttons and shared links can open the matching tab. Anything else is null.
+function roleFromHash(): RoleId | null {
+  const id = window.location.hash.slice(1);
+  return ROLES.some((r) => r.id === id) ? (id as RoleId) : null;
+}
+
+// The roles section as browser-style tabs: one line of modes, and the
+// selected one's screen and writeup in a panel underneath. Showing one role
+// at a time keeps the page short on phones (five stacked rows was most of
+// the scroll). Follows the WAI-ARIA tabs pattern: arrow keys move between
+// tabs, and only the selected tab is in the Tab order.
+function RoleTabs() {
+  const [active, setActive] = useState<RoleId>(() => roleFromHash() ?? 'residents');
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // The hero's mode links change the hash (#caregivers, ...). The tab
+  // buttons carry those ids, so the browser scrolls to the tab row, and this
+  // listener selects the matching tab.
+  useEffect(() => {
+    const onHash = () => {
+      const r = roleFromHash();
+      if (r) setActive(r);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  // replaceState rather than setting location.hash: it keeps the URL
+  // shareable without making the browser jump the page to the tab.
+  const select = (id: RoleId) => {
+    setActive(id);
+    window.history.replaceState(null, '', `#${id}`);
+  };
+
+  // Left/Right (and Home/End) move selection and focus along the tab row.
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const i = ROLES.findIndex((r) => r.id === active);
+    const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: ROLES.length - 1 }[e.key];
+    if (next === undefined) return;
+    e.preventDefault();
+    const id = ROLES[(next + ROLES.length) % ROLES.length].id;
+    select(id);
+    tabRefs.current[id]?.focus();
+  };
+
+  const role = ROLES.find((r) => r.id === active) ?? ROLES[0];
+  const { Demo } = role;
+  return (
+    <>
+      <div className="role-tabs" role="tablist" aria-labelledby="roles-heading" onKeyDown={onKeyDown}>
+        {ROLES.map(({ id, label, accent }) => {
+          const selected = id === active;
+          return (
+            <button
+              key={id}
+              id={id}
+              ref={(el) => { tabRefs.current[id] = el; }}
+              type="button"
+              role="tab"
+              className="role-tab"
+              aria-selected={selected}
+              aria-controls="role-panel"
+              tabIndex={selected ? 0 : -1}
+              // The selected tab takes its mode's pale tile colour, the same
+              // pair the app uses, and the panel below matches it.
+              style={selected ? { background: `var(--act-${accent}-bg)`, color: `var(--act-${accent}-icon)` } : undefined}
+              onClick={() => select(id)}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      <article
+        id="role-panel"
+        className="role"
+        role="tabpanel"
+        aria-labelledby={role.id}
+        style={{ borderTopColor: `var(--act-${role.accent}-icon)` }}
+      >
+        <DeviceFrame caption={role.caption}>
+          <Demo />
+        </DeviceFrame>
+        <div className="role-copy">
+          <h3>{role.title}</h3>
+          <p className="role-summary">{role.summary}</p>
+          <ul className="role-points">
+            {role.points.map((pt) => <li key={pt}>{pt}</li>)}
+          </ul>
+        </div>
+      </article>
+    </>
+  );
+}
+
 export default function LandingPage() {
   return (
     <SiteLayout>
@@ -356,25 +455,7 @@ export default function LandingPage() {
 
       <section id="roles" className="section roles" aria-labelledby="roles-heading">
         <h2 id="roles-heading">A mode for everyone in the circle of care</h2>
-        {ROLES.map(({ id, label, accent, title, summary, points, caption, Demo }) => (
-          <article key={id} id={id} className="role" aria-labelledby={`${id}-title`}>
-            <DeviceFrame caption={caption}>
-              <Demo />
-            </DeviceFrame>
-            <div className="role-copy">
-              {/* The pill uses an activity pair (dark icon colour on its pale
-                  tile), the same contrast the app uses on its tiles. */}
-              <p className="role-label" style={{ background: `var(--act-${accent}-bg)`, color: `var(--act-${accent}-icon)` }}>
-                {label}
-              </p>
-              <h3 id={`${id}-title`}>{title}</h3>
-              <p className="role-summary">{summary}</p>
-              <ul className="role-points">
-                {points.map((pt) => <li key={pt}>{pt}</li>)}
-              </ul>
-            </div>
-          </article>
-        ))}
+        <RoleTabs />
       </section>
 
       <section className="section showcase">
