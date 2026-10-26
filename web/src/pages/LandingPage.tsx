@@ -41,7 +41,7 @@ const FEATURES = [
   },
   {
     title: 'Personalized with AI',
-    body: 'Each profile becomes trivia questions, conversation starters, activity ideas and music and movie suggestions about that person’s own life.',
+    body: 'Each profile becomes trivia questions, conversation starters and activity ideas about that person’s own life, plus suggestions of real songs and movies they’re likely to know.',
     accent: 'meditation',
     icon: 'sparkle',
   },
@@ -292,7 +292,7 @@ const ROLES = [
     summary: 'For recreation therapists and staff caregivers: everyone in your facility, and ideas made for each of them.',
     points: [
       'See and update the profiles of every resident in your facility',
-      'AI activity ideas, conversation starters and music and movie suggestions from each life story',
+      'AI activity ideas and conversation starters from each life story, plus suggestions of real songs and movies to add',
       'Build the facility’s music and video library, and choose what each resident can see',
       'Track engagement across residents with overall stats',
     ],
@@ -451,9 +451,9 @@ export default function LandingPage() {
         <div className="hero-copy">
           <h1>Meaningful one&#8209;on&#8209;one time for people living with dementia</h1>
           <p className="lead">
-            Welicare is an iPad app that turns each resident’s life story into personalized
-            music, trivia, conversation and gentle games, so every visit feels like it was made
-            just for them.
+            Welicare is an iPad app that uses each resident’s life story to personalize trivia
+            and conversation, line up the songs and videos they love, and offer gentle games, so
+            every visit feels like it was made just for them.
           </p>
           <div className="hero-actions">
             <a className="button" href="#features">See what it does</a>

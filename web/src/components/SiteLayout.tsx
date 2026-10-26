@@ -10,7 +10,7 @@ import { Link, NavLink } from 'react-router';
 // Used when a page doesn't pass its own title or description (the Overview).
 const DEFAULT_TITLE = 'Welicare · Personalized activities for people living with dementia';
 const DEFAULT_DESCRIPTION =
-  'Welicare is an iPad app that turns each resident’s life story into personalized music, trivia, conversation and gentle games for people living with dementia.';
+  'Welicare is an iPad app that uses each resident’s life story to personalize trivia, conversation, gentle games and a library of real songs and videos for people living with dementia.';
 
 // `title` names the page in the browser tab, and it's the first thing a
 // screen reader announces after navigating. `description` is the page's
