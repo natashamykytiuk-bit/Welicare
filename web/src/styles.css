@@ -203,26 +203,26 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
    wrapping, so the modes always read as one line. */
 .role-tabs {
   display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
-  border-bottom: 1px solid var(--color-border); padding: 0 8px;
+  padding: 0 8px; margin-bottom: 16px;
 }
 .role-tabs::-webkit-scrollbar { display: none; }
-/* Unselected tabs are quiet; the selected one takes its mode colour and
-   sits over the row's bottom border so it joins the panel, like a browser tab.
-   min-height 48px: a full tap target. */
+/* Tabs are plain words, not boxes. The selected one goes bold, takes its
+   mode colour (set inline) and gets an underline in that colour; the
+   transparent underline on the rest keeps every word the same height so
+   nothing shifts when the selection moves. min-height 48px: a full tap target. */
 .role-tab {
-  flex-shrink: 0; min-height: 48px; padding: 0 18px; margin-bottom: -1px;
-  color: var(--color-textMuted); background: var(--color-mistBackground);
-  border: 1px solid var(--color-border); border-bottom: 0;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0; white-space: nowrap;
+  flex-shrink: 0; min-height: 48px; padding: 0 14px;
+  color: var(--color-textMuted); background: none; border: 0;
+  border-bottom: 3px solid transparent; border-radius: 0; white-space: nowrap; cursor: pointer;
 }
-.role-tab:hover { background: var(--color-surface); color: var(--color-textPrimary); }
-.role-tab[aria-selected="true"] { font-weight: 700; border-bottom: 1px solid transparent; }
-/* The panel: screen beside the writeup on every screen size. The top rule
-   takes the selected mode's colour (set inline). */
+.role-tab:hover { color: var(--color-textPrimary); }
+.role-tab[aria-selected="true"] { font-weight: 700; border-bottom-color: currentColor; }
+/* The panel: screen beside the writeup on every screen size. It's a
+   standalone card now that the tabs no longer join onto it. */
 .role {
   display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center;
-  background: var(--color-surface); border: 1px solid var(--color-border); border-top: 4px solid;
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg); padding: 32px;
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); padding: 32px;
 }
 .role h3 { font-family: 'Lora', Georgia, serif; font-size: clamp(1.4rem, 2.4vw, 1.9rem); line-height: 1.25; margin: 0 0 12px; color: var(--color-primaryDark); }
 .role-summary { font-size: 1.2rem; color: var(--color-textMuted); margin: 0 0 16px; }

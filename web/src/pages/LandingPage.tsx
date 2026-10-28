@@ -412,9 +412,9 @@ function RoleTabs() {
               aria-selected={selected}
               aria-controls="role-panel"
               tabIndex={selected ? 0 : -1}
-              // The selected tab takes its mode's pale tile colour, the same
-              // pair the app uses, and the panel below matches it.
-              style={selected ? { background: `var(--act-${accent}-bg)`, color: `var(--act-${accent}-icon)` } : undefined}
+              // The selected word takes its mode's accent colour (the app's
+              // activity icon colour); its underline follows via currentColor.
+              style={selected ? { color: `var(--act-${accent}-icon)` } : undefined}
               onClick={() => select(id)}
             >
               {label}
@@ -427,7 +427,6 @@ function RoleTabs() {
         className="role"
         role="tabpanel"
         aria-labelledby={role.id}
-        style={{ borderTopColor: `var(--act-${role.accent}-icon)` }}
       >
         <DeviceFrame caption={role.caption}>
           <Demo />
