@@ -215,7 +215,12 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
   color: var(--color-textMuted); background: none; border: 0;
   border-bottom: 3px solid transparent; border-radius: 0; white-space: nowrap; cursor: pointer;
 }
-.role-tab:hover { color: var(--color-textPrimary); }
+/* background: none restated so the global button:hover fill (dark green,
+   higher specificity than .role-tab) can't paint behind the dark text. */
+.role-tab:hover { color: var(--color-textPrimary); background: none; }
+/* Draw the focus ring inside the word: the row's overflow-x scroll clips an
+   outside ring down to stray vertical bars. */
+.role-tab:focus-visible { outline-offset: -3px; }
 .role-tab[aria-selected="true"] { font-weight: 700; border-bottom-color: currentColor; }
 /* The panel: screen beside the writeup on every screen size. It's a
    standalone card now that the tabs no longer join onto it. */
