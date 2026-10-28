@@ -332,7 +332,9 @@ const ROLES = [
   {
     id: 'administrators',
     label: 'Administrators',
-    accent: 'trivia',
+    // Purple rather than trivia's terracotta, which reads as the same brown
+    // as Family members' photoAlbum accent.
+    accent: 'meditation',
     title: 'Your facility, set up and secure',
     summary: 'Administrators decide who joins the facility and keep its settings in order.',
     points: [
