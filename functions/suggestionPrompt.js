@@ -14,7 +14,10 @@
 //   v3: text written by families and staff is fenced in <resident_profile>
 //       and <never_mention> tags and declared to be information, not
 //       instructions (see "Fencing" below).
-const PROMPT_VERSION = 'v3';
+//   v4: conversation briefs follow the Alzheimer Society of B.C.'s
+//       conversation guidance (warm lead-ins, happy feelings and favourites,
+//       letting a person retell a story).
+const PROMPT_VERSION = 'v4';
 
 // The kinds of brief the app can ask for, and what the user message asks the
 // model to produce for each. Matches the classifier rubric's categories:
@@ -22,7 +25,9 @@ const PROMPT_VERSION = 'v3';
 // opinion questions inside a conversation brief, never recall).
 const KIND_PHRASES = {
   conversation:
-    'Give conversation themes. Each "try" line is one thing staff could say to start or gently keep a conversation going.',
+    // The "[...]" option exists because the model knows nothing about the
+    // staff member, so it must leave their own story for them to fill in.
+    'Give conversation themes. Each "try" line is one thing staff could say to start or gently keep a conversation going. Favour what the person loves, is proud of or feels happy about. A try line may open with one short warm lead-in before its question: a detail from the profile ("I hear you grew up on a farm."), or a blank for staff to share something of their own ("I had a pet [animal] when I was little."). Never invent facts about the staff member. Include one tip reminding staff to enjoy a story again if the person has told it before.',
   activities:
     'Give simple activities staff can run in a few minutes with little or no equipment. Each "try" line is one step, or one thing to say while doing it.',
 };
@@ -298,7 +303,7 @@ function buildSystemPrompt() {
     'The resident may be at any stage of dementia. Pitch everything so it works for someone who finds talking and remembering hard; staff can make it richer if the person is able.',
     '',
     'Every "try" line (something to say, or one step to do) must:',
-    '- Be short and simple: one idea in one short sentence. No lists of questions, no "and then", no hypotheticals ("If you could...").',
+    '- Be short and simple: one idea in one short sentence, plus a short lead-in if the request allows one. No lists of questions, no "and then", no hypotheticals ("If you could...").',
     '- Be impossible to answer wrong. Invite a reaction, an opinion, a choice or a sense ("Which do you like better, the red or the blue?", "That smells like fresh bread, doesn\'t it?"). Never ask the person to remember a name, date, place or fact ("Do you remember...", "What was the name of...").',
     '- Speak adult to adult, warmly and respectfully. No baby talk, no childish tasks, no over-the-top praise.',
     '- Build on what the person enjoys or is good at.',
