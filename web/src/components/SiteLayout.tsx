@@ -1,4 +1,4 @@
-// Shared frame for the public pages (Overview, Our Story and Contact): logo,
+// Shared frame for the public pages (Home, Our Story and Contact): logo,
 // page nav and footer. There's no Sign in button for now: the site's job is
 // showing what Welicare does and collecting pilot interest. The portal
 // routes (/login, /admin, …) still exist in App.tsx, just unlinked. The nav
@@ -7,10 +7,10 @@
 import type { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router';
 
-// Used when a page doesn't pass its own title or description (the Overview).
-const DEFAULT_TITLE = 'Welicare · Personalized activities for people living with dementia';
+// Used when a page doesn't pass its own title or description (Home).
+const DEFAULT_TITLE = 'Welicare · One-on-one sessions for people living with dementia';
 const DEFAULT_DESCRIPTION =
-  'Welicare is an iPad app that uses each resident’s life story to personalize trivia, conversation, gentle games and a library of real songs and videos for people living with dementia.';
+  'Welicare is an iPad app for a caregiver or family member to use one-on-one with a person living with dementia, with music, photos, conversation and gentle games shaped by their life story.';
 
 // `title` names the page in the browser tab, and it's the first thing a
 // screen reader announces after navigating. `description` is the page's
@@ -36,9 +36,9 @@ export default function SiteLayout({
         <Link to="/"><img src="/welicare-logo.png" alt="Welicare home" width={125} height={40} /></Link>
         {/* NavLink sets aria-current="page" on the active link, which the
             stylesheet uses for the selected look. `end` keeps "Overview"
-            from matching every path under "/". */}
+            from matching every path under "/" (so "Home" isn't always selected). */}
         <nav aria-label="Site">
-          <NavLink to="/" end>Overview</NavLink>
+          <NavLink to="/" end>Home</NavLink>
           <NavLink to="/our-story">Our Story</NavLink>
           <NavLink to="/contact">Contact</NavLink>
         </nav>
@@ -50,7 +50,7 @@ export default function SiteLayout({
       <footer className="site-footer">
         {/* A second way between pages for people who've scrolled to the end. */}
         <nav aria-label="Footer">
-          <Link to="/">Overview</Link>
+          <Link to="/">Home</Link>
           <Link to="/our-story">Our Story</Link>
           <Link to="/contact">Contact</Link>
         </nav>

@@ -269,6 +269,7 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 
 .cta { text-align: center; background: var(--color-primary); color: var(--color-white); border-radius: var(--radius-lg); margin-bottom: 48px; width: calc(100% - 32px); }
 .cta h2 { margin-bottom: 8px !important; }
+.cta-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 .cta a.button { color: var(--color-primary); background: var(--color-surface); border-color: var(--color-surface); }
 
 /* Contact page: shares the Our Story text column (.story). */
@@ -368,4 +369,4 @@ a.demo-resident-card, a.demo-mode { text-decoration: none; cursor: pointer; tran
 a.demo-resident-card:hover, a.demo-mode:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }
 a.demo-resident-card:focus-visible, a.demo-mode:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
 /* The tab buttons carry the role ids the hero links to. */
-#residents, #caregivers, #family, #volunteers, #administrators { scroll-margin-top: 16px; }
+#caregivers, #family, #volunteers, #administrators { scroll-margin-top: 16px; }

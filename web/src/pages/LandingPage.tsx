@@ -1,289 +1,90 @@
-// The public home page (the "Overview" tab): a short product tour of the Welicare iPad app for
-// care homes and families visiting the site. Its calls to action lead to the
-// Contact page, since the site's current job is finding pilot sites.
-//
-// The "screenshots" are drawn in HTML/CSS (DeviceFrame + the *Demo
-// components) rather than images, so they stay crisp, use the shared theme
-// colours and never go stale with a real resident's photo or name in them.
+// The public Home page: a showcase of the Welicare iPad app, built around its
+// purpose, a caregiver or family member sitting one-on-one with a person
+// living with dementia. It runs in the order a visitor needs: what it is, how
+// a session works, what you do together, why it suits dementia, then who it's
+// for. Calls to action lead to the Contact page; the site doesn't handle
+// accounts. The drawn screens live in components/LandingDemos.tsx.
 import { useEffect, useRef, useState } from 'react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { KeyboardEvent } from 'react';
 import { Link } from 'react-router';
+import {
+  ActivityMenuDemo,
+  ConversationDemo,
+  DeviceFrame,
+  JoinRequestsDemo,
+  ModeSelectionDemo,
+  MusicDemo,
+  PhotoAlbumDemo,
+  TriviaDemo,
+  VolunteerHoursDemo,
+} from '../components/LandingDemos';
 import SiteLayout from '../components/SiteLayout';
 
-// Line icons for the feature badges (24×24, drawn with `currentColor` so the
+// Line icons for the activity cards (24×24, drawn with `currentColor` so the
 // badge's accent colour tints them). Decorative only: the card's heading
 // already says what each one is.
-const FEATURE_ICONS = {
-  // A person: the resident whose life story is collected.
-  profile: <><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" /></>,
-  // A sparkle: AI-made content.
-  sparkle: <><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /><path d="M19 16v4M17 18h4" /></>,
-  // A music note.
+const ACTIVITY_ICONS = {
   music: <><path d="M9 18V5l11-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="17" cy="16" r="3" /></>,
-  // A padlock: Resident Mode's PIN lock.
-  lock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
-  // A building: the care facility.
-  building: <><path d="M4 21V5l8-3 8 3v16" /><path d="M2 21h20M9 9h2M13 9h2M9 13h2M13 13h2M10 21v-4h4v4" /></>,
-  // An eye: legibility and low vision.
-  eye: <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>,
+  conversation: <path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z" />,
+  trivia: <><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5v.01" /></>,
+  photo: <><rect x="4" y="5" width="16" height="14" rx="1" /><path d="M4 15l4-4 4 4 3-3 5 5" /></>,
+  games: <><rect x="2" y="8" width="20" height="8" rx="4" /><path d="M8 10v4M6 12h4M15 12h.01M17 11h.01" /></>,
+  meditation: <path d="M5 19c0-8 6-14 15-14 0 9-6 15-14 15M5 19l7-7" />,
 } as const;
 
-// Main features, following the README's "Main Features" list. Each card's
-// accent is an activity colour from the app's theme, picked so no two
-// neighbouring cards (across a row or down a column of the 3×2 grid) share
-// a hue — the brown and terracotta pair sit in opposite corners.
-const FEATURES = [
+// What the two people can do together. Each card's accent is an activity
+// colour from the app's theme.
+const ACTIVITIES = [
   {
-    title: 'Life-story profiles',
-    body: 'A guided questionnaire, filled in with family or the resident, collects their preferred name, hometown, hobbies, and favourite music.',
-    accent: 'photoAlbum',
-    icon: 'profile',
-  },
-  {
-    title: 'Personalized with AI',
-    body: 'Each profile becomes trivia questions, conversation starters and activity ideas about that person’s own life, plus suggestions of real songs and movies they’re likely to know.',
-    accent: 'meditation',
-    icon: 'sparkle',
-  },
-  {
-    title: 'Curated music & video',
-    body: 'A starter set of 80+ music videos, plus a shared library staff and family build from YouTube. Residents only browse what’s been chosen for them.',
+    title: 'Music & video',
+    body: 'Songs and videos they’re likely to know, chosen for them from a shared library.',
     accent: 'music',
     icon: 'music',
   },
   {
-    title: 'A Resident Mode to hand over',
-    body: 'Big, simple activity tiles with a PIN lock, so a resident can explore on their own.',
-    accent: 'games',
-    icon: 'lock',
-  },
-  {
-    title: 'Organizations & approvals',
-    body: 'Caregivers join with an invite code, and administrators approve each request. Residents and music libraries belong to the facility.',
+    title: 'Conversation',
+    body: 'Starters written from their own life, for when you’re not sure what to say next.',
     accent: 'conversation',
-    icon: 'building',
+    icon: 'conversation',
   },
   {
-    title: 'Designed for older adults',
-    body: 'Atkinson Hyperlegible type made for low vision, a high-contrast palette, and labels on every control for VoiceOver and TalkBack.',
+    title: 'Personal trivia',
+    body: 'Questions about their hometown, work and interests, to enjoy together.',
     accent: 'trivia',
-    icon: 'eye',
+    icon: 'trivia',
   },
-] as const;
-
-// Steps of a one-on-one session, shown in the "How it works" strip.
-const STEPS = [
-  ['Build the profile', 'Family and staff add the resident’s life story once.'],
-  ['Pick an activity', 'Open Resident Mode on the shared iPad and choose music, trivia, a game or photos.'],
-  ['Share the moment', 'Sit together while Welicare does the preparation, and log the visit afterwards.'],
-] as const;
-
-// An iPad-shaped frame for the drawn screens. Hidden from screen readers:
-// the caption under each one says what it shows. `interactive` frames hold
-// real links (the hero's mode buttons), so they stay visible to assistive
-// tech: focusable links inside aria-hidden would be unreachable by name.
-function DeviceFrame({ children, caption, interactive = false }: { children: ReactNode; caption: string; interactive?: boolean }) {
-  return (
-    <figure className="device">
-      <div className="device-bezel" aria-hidden={interactive ? undefined : true}>
-        <div className="device-screen">{children}</div>
-      </div>
-      <figcaption>{caption}</figcaption>
-    </figure>
-  );
-}
-
-// Resident Mode's activity menu: big, colourful tiles.
-// Styled to match the app's ActivityMenuScreen: two columns of pastel tiles
-// (the activity's `bg` colour) with an outline icon and label in the main
-// text colour, not the activity's accent.
-function ActivityMenuDemo() {
-  // Simple outline stand-ins for the app's Ionicons, drawn as SVG paths.
-  const tiles = [
-    ['Music Player', 'music', 'M9 18V5l11-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm11-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z'],
-    ['Trivia', 'trivia', 'M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5v.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z'],
-    ['Games', 'games', 'M6 8h12a4 4 0 0 1 0 8H6a4 4 0 0 1 0-8Zm2 2v4m-2-2h4m5 0h.01M17 11h.01'],
-    ['Meditation', 'meditation', 'M5 19c0-8 6-14 15-14 0 9-6 15-14 15M5 19l7-7'],
-    ['Photo Album', 'photoAlbum', 'M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M15 9h.01'],
-    ['Movies & Videos', 'moviesVideos', 'M4 5h16v14H4zM8 5v14M16 5v14M4 9.5h4m-4 5h4m8-5h4m-4 5h4'],
-  ];
-  return (
-    <div className="demo">
-      <p className="demo-title">Good morning, Margaret.</p>
-      <div className="demo-tiles">
-        {tiles.map(([label, key, path]) => (
-          <div key={key} className="demo-tile" style={{ background: `var(--act-${key}-bg)` }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d={path} />
-            </svg>
-            {label}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// A trivia question generated from the (made-up) resident's profile.
-function TriviaDemo() {
-  return (
-    <div className="demo">
-      <p className="demo-kicker">You grew up near Saskatoon</p>
-      <p className="demo-title">Which river runs through the city?</p>
-      <div className="demo-answers">
-        <span>South Saskatchewan River</span>
-        <span>Fraser River</span>
-        <span>Red River</span>
-      </div>
-    </div>
-  );
-}
-
-// The music player with a familiar song from the resident's era.
-function MusicDemo() {
-  return (
-    <div className="demo demo-music">
-      <div className="demo-cover" />
-      <p className="demo-title">Crazy</p>
-      <p className="demo-kicker">Patsy Cline · 1961</p>
-      <div className="demo-progress"><span /></div>
-      <div className="demo-play" />
-    </div>
-  );
-}
-
-// The Mode Selection screen everyone lands on after signing in (the
-// README's first screenshot), styled after ModeSelectionScreen: a big
-// Resident Mode card, then the staff and family modes, each behind a PIN.
-// Each mode links down to its row in the roles section (ROLES ids).
-function ModeSelectionDemo() {
-  const modes = [
-    ['Family Mode', '#family'],
-    ['Caregiver Mode', '#caregivers'],
-    ['Volunteer Mode', '#volunteers'],
-    ['Admin Mode', '#administrators'],
-  ];
-  return (
-    <div className="demo">
-      <p className="demo-title">How are you using Welicare today?</p>
-      <a className="demo-resident-card" href="#residents">
-        <strong>Resident Mode</strong>
-        <span>Music, trivia, photo albums and more</span>
-      </a>
-      <div className="demo-modes">
-        {modes.map(([m, href]) => (
-          <a key={m} className="demo-mode" href={href}>
-            {m}
-            {/* Decorative: "PIN" would otherwise be read as part of the link name. */}
-            <span className="demo-pin" aria-hidden="true">PIN</span>
-          </a>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// A caregiver's AI conversation starters, written from the (made-up)
-// resident's life story.
-function ConversationDemo() {
-  const starters = [
-    'What was harvest time like on the farm?',
-    'Which Patsy Cline song would you sing along to?',
-    'Tell me about the river in Saskatoon.',
-  ];
-  return (
-    <div className="demo">
-      <p className="demo-kicker">Conversation starters for Margaret</p>
-      <p className="demo-title">From her life story</p>
-      <div className="demo-list">
-        {starters.map((q) => <span key={q}>{q}</span>)}
-      </div>
-    </div>
-  );
-}
-
-// The resident's photo album as family see it: shared photos (drawn as
-// soft colour gradients in the activity colours, never real photos) and an "Add photos" button.
-function PhotoAlbumDemo() {
-  const tiles = ['photoAlbum', 'music', 'meditation', 'conversation', 'games', 'trivia'];
-  return (
-    <div className="demo">
-      <p className="demo-kicker">Shared by her daughter</p>
-      <p className="demo-title">Margaret’s photo album</p>
-      <div className="demo-photos">
-        {tiles.map((t) => <span key={t} style={{ background: `linear-gradient(160deg, var(--act-${t}-bg) 35%, var(--act-${t}-icon))` }} />)}
-      </div>
-      <span className="demo-pill">Add photos</span>
-    </div>
-  );
-}
-
-// An administrator's join requests: people who entered the facility's
-// invite code, waiting for approval. Names are made up.
-function JoinRequestsDemo() {
-  const requests = [
-    ['Priya S.', 'Caregiver'],
-    ['Tom W.', 'Volunteer'],
-    ['Linda M.', 'Family member'],
-  ];
-  return (
-    <div className="demo">
-      <p className="demo-kicker">Invite code MGK7-4TXR</p>
-      <p className="demo-title">Join requests</p>
-      <div className="demo-list demo-rows">
-        {requests.map(([name, role]) => (
-          <span key={name} style={{ background: 'var(--act-trivia-bg)' }}>
-            <span>{name} · {role}</span>
-            <span className="demo-pill">Approve</span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// A volunteer's logged sessions and running total of hours.
-function VolunteerHoursDemo() {
-  const sessions = [
-    ['Margaret · Music', '45 min'],
-    ['Walter · Trivia', '30 min'],
-    ['Group · Photo stories', '1 hr'],
-  ];
-  return (
-    <div className="demo">
-      <p className="demo-kicker">This month · 12.5 hours</p>
-      <p className="demo-title">Your sessions</p>
-      <div className="demo-list demo-rows">
-        {sessions.map(([what, time]) => (
-          <span key={what} style={{ background: 'var(--act-music-bg)' }}>
-            <span>{what}</span>
-            <strong>{time}</strong>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// One tab per role: residents, caregivers, family, volunteers, administrators.
-// Each panel is a drawn screen beside what that person gets (see RoleTabs and
-// .role in styles.css). The points follow the README.
-const ROLES = [
   {
-    id: 'residents',
-    label: 'Resident view',
-    accent: 'games',
-    title: 'A calm, simple space made to be handed over',
-    summary: 'Resident Mode holds every activity a resident uses, on big, colourful tiles that are easy to see and tap.',
-    points: [
-      'Music, trivia, conversation, games, photos, guided meditation and movies, one tap away',
-      'Games with big targets, no timers and no way to lose, just warm encouragement',
-      'A PIN lock, so residents can explore freely but can’t leave for staff screens',
-      'Guest mode for group activities, or before a profile has been made',
-    ],
-    caption: 'Resident Mode: every activity one big tap away',
-    Demo: ActivityMenuDemo,
+    title: 'Photo albums',
+    body: 'Family photos, ready to look through and talk about.',
+    accent: 'photoAlbum',
+    icon: 'photo',
   },
+  {
+    title: 'Gentle games',
+    body: 'Big targets and warm encouragement, with no timers and no way to lose.',
+    accent: 'games',
+    icon: 'games',
+  },
+  {
+    title: 'Guided meditation',
+    body: 'A calm moment to share, whenever one is needed.',
+    accent: 'meditation',
+    icon: 'meditation',
+  },
+] as const;
+
+// Steps of a one-on-one session, shown in the "How a session works" strip.
+const STEPS = [
+  ['Add their life story', 'Family and staff fill in a guided questionnaire: hometown, work, family and favourite songs.'],
+  ['Sit down together', 'Open Welicare on the iPad, side by side. AI turns their story into activities made for them.'],
+  ['Follow what they enjoy', 'Choose music, conversation, photos or a game, and go at their pace.'],
+] as const;
+
+// One tab per person who supports a session. Each panel is a drawn screen
+// beside what that person gets (see RoleTabs and .role in styles.css). The
+// resident's own side has its own section above, because they use the app
+// with one of these people rather than as a separate audience.
+const ROLES = [
   {
     id: 'caregivers',
     label: 'Caregivers',
@@ -357,17 +158,17 @@ function roleFromHash(): RoleId | null {
   return ROLES.some((r) => r.id === id) ? (id as RoleId) : null;
 }
 
-// The roles section as browser-style tabs: one line of modes, and the
+// The roles section as browser-style tabs: one line of roles, and the
 // selected one's screen and writeup in a panel underneath. Showing one role
-// at a time keeps the page short on phones (five stacked rows was most of
-// the scroll). Follows the WAI-ARIA tabs pattern: arrow keys move between
-// tabs, and only the selected tab is in the Tab order.
+// at a time keeps the page short on phones. Follows the WAI-ARIA tabs
+// pattern: arrow keys move between tabs, and only the selected tab is in the
+// Tab order.
 function RoleTabs() {
-  const [active, setActive] = useState<RoleId>(() => roleFromHash() ?? 'residents');
+  const [active, setActive] = useState<RoleId>(() => roleFromHash() ?? 'caregivers');
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  // The hero's mode links change the hash (#caregivers, ...). The tab
-  // buttons carry those ids, so the browser scrolls to the tab row, and this
+  // The hero's mode links change the hash (#caregivers, ...). The tab buttons
+  // carry those ids, so the browser scrolls to the tab row, and this
   // listener selects the matching tab.
   useEffect(() => {
     const onHash = () => {
@@ -414,7 +215,7 @@ function RoleTabs() {
               aria-selected={selected}
               aria-controls="role-panel"
               tabIndex={selected ? 0 : -1}
-              // The selected word takes its mode's accent colour (the app's
+              // The selected word takes its role's accent colour (the app's
               // activity icon colour); its underline follows via currentColor.
               style={selected ? { color: `var(--act-${accent}-icon)` } : undefined}
               onClick={() => select(id)}
@@ -452,67 +253,25 @@ export default function LandingPage() {
         <div className="hero-copy">
           <h1>Meaningful one&#8209;on&#8209;one time for people living with dementia</h1>
           <p className="lead">
-            Welicare is an iPad app that uses each resident’s life story to personalize trivia
-            and conversation, line up the songs and videos they love, and offer gentle games, so
-            every visit feels like it was made just for them.
+            Welicare is an iPad app for a caregiver or family member to use with a person living
+            with dementia. Sit down together, and it brings up music, photos, conversation and
+            gentle games shaped by their life story.
           </p>
           <div className="hero-actions">
-            <a className="button" href="#features">See what it does</a>
+            <a className="button" href="#how">See how a session works</a>
             <Link className="button secondary" to="/contact">Pilot Welicare at your site</Link>
           </div>
         </div>
-        {/* The resident menu has its own row further down (ROLES), so the
-            hero shows the screen that ties the roles together. */}
+        {/* The screen that ties the roles together: its buttons link down
+            to each one's section of the page. */}
         <DeviceFrame interactive caption="One app, with a mode for each person in the circle of care">
           <ModeSelectionDemo />
         </DeviceFrame>
       </section>
 
-      <section id="features" className="section">
-        <h2>Everything a visit needs, prepared in advance</h2>
-        <p className="section-dek">
-          Personalized trivia and conversation from each resident’s life story, with music and videos chosen for them.
-        </p>
-        <div className="feature-grid">
-          {FEATURES.map((f) => (
-            <article key={f.title} className="feature">
-              <span
-                className="feature-badge"
-                aria-hidden="true"
-                style={{ background: `var(--act-${f.accent}-bg)`, color: `var(--act-${f.accent}-icon)` }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  {FEATURE_ICONS[f.icon]}
-                </svg>
-              </span>
-              <h3>{f.title}</h3>
-              <p>{f.body}</p>
-            </article>
-          ))}
-        </div>
-        {/* The two demos sit here, right under the features they show, rather
-            than in a separate unlabelled strip further down the page. */}
-        <div className="showcase">
-          <DeviceFrame caption="Trivia written from the resident’s own life">
-            <TriviaDemo />
-          </DeviceFrame>
-          <DeviceFrame caption="Songs from their era, ready to play">
-            <MusicDemo />
-          </DeviceFrame>
-        </div>
-      </section>
-
-      <section id="roles" className="section roles" aria-labelledby="roles-heading">
-        <h2 id="roles-heading">A mode for everyone in the circle of care</h2>
-        <p className="section-dek">
-          Residents, caregivers, family, volunteers and administrators each get their own view.
-        </p>
-        <RoleTabs />
-      </section>
-
       <section id="how" className="section">
-        <h2>How it works</h2>
-        <p className="section-dek">Three steps from a resident’s story to a shared moment.</p>
+        <h2>How a session works</h2>
+        <p className="section-dek">Three steps from their story to a shared moment.</p>
         <ol className="steps">
           {STEPS.map(([title, body]) => (
             <li key={title}>
@@ -523,10 +282,75 @@ export default function LandingPage() {
         </ol>
       </section>
 
+      <section id="activities" className="section">
+        <h2>What you can do together</h2>
+        <p className="section-dek">Activities shaped by the life of the person beside you.</p>
+        <div className="feature-grid">
+          {ACTIVITIES.map((a) => (
+            <article key={a.title} className="feature">
+              <span
+                className="feature-badge"
+                aria-hidden="true"
+                style={{ background: `var(--act-${a.accent}-bg)`, color: `var(--act-${a.accent}-icon)` }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  {ACTIVITY_ICONS[a.icon]}
+                </svg>
+              </span>
+              <h3>{a.title}</h3>
+              <p>{a.body}</p>
+            </article>
+          ))}
+        </div>
+        {/* The two demos sit right under the activities they show. */}
+        <div className="showcase">
+          <DeviceFrame caption="Trivia written from the resident’s own life">
+            <TriviaDemo />
+          </DeviceFrame>
+          <DeviceFrame caption="Songs from their era, ready to play">
+            <MusicDemo />
+          </DeviceFrame>
+        </div>
+      </section>
+
+      {/* Same screen-beside-description panel as the role tabs below. */}
+      <section id="made-for-dementia" className="section">
+        <h2>Made for people living with dementia</h2>
+        <article className="role">
+          <DeviceFrame caption="Every activity one big tap away">
+            <ActivityMenuDemo />
+          </DeviceFrame>
+          <div className="role-copy">
+            <h3>Calm, simple and easy to share</h3>
+            <p className="role-summary">
+              Big, colourful tiles keep the focus on the two of you, not on the iPad.
+            </p>
+            <ul className="role-points">
+              <li>Games with no timers and no way to lose, just warm encouragement</li>
+              <li>Atkinson Hyperlegible type made for low vision, and a high-contrast palette</li>
+              <li>Labels on every control for VoiceOver and TalkBack</li>
+              <li>A PIN lock that keeps staff and family screens out of the way during a session</li>
+            </ul>
+          </div>
+        </article>
+      </section>
+
+      <section id="roles" className="section roles" aria-labelledby="roles-heading">
+        <h2 id="roles-heading">Support for everyone in the circle of care</h2>
+        <p className="section-dek">
+          Caregivers, family, volunteers and administrators each get their own view.
+        </p>
+        <RoleTabs />
+      </section>
+
+      {/* Two paths, so family visitors get a next step as well as care homes. */}
       <section className="section cta">
-        <h2>Running a care home?</h2>
-        <p>Welicare is looking for care homes to pilot the app. We'd love to hear from you.</p>
-        <Link className="button" to="/contact">Interested in a pilot? Get in touch</Link>
+        <h2>Interested in Welicare?</h2>
+        <p>We’re looking for care homes to pilot the app, and we’d love to hear from families too.</p>
+        <div className="cta-actions">
+          <Link className="button" to="/contact">Pilot Welicare at your site</Link>
+          <Link className="button" to="/contact">I’m a family member</Link>
+        </div>
       </section>
     </SiteLayout>
   );

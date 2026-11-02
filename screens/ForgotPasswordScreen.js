@@ -22,8 +22,9 @@ import { colors, fonts, radii } from '../theme';
 // "Continue" button), instead of leaving them on a bare firebaseapp.com page.
 // welicare.ca must be listed under Authentication → Settings → Authorized
 // domains, or Firebase refuses the request; handleSend falls back to the
-// plain link in that case so a reset is never blocked by it.
-const RESET_CONTINUE = { url: 'https://welicare.ca/login' };
+// plain link in that case so a reset is never blocked by it. Points at the
+// home page because the site has no sign-in page: accounts live in the app.
+const RESET_CONTINUE = { url: 'https://welicare.ca/' };
 
 export default function ForgotPasswordScreen({ navigation, route }) {
   const [email, setEmail] = useState(route?.params?.email ?? '');

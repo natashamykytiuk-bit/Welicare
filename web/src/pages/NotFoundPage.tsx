@@ -18,7 +18,7 @@ export default function NotFoundPage() {
           instead.
         </p>
         <div className="hero-actions">
-          <Link className="button" to="/">Go to the overview</Link>
+          <Link className="button" to="/">Go to the home page</Link>
           <Link className="button secondary" to="/contact">Contact us</Link>
         </div>
       </article>

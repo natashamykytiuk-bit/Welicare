@@ -108,7 +108,7 @@ export default function ContactPage() {
                 they gave so they know where to look. */}
             <p>Thank you, your message was sent.</p>
             <p className="contact-thanks-detail">We'll reply to {email.trim()} as soon as we can.</p>
-            <Link className="button secondary" to="/">Back to the overview</Link>
+            <Link className="button secondary" to="/">Back to home</Link>
           </div>
         ) : (
           <form className="contact-form" onSubmit={handleSubmit}>
