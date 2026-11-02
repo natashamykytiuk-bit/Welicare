@@ -325,28 +325,22 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
 .demo-play { width: 52px; height: 52px; border-radius: var(--radius-circular); background: var(--color-primary); position: relative; }
 .demo-play::after { content: ''; position: absolute; left: 20px; top: 15px; border: 11px solid transparent; border-left: 17px solid var(--color-white); border-right: 0; }
 
+/* Wider than the phone breakpoint: two columns already feel squished in a
+   narrow window, so the screen moves above its description here. */
+@media (max-width: 1000px) {
+  .role { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .role .device { width: min(26rem, 100%); justify-self: center; }
+}
+
 @media (max-width: 800px) {
   /* Photo above the story, narrower so the text starts on the first screen. */
   .story-layout { grid-template-columns: minmax(0, 1fr); }
   .founder { grid-column: 1; grid-row: 2; width: min(16rem, 70%); justify-self: center; margin-bottom: 32px; }
   .story-layout .story { grid-row: 3; }
   .hero, .showcase { grid-template-columns: 1fr; }
-  /* Still side by side, but the screen narrower so the text has room. */
-  .role { grid-template-columns: 2fr 3fr; gap: 16px; padding: 16px 12px; align-items: start; }
-  .role h3 { font-size: 1.15rem; }
-  .role-summary { font-size: 1rem; }
-  .role-points { gap: 8px; font-size: 0.95rem; }
-  .role .device-bezel { padding: 6px; border-radius: 14px; }
-  .role .device-screen { border-radius: 9px; }
-  .role .device figcaption { font-size: 0.8rem; }
-  /* Each drawn screen packs a lot into a small frame here, so its text shrinks too. */
-  .role .demo { padding: 5%; font-size: 0.55rem; }
-  .role .demo-title { font-size: 0.7rem; margin-bottom: 4px; }
-  .role .demo-kicker { margin-bottom: 2px; }
-  .role .demo-tiles, .role .demo-list, .role .demo-photos { gap: 3px; }
-  .role .demo-tile, .role .demo-list > span, .role .demo-pill { font-size: 0.5rem; padding: 2px 4px; gap: 3px; }
-  .role .demo-tile svg { width: 10px; height: 10px; }
-  .role .demo-photos { margin-bottom: 4px; }
+  .role { padding: 20px 16px; }
+  /* Stacked screens stay iPad-sized instead of filling a wide column. */
+  .hero .device, .showcase .device { width: min(26rem, 100%); justify-self: center; }
   /* How it works: a compact numbered list, the number beside each step
      instead of above it in a tall card. */
   .steps { grid-template-columns: 1fr; gap: 12px; }
