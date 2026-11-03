@@ -1,6 +1,6 @@
-# Runs every check a change must pass before it's done (the same list as the
-# project's working instructions), on every push to master and every pull
-# request. A red X on GitHub means one of these failed; the job log says
+# Runs every check a change must pass before it's done, on every push to
+# master and every pull request: the app (lint, types, unit tests), the web
+# portal in web/ (lint, typecheck + build, tests), and the emulator suites. A red X on GitHub means one of these failed; the job log says
 # which.
 #
 # Everything here is local: the rules and functions suites run against the
@@ -34,6 +34,25 @@ jobs:
       # output when upgrading dependencies.
       - run: npm audit --omit=dev --audit-level=high
         continue-on-error: true
+
+  web:
+    name: Web portal lint, build and tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      # `build` runs the TypeScript check (tsc --noEmit) before vite build.
+      - run: npm run build
+      - run: npm test
 
   emulators:
     name: Security rules and Cloud Functions tests

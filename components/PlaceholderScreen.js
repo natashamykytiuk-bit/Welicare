@@ -1,15 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import useActivitySession from '../hooks/useActivitySession';
 import { colors, fonts, radii } from '../theme';
 import BackButton from './BackButton';
 import HomeButton from './HomeButton';
 import OrgIdBadge from './OrgIdBadge';
 
 // The reusable shell behind most "not built yet" screens: just a title,
-// a description, and a "Coming soon" badge. Most screens in this app are
-// still placeholders, so this component is what actually renders them —
-// see e.g. screens/TriviaScreen.js for a typical usage.
+// a description, and a "Coming soon" badge (e.g. screens/TriviaScreen.js).
 //
 // Optional props add the header icons the screen-flow diagram calls for:
 //   - settingsTarget: pass a screen name (e.g. "Settings") to show a gear
@@ -28,10 +25,10 @@ import OrgIdBadge from './OrgIdBadge';
 //   - showBack / onBackPress: control or override the default back button.
 //   - showOrgId: pass true on Administrator Mode screens to show the
 //     signed-in admin's organization ID at the top (see OrgIdBadge).
-//   - activityType / activityId / residentId: pass on Resident Mode
-//     activities to log time spent on the screen to activitySessions (see
-//     hooks/useActivitySession.js), so even "Coming soon" activities count
-//     toward a resident's engagement. Omit activityType to log nothing.
+//
+// Deliberately records no activitySessions: a "Coming soon" screen isn't an
+// activity, so time spent on it must not count toward engagement stats. When
+// an activity is built, its real screen calls hooks/useActivitySession.js.
 export default function PlaceholderScreen({
   navigation,
   title,
@@ -41,19 +38,7 @@ export default function PlaceholderScreen({
   settingsTarget,
   homeDestination,
   showOrgId,
-  activityType,
-  activityId,
-  residentId,
 }) {
-  // Always called (hooks can't be conditional); enabled turns it off for
-  // screens that aren't Resident Mode activities.
-  useActivitySession({
-    navigation,
-    activityType,
-    activityId,
-    residentId: residentId ?? null,
-    enabled: Boolean(activityType),
-  });
   const showHeaderRow = showBack || settingsTarget || homeDestination;
 
   return (
