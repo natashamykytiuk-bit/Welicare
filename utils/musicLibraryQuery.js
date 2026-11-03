@@ -135,6 +135,7 @@ export async function runWithConcurrency(tasks, limit) {
 // has to match one of the rules' separate `allow list` branches on its own.
 // videoId + facilityId are both equality filters, so no composite index is
 // needed.
+/** @returns {Promise<import('../types/models').LibraryEntry | null>} */
 export async function findLibraryEntryByVideoId(videoId, facilityId) {
   const facilityValues = facilityId ? ['global', facilityId] : ['global'];
   const snapshots = await Promise.all(

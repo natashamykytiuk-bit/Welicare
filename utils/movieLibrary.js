@@ -94,6 +94,7 @@ export function queryMovieLibrary(facilityId) {
 
 // The first library entry for this YouTube video, or null — used right
 // before saving a new entry so the same movie isn't added twice.
+/** @returns {Promise<import('../types/models').LibraryEntry | null>} */
 export async function findMovieEntryByVideoId(videoId, facilityId) {
   const matches = await queryByFacility(facilityId, where('videoId', '==', videoId));
   return matches[0] ?? null;

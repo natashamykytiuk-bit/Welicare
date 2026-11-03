@@ -17,7 +17,9 @@
     "contexts/**/*.js",
     "games/**/*.js",
     "types/**/*.js",
-    "shared/**/*.js"
+    "shared/**/*.js",
+    "features/**/*.js",
+    "hooks/**/*.js"
   ],
   "exclude": ["node_modules", "functions", "scripts", ".agents", "Claude outputs"]
 }

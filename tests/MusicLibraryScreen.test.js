@@ -12,7 +12,7 @@
 // results. Each helper becomes a jest.fn we set per test.
 
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import MusicLibraryScreen from '../screens/MusicLibraryScreen';
+import MusicLibraryScreen from '../features/media/MusicLibraryScreen';
 import { findLibraryEntryByVideoId, queryMusicLibrarySubset } from '../utils/musicLibraryQuery';
 import { searchYouTube } from '../utils/youtube';
 import { docSnap, firestore } from './mocks/firebase';
@@ -98,7 +98,7 @@ describe('MusicLibraryScreen duplicate check', () => {
     await fireEvent.press(screen.getByLabelText('Save'));
 
     expect(firestore.setDoc).toHaveBeenCalledTimes(1);
-    // Written under the fixed {facilityId}_{videoId} id (utils/libraryAdd.js).
+    // Written under the fixed {facilityId}_{videoId} id (features/media/libraryService.js).
     expect(firestore.setDoc.mock.calls[0][0].path).toBe('musicLibrary/orgA_vid-walkin');
     expect(firestore.setDoc.mock.calls[0][1]).toMatchObject({
       videoId: 'vid-walkin',

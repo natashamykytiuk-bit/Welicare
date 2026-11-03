@@ -179,4 +179,24 @@
  *   into this brief (false for general suggestions).
  */
 
+
+/**
+ * musicLibrary/{id} and movieLibrary/{id}, as read by the app (with its doc
+ * id). New entries' ids are `{facilityId}_{videoId}`
+ * (features/media/libraryService.js).
+ * @typedef {object} LibraryEntry
+ * @property {string} id
+ * @property {string} videoId
+ * @property {string} [title]
+ * @property {string} [channelTitle]
+ * @property {string} [artist] Music only.
+ * @property {string} [thumbnailUrl]
+ * @property {string[]} [genres]
+ * @property {string} [genre] Pre-migration music docs (see genresOf).
+ * @property {string} [decade]
+ * @property {string} facilityId An org id, or 'global' for the shared,
+ *   admin-curated baseline that staff can't edit.
+ * @property {string | null} [addedByUid]
+ */
+
 export {};
