@@ -62,7 +62,7 @@ function normalizeUsername(username) {
   return username.trim().toLowerCase();
 }
 
-// functions/index.js randomInviteCode: 8 characters from the look-alike-free
+// functions/organizations.js randomInviteCode: 8 characters from the look-alike-free
 // alphabet, shown as two groups of four ("MGK7-4TXR").
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 function randomInviteCode() {
@@ -503,7 +503,7 @@ function userDoc(person, uid, orgIds, pinHash) {
   return d;
 }
 
-// functions/index.js createOrganization's org doc.
+// functions/organizations.js createOrganization's org doc.
 function orgDoc(org, creatorUid) {
   return {
     name: org.name,

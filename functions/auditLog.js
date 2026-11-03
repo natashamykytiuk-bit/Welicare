@@ -12,7 +12,7 @@
 // action — never life-story content, safety notes or other profile details.
 //
 // Events come from two places:
-// - the organization Cloud Functions in index.js call logAudit() after a
+// - the organization Cloud Functions (organizations.js, residents.js) call logAudit() after a
 //   change succeeds (member joined/removed/left, administrator transferred,
 //   invite code replaced);
 // - Firestore triggers (below) for changes the app makes directly under
@@ -115,7 +115,7 @@ function auditTriggers(getAdmin) {
   return {
     // A resident doc deleted directly by a signed-in app user. firestore.rules
     // no longer allow that — deleting goes through the deleteResident
-    // function in index.js, which writes its own entry naming who did it —
+    // function in residents.js, which writes its own entry naming who did it —
     // so this is a safety net in case a rule ever lets one through again.
     // Deletions by Cloud Functions (deleteResident, deleteOrganization,
     // deleteAccount) have no app user and are skipped, so nothing is logged

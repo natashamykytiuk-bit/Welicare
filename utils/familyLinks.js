@@ -5,7 +5,7 @@ import { functions } from '../firebaseConfig';
 // Family codes: how a Family Caregiver is linked to a facility resident.
 // Staff create a single-use code on the resident's profile
 // (FamilyAccessCard); the family member enters it on Family Mode → My
-// Residents. All four steps run in Cloud Functions (functions/index.js),
+// Residents. All four steps run in Cloud Functions (functions/residents.js),
 // because the codes live in a server-only collection and the resident's
 // familyMembers list can't be written from the app. The functions' error
 // messages are user-facing, and callers show e.message.

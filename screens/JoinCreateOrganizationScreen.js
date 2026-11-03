@@ -28,7 +28,7 @@ import { createPersonalOrganization } from '../utils/inviteCode';
 //
 // Family Caregivers are different: they never join or create an
 // organization (the server refuses both — see joinOrganization and
-// createOrganization in functions/index.js). They normally never see this
+// createOrganization in functions/organizations.js). They normally never see this
 // screen at all, because sign-up gives them a family organization; they
 // only land here if that step failed. So for them the Join/Create cards are
 // replaced by a short explanation and a Continue button, which tries once

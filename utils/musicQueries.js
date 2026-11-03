@@ -1,6 +1,6 @@
 // Builds YouTube search queries from a resident's lifeStory. Mirrors the
 // "most specific signal wins" pattern buildFactLines uses in
-// functions/index.js: named musicians beat genres beat a safe general
+// functions/suggestionPrompt.js: named musicians beat genres beat a safe general
 // fallback, so Music always has something reasonable to search for even
 // with an empty or partial profile.
 const FALLBACK_QUERIES = ['classic oldies music', 'big band music'];

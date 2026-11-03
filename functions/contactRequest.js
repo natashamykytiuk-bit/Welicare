@@ -62,7 +62,7 @@ function validateContactRequest(data) {
 // whatever the caller sent, so the first entry is caller-chosen — a bot
 // sending a made-up one per request would get a fresh limit every time and
 // could use up the shared daily total, shutting the form for everyone. Same
-// reasoning as resolveSignInEmail in index.js. rawRequest.ip is the
+// reasoning as resolveSignInEmail in accounts.js. rawRequest.ip is the
 // fallback (e.g. in the emulator).
 function clientKey(rawRequest) {
   const forwarded = rawRequest?.headers?.['x-forwarded-for'];

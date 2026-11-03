@@ -49,7 +49,7 @@ service cloud.firestore {
     // - Family Caregivers: only residents they added themselves that are
     //   still "at home" — in no organization, or in their own family
     //   (personal) organization. Once a resident has moved into a facility
-    //   (approveResidentMove in functions/index.js) the family member is
+    //   (approveResidentMove in functions/residents.js) the family member is
     //   view-only, like anyone linked by a family code.
     // - Volunteers: never, not even a resident they created or are assigned
     //   to. They run sessions; the care team keeps the profile.
@@ -194,7 +194,7 @@ service cloud.firestore {
 
     // New library entries have a fixed id, {facilityId}_{videoId}, so the
     // same video can't be added to an organization twice even by two people
-    // at once (see utils/libraryAdd.js). Older entries keep random ids.
+    // at once (see features/media/libraryService.js). Older entries keep random ids.
     function isFixedLibraryId(entryId, d) {
       return entryId == d.facilityId + '_' + d.videoId;
     }
@@ -758,7 +758,7 @@ service cloud.firestore {
         resource.data.orgId == me().orgId;
       allow write: if false;
     }
-    // Family codes (redeemFamilyCode in functions/index.js). Server-only,
+    // Family codes (redeemFamilyCode in functions/residents.js). Server-only,
     // like inviteCodes, so codes can't be listed or reused from the app.
     match /familyCodes/{code} {
       allow read, write: if false;

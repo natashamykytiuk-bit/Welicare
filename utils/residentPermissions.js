@@ -147,7 +147,7 @@ export function canDeleteResident(viewer, org, resident) {
 /**
  * Whether "Move to an organization" should be offered: a Family Caregiver's
  * own at-home resident that isn't archived and doesn't already have a move
- * waiting for approval (see requestResidentMove in functions/index.js).
+ * waiting for approval (see requestResidentMove in functions/residents.js).
  * @param {Viewer} viewer
  * @param {ViewerOrg} org
  * @param {ResidentLike & { archived?: boolean, pendingFacilityId?: string | null }} resident

@@ -1,7 +1,7 @@
 // Jest config for the Cloud Functions tests (npm run test:functions). Like
 // the rules tests, these run in plain Node against the emulators (Auth,
 // Firestore and Functions under the demo-welicare project) — nothing is
-// mocked, so they exercise the real functions/index.js code.
+// mocked, so they exercise the real functions/ code.
 module.exports = {
   rootDir: '../..',
   testEnvironment: 'node',

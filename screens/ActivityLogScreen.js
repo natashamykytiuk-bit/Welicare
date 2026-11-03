@@ -123,14 +123,14 @@ export function describeEntry(entry) {
       return `${who} deleted the resident ${entry.targetName || '(unnamed)'}.`;
     case 'volunteerPermissions.changed':
       return `${who} changed volunteer permissions: ${entry.detail || 'updated'}.`;
-    // Family codes (functions/index.js): `detail` holds the resident's name.
+    // Family codes (functions/residents.js): `detail` holds the resident's name.
     case 'familyCode.created':
       return `${who} created a family code for ${entry.detail || 'a resident'}.`;
     case 'family.linked':
       return `${who} used a family code to link to ${entry.detail || 'a resident'}.`;
     case 'family.unlinked':
       return `${who} removed ${entry.targetName || 'a family member'}'s access to ${entry.detail || 'a resident'}.`;
-    // Moving an at-home resident into the organization (functions/index.js):
+    // Moving an at-home resident into the organization (functions/residents.js):
     // `detail` is the resident's name, the target is the family member.
     case 'resident.moveRequested':
       return `${who} asked to move ${entry.detail || 'a resident'} into the organization.`;

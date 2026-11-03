@@ -13,14 +13,14 @@ import { auth, db, functions } from '../firebaseConfig';
 
 // Organization membership and invite codes are server-controlled: creating
 // a real organization, joining by code and issuing a new code all run in
-// Cloud Functions (see functions/index.js).
+// Cloud Functions (see functions/organizations.js).
 // firestore.rules only let the app create *personal* organizations and
 // point a user's orgId at an org they created, and invite codes live in a
 // server-only lookup table rather than on the (widely readable)
 // organization doc. The functions' error messages are user-facing, and
 // callers show e.message.
 // Each callable is typed with its request and response shape (matching
-// functions/index.js), so `npm run typecheck` flags a renamed field.
+// functions/organizations.js), so `npm run typecheck` flags a renamed field.
 /** @template Req, Res @typedef {import('firebase/functions').HttpsCallable<Req, Res>} Callable */
 const callCreateOrganization =
   /** @type {Callable<{ name: string, type?: string, province?: string, city?: string }, { orgId: string, inviteCode: string }>} */ (
@@ -67,7 +67,7 @@ export async function createOrganization({ name, type, province, city }) {
 // Asks to join the organization with this invite code. It doesn't make the
 // user a member straight away: the server records a join request that the
 // organization's administrator approves in Manage Users (see
-// joinOrganization in functions/index.js). Used by JoinOrganizationScreen
+// joinOrganization in functions/organizations.js). Used by JoinOrganizationScreen
 // (onboarding) for Caregivers, Volunteers and Administrators. The server
 // refuses anyone already in a real (non-personal) org, so this can't be
 // used to hop between facilities, refuses Family Caregivers (they connect

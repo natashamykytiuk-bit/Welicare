@@ -17,7 +17,7 @@ import { colors, fonts, radii } from '../theme';
 const callDeleteAccount = httpsCallable(functions, 'deleteAccount');
 
 // Reached from Settings' "Delete Account" row. The actual cleanup happens
-// in the deleteAccount Cloud Function (see functions/index.js for exactly
+// in the deleteAccount Cloud Function (see functions/accounts.js for exactly
 // what's removed): a real organization's residents are kept and deleted
 // separately via OrganizationalSettingsScreen, and the function refuses
 // outright for an organization's sole administrator.

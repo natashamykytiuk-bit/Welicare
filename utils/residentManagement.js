@@ -11,7 +11,7 @@ import { db, functions } from '../firebaseConfig';
 // - Archive / restore is an ordinary write the rules allow (the same people
 //   who may edit the profile). It only sets a flag: nothing is removed, and
 //   it can be undone.
-// - Delete and the move steps run in Cloud Functions (functions/index.js),
+// - Delete and the move steps run in Cloud Functions (functions/residents.js),
 //   because the app can't do them under the rules: deleting has to remove
 //   files and records the app can't reach, and moving changes who has
 //   access. The functions' error messages are user-facing, and callers show

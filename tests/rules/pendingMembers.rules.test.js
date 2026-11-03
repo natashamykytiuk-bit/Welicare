@@ -1,5 +1,5 @@
 // Security-rules tests for join requests (joinOrganization in
-// functions/index.js): a request is users/{uid}.pendingOrgId, set only by
+// functions/organizations.js): a request is users/{uid}.pendingOrgId, set only by
 // the server. The app may only clear it (cancel), and a pending user is a
 // non-member everywhere because they have no orgId.
 // Run with `npm run test:rules` (Firestore emulator).

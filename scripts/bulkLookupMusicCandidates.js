@@ -5,7 +5,7 @@
 //
 // Doesn't call the deployed searchYouTube Cloud Function directly — that
 // function is a Firebase callable, gated on `request.auth` being a real
-// Firebase Auth ID token (see functions/index.js). Every other script in
+// Firebase Auth ID token (see functions/youtube.js). Every other script in
 // this repo authenticates via a `gcloud` OAuth2 access token, which is a
 // GCP IAM credential, not a Firebase Auth one — it bypasses Firestore
 // *security rules* (which is why the seed/migration scripts work), but
@@ -73,7 +73,7 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Mirrors functions/index.js's searchYouTube: category 'music' scopes
+// Mirrors functions/youtube.js's searchYouTube: category 'music' scopes
 // results to videoCategoryId=10 so an artist's name doesn't surface
 // interviews, news clips, etc.
 function searchYouTube(apiKey, query) {

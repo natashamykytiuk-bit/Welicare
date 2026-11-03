@@ -32,7 +32,7 @@ import { previewResidentMove, requestResidentMove } from '../utils/residentManag
 //                  then the resident is still at home and still editable.
 //
 // The checks that matter are all on the server (requestResidentMove in
-// functions/index.js); error messages come straight from it since they're
+// functions/residents.js); error messages come straight from it since they're
 // written for the person using the app.
 //
 // Params: residentId, residentName.
