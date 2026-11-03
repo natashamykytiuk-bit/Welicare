@@ -1,6 +1,5 @@
 import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,14 +16,15 @@ import BackButton from '../components/BackButton';
 import UserAvatar from '../components/UserAvatar';
 import LoadError from '../components/LoadError';
 import OrgIdBadge from '../components/OrgIdBadge';
-import { auth, db, functions } from '../firebaseConfig';
+import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
+import {
+  callApproveOrgMember,
+  callDenyOrgMember,
+  callListOrgMembers,
+  callRemoveOrgMember,
+} from '../utils/orgMembers';
 import { decideResidentMove } from '../utils/residentManagement';
-
-const callListOrgMembers = httpsCallable(functions, 'listOrgMembers');
-const callRemoveOrgMember = httpsCallable(functions, 'removeOrgMember');
-const callApproveOrgMember = httpsCallable(functions, 'approveOrgMember');
-const callDenyOrgMember = httpsCallable(functions, 'denyOrgMember');
 
 // Administrator Mode → Manage Users (also reachable from Settings). Lists
 // everyone in the organization with their role and how many residents
@@ -45,7 +45,7 @@ const callDenyOrgMember = httpsCallable(functions, 'denyOrgMember');
 //
 // Residents waiting to move in: a family member can ask to move a relative
 // they've been caring for at home into this organization (My Residents →
-// Move to an organization, see requestResidentMove in functions/index.js).
+// Move to an organization, see requestResidentMove in functions/residents.js).
 // Those wait here too, under "Residents waiting to move in", because taking
 // on a resident is the administrator's decision in the same way a new
 // member is. Approving makes the resident one of the organization's, edited

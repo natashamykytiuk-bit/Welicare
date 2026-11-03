@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,14 +17,15 @@ import {
 import BackButton from '../components/BackButton';
 import LoadError from '../components/LoadError';
 import Dropdown from '../components/Dropdown';
-import { auth, db, functions } from '../firebaseConfig';
+import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { fetchInviteCode, regenerateInviteCode } from '../utils/inviteCode';
 import { ORG_TYPES, PROVINCES } from '../utils/organizationOptions';
-
-const callDeleteOrganization = httpsCallable(functions, 'deleteOrganization');
-const callListOrgMembers = httpsCallable(functions, 'listOrgMembers');
-const callTransferOrgAdmin = httpsCallable(functions, 'transferOrgAdmin');
+import {
+  callDeleteOrganization,
+  callListOrgMembers,
+  callTransferOrgAdmin,
+} from '../utils/orgMembers';
 
 // Reached from Settings' "Organizational Settings" row (Administrators
 // only). A starter version: edit the organization's name/type/location,
@@ -254,7 +254,7 @@ export default function OrganizationalSettingsScreen({ navigation }) {
   }
 
   // The server only allows transfer/delete within a few minutes of typing
-  // the password (see requireRecentLogin in functions/index.js). If the
+  // the password (see requireRecentLogin in functions/authChecks.js). If the
   // unlock was longer ago than that, lock again and show the password
   // prompt, so the caregiver just re-enters it — nothing was changed.
   function isStaleLogin(e) {
