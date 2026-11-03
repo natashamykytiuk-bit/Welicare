@@ -56,8 +56,8 @@ import MoviesSelectionScreen from './screens/MoviesSelectionScreen';
 import MusicLibraryScreen from './features/media/MusicLibraryScreen';
 import MusicPlayerScreen from './screens/MusicPlayerScreen';
 import MusicSelectionScreen from './screens/MusicSelectionScreen';
-import OrganizationalSettingsScreen from './screens/OrganizationalSettingsScreen';
-import OrganizationSettingsScreen from './screens/OrganizationSettingsScreen';
+import OrganizationAdminScreen from './screens/OrganizationAdminScreen';
+import CareHomeConnectionScreen from './screens/CareHomeConnectionScreen';
 import OverallStatsScreen from './screens/OverallStatsScreen';
 import PINEntryScreen from './screens/PINEntryScreen';
 import PendingApprovalScreen from './screens/PendingApprovalScreen';
@@ -250,8 +250,10 @@ export default function App() {
               <Stack.Screen name="Settings" component={SettingsScreen} />
               {/* Reached from Settings' "Connecting with a Care Home" row —
                 only shown to a Family Caregiver on their family organization
-                (see createPersonalOrganization / OrganizationSettingsScreen). */}
-              <Stack.Screen name="OrganizationSettings" component={OrganizationSettingsScreen} />
+                (see createPersonalOrganization / CareHomeConnectionScreen).
+                The route keeps its old name so existing navigate() calls and
+                deep links still work. */}
+              <Stack.Screen name="OrganizationSettings" component={CareHomeConnectionScreen} />
               {/* "Change Username" on SettingsScreen. */}
               <Stack.Screen name="ChangeUsername" component={ChangeUsernameScreen} />
               <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
@@ -308,9 +310,12 @@ export default function App() {
                   Resident Mode on purpose; the album itself is PhotoAlbum. */}
               <Stack.Screen name="ResidentPhotoUpload" component={ResidentPhotoUploadScreen} />
               <Stack.Screen name="ResidentPhotoManage" component={ResidentPhotoManageScreen} />
+              {/* An organization owner's details, invite code, admin transfer
+                  and deletion. Route name kept from before the screen was
+                  renamed, like OrganizationSettings above. */}
               <Stack.Screen
                 name="OrganizationalSettings"
-                component={OrganizationalSettingsScreen}
+                component={OrganizationAdminScreen}
               />
 
               {/* Volunteer Mode */}

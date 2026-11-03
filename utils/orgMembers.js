@@ -3,7 +3,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebaseConfig';
 
 // The organization-owner callables (functions/organizations.js) used by
-// ManageUsersScreen and OrganizationalSettingsScreen. They used to be created
+// ManageUsersScreen and OrganizationAdminScreen. They used to be created
 // untyped inside each screen; here each one carries its request and
 // response shape, so `npm run typecheck` flags a renamed field on either
 // side. The functions' error messages are user-facing, and callers show

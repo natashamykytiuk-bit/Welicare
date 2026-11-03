@@ -19,7 +19,7 @@ const callDeleteAccount = httpsCallable(functions, 'deleteAccount');
 // Reached from Settings' "Delete Account" row. The actual cleanup happens
 // in the deleteAccount Cloud Function (see functions/accounts.js for exactly
 // what's removed): a real organization's residents are kept and deleted
-// separately via OrganizationalSettingsScreen, and the function refuses
+// separately via OrganizationAdminScreen, and the function refuses
 // outright for an organization's sole administrator.
 //
 // A full screen with a password field rather than a confirm Alert: Alert

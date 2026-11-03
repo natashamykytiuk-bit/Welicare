@@ -44,7 +44,7 @@ import {
 // Deleting goes through the deleteOrganization Cloud Function, since it
 // has to remove every resident in the facility and clear orgId from other
 // members' user docs, which the client can't do under the rules.
-export default function OrganizationalSettingsScreen({ navigation }) {
+export default function OrganizationAdminScreen({ navigation }) {
   // undefined while loading, null if the user has no organization
   const [org, setOrg] = useState(undefined);
   const [orgId, setOrgId] = useState(null);

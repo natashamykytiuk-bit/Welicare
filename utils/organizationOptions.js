@@ -1,5 +1,5 @@
 // Choices for an organization's type and province, shared by
-// CreateOrganizationScreen and OrganizationalSettingsScreen's edit form so
+// CreateOrganizationScreen and OrganizationAdminScreen's edit form so
 // both offer exactly the same options.
 
 export const ORG_TYPES = [

@@ -19,7 +19,7 @@ import { colors, fonts, radii } from '../theme';
 // So this is now a short explanation pointing there. It deliberately has no
 // button into My Residents: that screen sits behind Family Mode's PIN, and
 // Settings must not be a way around it.
-export default function OrganizationSettingsScreen({ navigation }) {
+export default function CareHomeConnectionScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.flex}>
       <ScrollView contentContainerStyle={styles.content}>

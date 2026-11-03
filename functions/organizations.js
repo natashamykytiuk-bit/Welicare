@@ -78,7 +78,7 @@ async function requireOrgOwnerTx(tx, db, orgId, uid, { allowDeleting = false } =
   return org;
 }
 
-// Members of the caller's organization, for OrganizationalSettingsScreen's
+// Members of the caller's organization, for OrganizationAdminScreen's
 // "Transfer administrator" picker. A function rather than a client query
 // because firestore.rules only let a user read their own users doc. Returns
 // only what the picker shows — never emails or PIN hashes.
@@ -346,7 +346,7 @@ exports.transferOrgAdmin = onCall(async (request) => {
 });
 
 // Deletes an organization and everything scoped to it, called from
-// OrganizationalSettingsScreen. Server-side because the client can't do
+// OrganizationAdminScreen. Server-side because the client can't do
 // this under firestore.rules (e.g. clearing orgId on other members' user
 // docs), and so a half-finished delete can't be left behind by a dropped
 // connection mid-way through.
