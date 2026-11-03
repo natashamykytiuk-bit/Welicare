@@ -2,7 +2,7 @@
 // musicLibrary doc that doesn't already have a facilityId field — i.e.
 // everything seeded by scripts/seedMusicLibrary.js before facility scoping
 // existed. Going forward, new entries added through
-// screens/MusicLibraryScreen.js get the adding caregiver's own
+// features/media/MusicLibraryScreen.js get the adding caregiver's own
 // organization id instead (see firestore.rules and
 // utils/musicLibraryQuery.js).
 //

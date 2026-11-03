@@ -18,7 +18,7 @@ import { cancelJoinRequest } from '../utils/inviteCode';
 
 // Shown while someone waits for an organization's administrator to approve
 // the join request they made with its invite code (joinOrganization in
-// functions/index.js). App.js lands here on every sign-in while the
+// functions/organizations.js). App.js lands here on every sign-in while the
 // request is waiting (see utils/onboarding.js), so closing the app doesn't
 // lose their place.
 //

@@ -1,6 +1,6 @@
 // One-off migration: converts existing musicLibrary docs (seeded with the
 // old schema — a singular `genre` string, no `artist` field) to the new
-// schema screens/MusicLibraryScreen.js, MusicSelectionScreen.js, and
+// schema features/media/MusicLibraryScreen.js, MusicSelectionScreen.js, and
 // CurateResidentMusicScreen.js now read/write:
 //   - artist defaults to the doc's current channelTitle.
 //   - genre (string) becomes genres (string[] containing just that value).
