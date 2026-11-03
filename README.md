@@ -142,6 +142,14 @@ The scripts in `scripts/` (migrations, seeding) never assume a project; name it 
 
 The emulator scripts always use the project ID `demo-welicare`. Firebase treats `demo-` projects as local-only, so the emulators can never read or write production data.
 
+The web portal has its own checks. Run them from the `web/` folder:
+
+| Command | What it does |
+|---|---|
+| `npm run lint` | ESLint for the web portal (TypeScript + React hooks rules) |
+| `npm run build` | Type-checks (`tsc --noEmit`) and builds the web portal |
+| `npm test` | Vitest tests for the web portal |
+
 ### Deploying
 
 ```bash
@@ -153,7 +161,7 @@ After a functions deploy, `firebase.json`'s `postdeploy` step runs `gcloud run s
 
 ### Secrets
 
-API keys for Anthropic and YouTube are stored in **Google Cloud Secret Manager** and read by the Cloud Functions at runtime (`defineSecret` in `functions/index.js`). They are never committed to the repo or shipped in the app. The Firebase web config in `firebaseConfig.js` is not a secret — it identifies the project, and access is controlled by Firebase Auth and `firestore.rules`.
+API keys for Anthropic and YouTube are stored in **Google Cloud Secret Manager** and read by the Cloud Functions at runtime (`defineSecret` in `functions/ai.js` and `functions/youtube.js`). They are never committed to the repo or shipped in the app. The Firebase web config in `firebaseConfig.js` is not a secret — it identifies the project, and access is controlled by Firebase Auth and `firestore.rules`.
 
 ## License
 
