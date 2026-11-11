@@ -341,6 +341,9 @@ a.button.secondary:hover { background: var(--color-mistBackground); }
   .role { padding: 20px 16px; }
   /* Stacked screens stay iPad-sized instead of filling a wide column. */
   .hero .device, .showcase .device { width: min(26rem, 100%); justify-self: center; }
+  /* On phones, show the iPad upright with a slimmer frame so the demo fits. */
+  .device-bezel { padding: 10px; border-radius: 24px; }
+  .device-screen { aspect-ratio: 3 / 4; border-radius: 14px; }
   /* How it works: a compact numbered list, the number beside each step
      instead of above it in a tall card. */
   .steps { grid-template-columns: 1fr; gap: 12px; }

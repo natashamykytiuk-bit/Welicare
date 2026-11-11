@@ -23,6 +23,8 @@ export const colors = {
   // 3.8:1 on surface, 3.2:1 on mistBackground. Same green-grey family.
   borderStrong: '#76837C',
   destructive: '#A03020',
+  // Soft blush behind error banners (paired with a destructive border/text).
+  destructiveBackground: '#F6E1DC',
   white: '#FFFFFF',
   activities: {
     music: { icon: '#1E5C47', bg: '#DDE8E2' },

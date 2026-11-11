@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
   },
   errorBanner: {
     fontFamily: fonts.sansRegular,
-    backgroundColor: '#F6E1DC',
+    backgroundColor: colors.destructiveBackground,
     borderColor: colors.destructive,
     borderWidth: 1,
     borderRadius: radii.sm,
