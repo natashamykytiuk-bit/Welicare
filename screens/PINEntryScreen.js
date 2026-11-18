@@ -13,6 +13,7 @@ import LoadError from '../components/LoadError';
 import NumberPad from '../components/NumberPad';
 import PinDots from '../components/PinDots';
 import { auth, db } from '../firebaseConfig';
+import usePinInput from '../hooks/usePinInput';
 import { colors, fonts, radii } from '../theme';
 import { hashPin, isValidPin } from '../utils/pin';
 
@@ -61,7 +62,6 @@ function initialsOf(name) {
 // below, giving the floating-card-over-dimmed-background look.
 export default function PINEntryScreen({ navigation, route }) {
   const destination = route?.params?.destination ?? 'ModeSelection';
-  const [digits, setDigits] = useState('');
   // undefined while loading, null if the user has no PIN set up yet
   const [storedHash, setStoredHash] = useState(undefined);
   const [displayName, setDisplayName] = useState('');
@@ -100,15 +100,16 @@ export default function PINEntryScreen({ navigation, route }) {
 
   const lockedOut = attempts >= MAX_ATTEMPTS;
 
-  async function handleDigit(d) {
-    if (checking || lockedOut || digits.length >= 4) return;
-    const next = digits + d;
-    setDigits(next);
-    if (next.length !== 4) return;
+  const { digits, handleDigit, handleBackspace, clear } = usePinInput({
+    onComplete: checkPin,
+    disabled: checking || lockedOut,
+  });
 
+  // Called by usePinInput once all four digits are in.
+  async function checkPin(next) {
     if (!isValidPin(next) || !storedHash) {
       setError('No PIN has been set up for this account yet.');
-      setDigits('');
+      clear();
       return;
     }
 
@@ -135,7 +136,7 @@ export default function PINEntryScreen({ navigation, route }) {
       }
       const nextAttempts = attempts + 1;
       setAttempts(nextAttempts);
-      setDigits('');
+      clear();
       setError(
         nextAttempts >= MAX_ATTEMPTS
           ? 'Too many incorrect attempts. Please try again later.'
@@ -144,10 +145,6 @@ export default function PINEntryScreen({ navigation, route }) {
     } finally {
       setChecking(false);
     }
-  }
-
-  function handleBackspace() {
-    setDigits((d) => d.slice(0, -1));
   }
 
   return (

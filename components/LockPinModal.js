@@ -3,6 +3,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { auth, db } from '../firebaseConfig';
+import usePinInput from '../hooks/usePinInput';
 import { colors, fonts, radii } from '../theme';
 import { hashPin, isValidPin } from '../utils/pin';
 import { withTimeout } from '../utils/withTimeout';
@@ -21,7 +22,6 @@ import PinDots from './PinDots';
 const PIN_LOAD_TIMEOUT_MS = 10000;
 
 export default function LockPinModal({ visible, onSuccess, onCancel }) {
-  const [digits, setDigits] = useState('');
   // undefined while loading, null if the user has no PIN set up yet
   const [storedHash, setStoredHash] = useState(undefined);
   const [loadError, setLoadError] = useState(false);
@@ -29,11 +29,18 @@ export default function LockPinModal({ visible, onSuccess, onCancel }) {
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
 
+  // Taps are ignored until the saved PIN has loaded — otherwise a correct
+  // PIN typed quickly would be judged against nothing and called incorrect.
+  const { digits, handleDigit, handleBackspace, clear } = usePinInput({
+    onComplete: checkPin,
+    disabled: checking || storedHash === undefined,
+  });
+
   // Reset on every open (not just first mount) so a previous attempt's
   // error/digits don't linger into the next time this is triggered.
   useEffect(() => {
     if (!visible) return undefined;
-    setDigits('');
+    clear();
     setError('');
     setChecking(false);
     let cancelled = false;
@@ -58,26 +65,20 @@ export default function LockPinModal({ visible, onSuccess, onCancel }) {
     return () => {
       cancelled = true;
     };
-  }, [visible, reloadKey]);
+  }, [visible, reloadKey, clear]);
 
-  async function handleDigit(d) {
-    // Ignore taps until the saved PIN has loaded — otherwise a correct PIN
-    // typed quickly would be judged against nothing and called incorrect.
-    if (checking || digits.length >= 4 || storedHash === undefined) return;
-    const next = digits + d;
-    setDigits(next);
-    if (next.length !== 4) return;
-
-    if (!isValidPin(next) || !storedHash) {
+  // Called by usePinInput once all four digits are in.
+  async function checkPin(pin) {
+    if (!isValidPin(pin) || !storedHash) {
       setError('Incorrect PIN');
-      setDigits('');
+      clear();
       return;
     }
 
     setChecking(true);
     let enteredHash = null;
     try {
-      enteredHash = await hashPin(next);
+      enteredHash = await hashPin(pin);
     } catch (e) {
       // Hashing is local, but if it ever fails, let them try again rather
       // than leaving the pad disabled.
@@ -88,12 +89,8 @@ export default function LockPinModal({ visible, onSuccess, onCancel }) {
       onSuccess();
     } else {
       setError('Incorrect PIN');
-      setDigits('');
+      clear();
     }
-  }
-
-  function handleBackspace() {
-    setDigits((d) => d.slice(0, -1));
   }
 
   return (

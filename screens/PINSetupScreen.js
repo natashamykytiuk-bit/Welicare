@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text } from 'react-native';
 import NumberPad from '../components/NumberPad';
 import PinDots from '../components/PinDots';
+import usePinInput from '../hooks/usePinInput';
 import { auth, db } from '../firebaseConfig';
 import { colors, fonts, radii } from '../theme';
 import { nextOnboardingRoute } from '../utils/onboarding';
@@ -27,20 +28,21 @@ export default function PINSetupScreen({ navigation, route }) {
   const destination = route?.params?.destination;
   const [stage, setStage] = useState('enter'); // 'enter' | 'confirm'
   const [firstPin, setFirstPin] = useState('');
-  const [digits, setDigits] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function handleDigit(d) {
-    if (loading || digits.length >= 4) return;
-    const next = digits + d;
-    setDigits(next);
-    if (next.length !== 4) return;
+  const { digits, handleDigit, handleBackspace, clear } = usePinInput({
+    onComplete: handlePinComplete,
+    disabled: loading,
+  });
 
+  // Called by usePinInput once all four digits are in: the first entry is
+  // remembered, the second must match it before the hash is saved.
+  async function handlePinComplete(next) {
     if (stage === 'enter') {
       setFirstPin(next);
       setTimeout(() => {
-        setDigits('');
+        clear();
         setStage('confirm');
       }, 150);
       return;
@@ -49,7 +51,7 @@ export default function PINSetupScreen({ navigation, route }) {
     if (next !== firstPin) {
       setError('PINs do not match. Please start over.');
       setTimeout(() => {
-        setDigits('');
+        clear();
         setFirstPin('');
         setStage('enter');
       }, 150);
@@ -80,16 +82,12 @@ export default function PINSetupScreen({ navigation, route }) {
           ? 'For your security, please go back and confirm your password again.'
           : 'Something went wrong saving your PIN. Please try again.'
       );
-      setDigits('');
+      clear();
       setFirstPin('');
       setStage('enter');
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleBackspace() {
-    setDigits((d) => d.slice(0, -1));
   }
 
   return (
