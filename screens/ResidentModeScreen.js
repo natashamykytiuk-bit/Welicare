@@ -346,47 +346,51 @@ export default function ResidentModeScreen({ navigation }) {
           </View>
         }
         renderItem={({ item }) => (
-          <View style={styles.card}>
-            <TouchableOpacity
-              style={styles.cardBody}
-              onPress={() =>
-                navigation.navigate('ActivityMenu', {
-                  residentId: item.id,
-                  residentName: item.name,
-                })
-              }
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={item.name}
-              accessibilityHint="Opens this resident's activities"
-            >
-              {/* Photo if they have one, else initials. */}
-              <ResidentAvatar
-                name={item.name}
-                photoPath={item.photoPath}
-                photoUpdatedAt={item.photoUpdatedAt}
-                size={56}
-                style={styles.avatar}
-              />
-              <Text style={styles.cardName} numberOfLines={1}>
-                {item.name}
-              </Text>
-            </TouchableOpacity>
-            {/* No options menu when there's nothing this person may do for
+          // Fixed one-third-width cell: a flex-sized card grew to fill a
+          // partial last row, so it came out wider than the cards above.
+          <View style={styles.cell}>
+            <View style={styles.card}>
+              <TouchableOpacity
+                style={styles.cardBody}
+                onPress={() =>
+                  navigation.navigate('ActivityMenu', {
+                    residentId: item.id,
+                    residentName: item.name,
+                  })
+                }
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={item.name}
+                accessibilityHint="Opens this resident's activities"
+              >
+                {/* Photo if they have one, else initials. */}
+                <ResidentAvatar
+                  name={item.name}
+                  photoPath={item.photoPath}
+                  photoUpdatedAt={item.photoUpdatedAt}
+                  size={56}
+                  style={styles.avatar}
+                />
+                <Text style={styles.cardName} numberOfLines={1}>
+                  {item.name}
+                </Text>
+              </TouchableOpacity>
+              {/* No options menu when there's nothing this person may do for
                 the resident (volunteers; family for a facility resident),
                 rather than a menu whose items would fail. */}
-            {hasOptions(item) ? (
-              <TouchableOpacity
-                style={styles.menuButton}
-                onPress={() => setMenuFor(item)}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={`Options for ${item.name}`}
-                accessibilityHint="Shows options such as edit and archive"
-              >
-                <Ionicons name="ellipsis-vertical" size={18} color={colors.textMuted} />
-              </TouchableOpacity>
-            ) : null}
+              {hasOptions(item) ? (
+                <TouchableOpacity
+                  style={styles.menuButton}
+                  onPress={() => setMenuFor(item)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Options for ${item.name}`}
+                  accessibilityHint="Shows options such as edit and archive"
+                >
+                  <Ionicons name="ellipsis-vertical" size={18} color={colors.textMuted} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
         )}
       />
@@ -547,9 +551,10 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   grid: { padding: 16, paddingBottom: 40 },
+  // Every cell is exactly a third of the row; the padding is the gutter.
+  cell: { width: `${100 / 3}%`, padding: 6 },
   card: {
-    flex: 1 / 3,
-    margin: 6,
+    flex: 1,
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     padding: 12,
